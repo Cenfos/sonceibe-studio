@@ -1,29 +1,54 @@
 'use client';
 
+import {
+  getCurrentProject,
+  setCurrentProject,
+} from '@/lib/project';
 import { ProjectService } from '@/lib/project';
 import {
-  serializeProject,
-  deserializeProject,
+  saveProject,
+  openProject,
 } from '@/lib/project/io';
+
 export default function TestPage() {
-  const handleClick = () => {
-  const project = ProjectService.createNewProject('Gaivota');
+  const handleCreate = () => {
+    const project = ProjectService.createNewProject('Gaivota');
 
-  const json = serializeProject(project);
+setCurrentProject(project);
 
-  console.clear();
+console.log('Proyecto actual');
 
-  console.log('🚀🚀🚀 SONCEIBE FUNCIONA 🚀🚀🚀');
-  console.log(project);
+console.log(getCurrentProject());
+  };
 
-  console.log('🔥 JSON GENERADO 🔥');
-  console.log(json);
+  const handleSave = () => {
+    const project = ProjectService.createNewProject('Gaivota');
 
-  const restored = deserializeProject(json);
+    saveProject(project);
 
-  console.log('✅ PROYECTO RESTAURADO');
-  console.log(restored);
-};
+    console.clear();
+    console.log('💾 Proyecto guardado');
+    console.log(project);
+  };
+
+  const handleOpen = async () => {
+    const project = await openProject();
+
+    console.clear();
+
+    if (!project) {
+      setCurrentProject(project);
+
+console.log('Proyecto actual');
+
+console.log(getCurrentProject());
+      console.log('No se seleccionó ningún archivo.');
+      return;
+    }
+
+    console.log('📂 Proyecto abierto');
+    console.log(project);
+  };
 
   return (
     <main
@@ -34,16 +59,46 @@ export default function TestPage() {
     >
       <h1>SonCeibe Studio - Test</h1>
 
-      <button
-        onClick={handleClick}
+      <div
         style={{
-          padding: '12px 20px',
-          fontSize: 18,
-          cursor: 'pointer',
+          display: 'flex',
+          gap: 20,
+          marginTop: 30,
         }}
       >
-        Crear proyecto de prueba
-      </button>
+        <button
+          onClick={handleCreate}
+          style={{
+            padding: '12px 20px',
+            fontSize: 18,
+            cursor: 'pointer',
+          }}
+        >
+          Crear proyecto
+        </button>
+
+        <button
+          onClick={handleSave}
+          style={{
+            padding: '12px 20px',
+            fontSize: 18,
+            cursor: 'pointer',
+          }}
+        >
+          Guardar proyecto (.scs)
+        </button>
+
+        <button
+          onClick={handleOpen}
+          style={{
+            padding: '12px 20px',
+            fontSize: 18,
+            cursor: 'pointer',
+          }}
+        >
+          Abrir proyecto (.scs)
+        </button>
+      </div>
     </main>
   );
 }
