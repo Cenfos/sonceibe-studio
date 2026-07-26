@@ -67,7 +67,7 @@ export function HomePage() {
             <div>
               <h2 className="text-xl font-semibold">Proyectos Recientes</h2>
               <p className="text-sm text-muted-foreground">
-                {projects.length} proyecto{projects.length !== 1 ? 's' : ''}
+                {mounted ? `${projects.length} proyecto${projects.length !== 1 ? 's' : ''}` : 'Cargando...'}
               </p>
             </div>
             <Button variant="ghost" size="sm" onClick={createProject} className="gap-1">
@@ -76,77 +76,91 @@ export function HomePage() {
             </Button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {projects.map((p) => (
-              <Card
-                key={p.id}
-                className="group relative overflow-hidden border-border bg-card hover:border-primary/50 transition-all cursor-pointer"
-                onClick={() => openProject(p.id)}
-              >
-                {/* Thumbnail */}
-                <div
-                  className="aspect-video relative overflow-hidden"
-                  style={{
-                    background: `linear-gradient(135deg, ${p.settings.background.gradientFrom}, ${p.settings.background.gradientTo})`,
-                  }}
+          {mounted ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {projects.map((p) => (
+                <Card
+                  key={p.id}
+                  className="group relative overflow-hidden border-border bg-card hover:border-primary/50 transition-all cursor-pointer"
+                  onClick={() => openProject(p.id)}
                 >
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-white/90 font-bold text-lg px-4 text-center drop-shadow-lg line-clamp-2">
-                      {p.settings.lyrics[0]?.text || p.settings.title}
-                    </span>
-                  </div>
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                  <div className="absolute bottom-2 left-3 right-3 flex items-center justify-between">
-                    <Badge variant="secondary" className="bg-black/50 text-white border-0">
-                      {p.settings.lyrics.length} líneas
-                    </Badge>
-                    {p.settings.audioDuration > 0 && (
-                      <span className="text-xs text-white/80 flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        {formatTime(p.settings.audioDuration)}
+                  {/* Thumbnail */}
+                  <div
+                    className="aspect-video relative overflow-hidden"
+                    style={{
+                      background: `linear-gradient(135deg, ${p.settings.background.gradientFrom}, ${p.settings.background.gradientTo})`,
+                    }}
+                  >
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-white/90 font-bold text-lg px-4 text-center drop-shadow-lg line-clamp-2">
+                        {p.settings.lyrics[0]?.text || p.settings.title}
                       </span>
-                    )}
+                    </div>
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                    <div className="absolute bottom-2 left-3 right-3 flex items-center justify-between">
+                      <Badge variant="secondary" className="bg-black/50 text-white border-0">
+                        {p.settings.lyrics.length} líneas
+                      </Badge>
+                      {p.settings.audioDuration > 0 && (
+                        <span className="text-xs text-white/80 flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          {formatTime(p.settings.audioDuration)}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
 
-                {/* Info */}
-                <div className="p-4">
-                  <h3 className="font-medium truncate">{p.settings.title}</h3>
-                  <p className="text-sm text-muted-foreground truncate">
-                    {p.settings.artist || 'Artista desconocido'}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    {mounted ? formatRelative(p.settings.updatedAt) : 'Hace un momento'}
-                  </p>
-                </div>
+                  {/* Info */}
+                  <div className="p-4">
+                    <h3 className="font-medium truncate">{p.settings.title}</h3>
+                    <p className="text-sm text-muted-foreground truncate">
+                      {p.settings.artist || 'Artista desconido'}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      {formatRelative(p.settings.updatedAt)}
+                    </p>
+                  </div>
 
-                {/* Menu */}
-                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="secondary"
-                        size="icon"
-                        className="h-8 w-8 bg-black/50 border-0 hover:bg-black/70"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-                      <DropdownMenuItem
-                        className="text-destructive gap-2"
-                        onClick={() => setConfirmId(p.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        Eliminar
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </Card>
-            ))}
-          </div>
+                  {/* Menu */}
+                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="secondary"
+                          size="icon"
+                          className="h-8 w-8 bg-black/50 border-0 hover:bg-black/70"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenuItem
+                          className="text-destructive gap-2"
+                          onClick={() => setConfirmId(p.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Eliminar
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {[1, 2, 3].map((i) => (
+                <Card key={i} className="border-border bg-card/50">
+                  <div className="aspect-video bg-muted animate-pulse rounded-t-lg" />
+                  <div className="p-4 space-y-2">
+                    <div className="h-4 w-3/4 bg-muted animate-pulse rounded" />
+                    <div className="h-3 w-1/2 bg-muted animate-pulse rounded" />
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
 
           {confirmId && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
