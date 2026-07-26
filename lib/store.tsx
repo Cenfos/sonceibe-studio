@@ -56,10 +56,25 @@ type Action =
   | { type: 'REDO' }
   | { type: 'MARK_SAVED' };
 
+  const STORAGE_KEY = 'sonceibe-projects-v1';
+
+function loadProjects(): Project[] {
+  if (typeof window === 'undefined') return mockProjects;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Project[];
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {
+    // Si hay error de parseo, usamos los mocks
+  }
+  return mockProjects;
+}
 const MAX_UNDO = 50;
 
 const initialState: State = {
-  projects: mockProjects,
+  projects: loadProjects(),
   currentProjectId: null,
   currentPage: 'home',
   isExportOpen: false,
@@ -365,27 +380,37 @@ interface StoreContextValue extends State {
 const StoreContext = createContext<StoreContextValue | null>(null);
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, initialState);
-  const autoSaveRef = useRef<number | null>(null);
-
-  // Auto-save every 30 seconds when dirty
-  useEffect(() => {
-    if (autoSaveRef.current) {
-      clearInterval(autoSaveRef.current);
-    }
-    autoSaveRef.current = window.setInterval(() => {
-      if (state.isDirty) {
-        dispatch({ type: 'MARK_SAVED' });
+  const [state, dispatch] = useReducer(reducer, initialState, (init) => {
+    // Carga lazy desde localStorage solo en el cliente
+    if (typeof window === 'undefined') return init;
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const projects = JSON.parse(raw) as Project[];
+        if (Array.isArray(projects) && projects.length > 0) {
+          return { ...init, projects };
+        }
       }
-    }, 30000);
-    return () => {
-      if (autoSaveRef.current) clearInterval(autoSaveRef.current);
-    };
-  }, [state.isDirty]);
+    } catch {
+      // ignorar errores de parseo
+    }
+    return init;
+  });
+
+  // Persistir automáticamente cada vez que cambien los proyectos
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state.projects));
+    } catch {
+      // ignorar errores de quota
+    }
+  }, [state.projects]);
 
   const currentProject =
     state.projects.find((p) => p.id === state.currentProjectId) ?? null;
 
+  // ... el resto de los useCallback se mantienen IGUALES ...
   const updateSettings = useCallback(
     (s: Partial<ProjectSettings>) => dispatch({ type: 'UPDATE_SETTINGS', settings: s }),
     []

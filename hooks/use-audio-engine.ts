@@ -21,6 +21,7 @@ export interface AudioEngine {
 export function useAudioEngine(): AudioEngine {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioBufferRef = useRef<AudioBuffer | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
   const [audioEl, setAudioEl] = useState<HTMLAudioElement | null>(null);
   const [audioBuffer, setAudioBuffer] = useState<AudioBuffer | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -61,6 +62,10 @@ export function useAudioEngine(): AudioEngine {
       el.removeEventListener('volumechange', onVolume);
       el.pause();
       el.src = '';
+      // Cleanup AudioContext on unmount
+      if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
+        audioCtxRef.current.close();
+      }
     };
   }, []);
 
@@ -71,19 +76,30 @@ export function useAudioEngine(): AudioEngine {
     };
   }, [objectUrl]);
 
+  // Reuse single AudioContext
+  const getAudioContext = useCallback((): AudioContext => {
+    if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
+      const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      audioCtxRef.current = new AC();
+    }
+    return audioCtxRef.current;
+  }, []);
+
   const decodeAudio = useCallback(async (file: File): Promise<AudioBuffer> => {
     const arrayBuffer = await file.arrayBuffer();
-    const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    const ctx = new AC();
-    const buffer = await ctx.decodeAudioData(arrayBuffer);
-    ctx.close();
-    return buffer;
-  }, []);
+    const ctx = getAudioContext();
+    try {
+      const buffer = await ctx.decodeAudioData(arrayBuffer);
+      return buffer;
+    } catch (err) {
+      console.error('Failed to decode audio:', err);
+      throw err;
+    }
+  }, [getAudioContext]);
 
   const loadFile = useCallback(
     async (file: File) => {
       if (!audioRef.current) return;
-      // Revoke previous URL
       if (objectUrl) URL.revokeObjectURL(objectUrl);
       const url = URL.createObjectURL(file);
       setObjectUrl(url);
@@ -103,7 +119,6 @@ export function useAudioEngine(): AudioEngine {
   const loadFromUrl = useCallback(
     async (url: string, _name: string) => {
       if (!audioRef.current) return;
-      // If it's a blob URL from a previous file, try to fetch and decode
       if (url.startsWith('blob:')) {
         try {
           const resp = await fetch(url);
