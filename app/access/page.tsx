@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { LockKeyhole, Music2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,10 +9,19 @@ export default function AccessPage() {
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [retryAfter, setRetryAfter] = useState(0);
+
+  useEffect(() => {
+    if (retryAfter <= 0) return;
+    const timer = window.setInterval(() => {
+      setRetryAfter((value) => Math.max(0, value - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [retryAfter > 0]);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!code.trim() || loading) return;
+    if (!code.trim() || loading || retryAfter > 0) return;
 
     setLoading(true);
     setError('');
@@ -22,8 +31,15 @@ export default function AccessPage() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ code: code.trim() }),
       });
-      const data = (await response.json()) as { ok?: boolean; error?: string };
+      const data = (await response.json()) as {
+        ok?: boolean;
+        error?: string;
+        retryAfter?: number;
+      };
       if (!response.ok || !data.ok) {
+        if (response.status === 429 && typeof data.retryAfter === 'number') {
+          setRetryAfter(Math.max(1, Math.ceil(data.retryAfter)));
+        }
         setError(data.error || 'No se pudo validar el código de acceso.');
         return;
       }
@@ -34,6 +50,8 @@ export default function AccessPage() {
       setLoading(false);
     }
   };
+
+  const cooldownMinutes = retryAfter > 0 ? Math.ceil(retryAfter / 60) : 0;
 
   return (
     <main className="min-h-screen bg-background text-foreground flex items-center justify-center p-6">
@@ -66,6 +84,7 @@ export default function AccessPage() {
               onChange={(event) => setCode(event.target.value)}
               placeholder="Introduce tu código"
               autoFocus
+              disabled={retryAfter > 0}
             />
           </div>
 
@@ -75,8 +94,16 @@ export default function AccessPage() {
             </p>
           )}
 
-          <Button type="submit" className="w-full" disabled={!code.trim() || loading}>
-            {loading ? 'Comprobando…' : 'Entrar en Studio'}
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={!code.trim() || loading || retryAfter > 0}
+          >
+            {retryAfter > 0
+              ? `Bloqueado temporalmente · ${cooldownMinutes} min`
+              : loading
+                ? 'Comprobando…'
+                : 'Entrar en Studio'}
           </Button>
         </form>
       </div>
