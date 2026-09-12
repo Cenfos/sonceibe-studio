@@ -95,7 +95,20 @@ function getBackgroundImageSource(settings: ProjectSettings, time: number): stri
   const bg = settings.background;
 
   if (bg.type === 'images' && bg.images.length > 0) {
-    const index = Math.floor(time / 5) % bg.images.length;
+    const imageMode = bg.imageMode ?? 'auto';
+
+    if (imageMode === 'manual') {
+      const clips = bg.imageClips ?? [];
+      const activeClip = clips.find((clip, index) => {
+        const isLast = index === clips.length - 1;
+        return time >= clip.start && (time < clip.end || (isLast && time <= clip.end));
+      });
+
+      return activeClip?.url || bg.imageUrl || bg.images[0] || '';
+    }
+
+    const interval = Math.max(0.5, bg.imageDuration ?? 5);
+    const index = Math.floor(time / interval) % bg.images.length;
     return bg.images[index] || bg.imageUrl;
   }
 
