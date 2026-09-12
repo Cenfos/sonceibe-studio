@@ -17,12 +17,24 @@ export function isStudioAccessConfigured(): boolean {
 }
 
 function parseAccessCodes(): Array<{ userId: string; code: string }> {
-  return rawAccessCodes()
+  const entries = rawAccessCodes()
     .split(/[;\n]+/)
     .map((entry) => entry.trim())
-    .filter(Boolean)
-    .map((entry) => {
+    .filter(Boolean);
+
+  return entries
+    .map((entry, index) => {
       const separator = entry.indexOf('=');
+
+      // Simple setup: a single bare code is treated as the owner's code.
+      // This keeps the first-time Vercel configuration intentionally easy.
+      if (separator === -1) {
+        return {
+          userId: index === 0 ? 'owner' : `user-${index + 1}`,
+          code: entry,
+        };
+      }
+
       if (separator <= 0) return null;
       const userId = entry.slice(0, separator).trim();
       const code = entry.slice(separator + 1).trim();
