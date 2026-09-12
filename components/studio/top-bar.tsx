@@ -4,7 +4,6 @@ import {
   Music,
   Home,
   Settings,
-  Download,
   Save,
   Undo2,
   Redo2,
@@ -15,7 +14,6 @@ import {
 import { useStore } from '@/lib/store';
 import { useAudioEngineContext } from '@/lib/audio-engine-context';
 import { readFileWithEncoding, parseTxtLyrics, parseLrcLyrics } from '@/lib/lyrics-utils';
-import { downloadCurrentProject } from '@/lib/project/download-current-project';
 import { LyricsSyncDialog } from './lyrics/lyrics-sync-dialog';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -34,7 +32,6 @@ export function TopBar() {
     setTab,
     undo,
     redo,
-    markSaved,
     isDirty,
     undoStack,
     redoStack,
@@ -42,24 +39,11 @@ export function TopBar() {
   const audio = useAudioEngineContext();
   const [editingTitle, setEditingTitle] = useState(false);
   const [lyricsSyncOpen, setLyricsSyncOpen] = useState(false);
-  const [savingProject, setSavingProject] = useState(false);
   const audioInputRef = useRef<HTMLInputElement>(null);
   const lyricsInputRef = useRef<HTMLInputElement>(null);
 
-  const handleSave = async () => {
-    if (!currentProject || savingProject) return;
-
-    try {
-      setSavingProject(true);
-      markSaved();
-      await downloadCurrentProject(currentProject, audio.audioEl?.src);
-      toast.success('Proyecto descargado en formato .scs');
-    } catch (error) {
-      console.error('Failed to download project:', error);
-      toast.error('No se pudo descargar el proyecto');
-    } finally {
-      setSavingProject(false);
-    }
+  const handleSave = () => {
+    setExportOpen(true);
   };
 
   const handleAudioUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -125,7 +109,6 @@ export function TopBar() {
   return (
     <>
       <header className="h-14 shrink-0 flex items-center justify-between px-4 border-b border-border bg-card/50 backdrop-blur-sm">
-        {/* Left: Logo + project name */}
         <div className="flex items-center gap-4">
           <button
             onClick={closeProject}
@@ -177,7 +160,6 @@ export function TopBar() {
           </div>
         </div>
 
-        {/* Center: transport */}
         <div className="flex items-center gap-1">
           <TooltipProvider delayDuration={300}>
             <Tooltip>
@@ -199,7 +181,6 @@ export function TopBar() {
           </TooltipProvider>
         </div>
 
-        {/* Right: actions */}
         <div className="flex items-center gap-2">
           <TooltipProvider delayDuration={300}>
             <Tooltip>
@@ -209,13 +190,13 @@ export function TopBar() {
                   size="sm"
                   className="gap-1.5"
                   onClick={handleSave}
-                  disabled={!currentProject || savingProject}
+                  disabled={!currentProject}
                 >
                   <Save className="h-4 w-4" />
-                  {savingProject ? 'Guardando…' : 'Guardar .scs'}
+                  Guardar
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Descargar una copia del proyecto en este PC</TooltipContent>
+              <TooltipContent>Elegir formato de salida (Ctrl+S)</TooltipContent>
             </Tooltip>
           </TooltipProvider>
 
@@ -280,10 +261,6 @@ export function TopBar() {
           >
             <Settings className="h-4 w-4" />
             Ajustes
-          </Button>
-          <Button size="sm" onClick={() => setExportOpen(true)} className="gap-1.5">
-            <Download className="h-4 w-4" />
-            Exportar
           </Button>
         </div>
       </header>
