@@ -1,5 +1,5 @@
 import type { LyricLine, Project, ProjectSettings, SyncProgress } from './types';
-import { createDefaultProjectSettings } from './types';
+import { createDefaultProjectSettings, defaultBackground } from './types';
 
 const defaultSyncProgress: SyncProgress = { syncedCount: 0, totalCount: 0, currentIndex: 0, inProgress: false };
 
@@ -30,15 +30,12 @@ export const mockProjects: Project[] = [
       lyrics: mockLyrics,
       syncProgress: { syncedCount: 0, totalCount: mockLyrics.length, currentIndex: 0, inProgress: false },
       background: {
+        ...defaultBackground,
         type: 'gradient',
         color: '#0f172a',
         gradientFrom: '#1e3a8a',
         gradientTo: '#ec4899',
         gradientAngle: 135,
-        imageUrl: '',
-        images: [],
-        videoUrl: '',
-        blur: 0,
         overlay: 0.35,
       },
       updatedAt: 1753100000000,
@@ -56,15 +53,9 @@ export const mockProjects: Project[] = [
       lyrics: mockLyrics.slice(0, 8),
       syncProgress: { syncedCount: 0, totalCount: 8, currentIndex: 0, inProgress: false },
       background: {
+        ...defaultBackground,
         type: 'color',
         color: '#18181b',
-        gradientFrom: '#1e3a8a',
-        gradientTo: '#7c3aed',
-        gradientAngle: 135,
-        imageUrl: '',
-        images: [],
-        videoUrl: '',
-        blur: 0,
         overlay: 0.5,
       },
       updatedAt: 1753146400000,
