@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useReducer, useCallback, useRef, useEffect } from 'react';
+import React, { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
 import type {
   Project,
   ProjectSettings,
@@ -13,7 +13,6 @@ import type {
   SyncProgress,
 } from './types';
 import { createDefaultProjectSettings } from './types';
-import { mockProjects } from './mock-data';
 
 interface State {
   projects: Project[];
@@ -56,25 +55,11 @@ type Action =
   | { type: 'REDO' }
   | { type: 'MARK_SAVED' };
 
-  const STORAGE_KEY = 'sonceibe-projects-v1';
-
-function loadProjects(): Project[] {
-  if (typeof window === 'undefined') return mockProjects;
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as Project[];
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-    }
-  } catch {
-    // Si hay error de parseo, usamos los mocks
-  }
-  return mockProjects;
-}
+const LEGACY_STORAGE_KEY = 'sonceibe-projects-v1';
 const MAX_UNDO = 50;
 
 const initialState: State = {
-  projects: loadProjects(),
+  projects: [],
   currentProjectId: null,
   currentPage: 'home',
   isExportOpen: false,
@@ -91,13 +76,6 @@ function genId() {
 
 function getCurrentProject(state: State): Project | null {
   return state.projects.find((p) => p.id === state.currentProjectId) ?? null;
-}
-
-function withUndo(state: State, newSettings: ProjectSettings): State {
-  const current = getCurrentProject(state);
-  if (!current) return state;
-  const undoStack = [...state.undoStack, { ...current.settings }].slice(-MAX_UNDO);
-  return { ...state, undoStack, redoStack: [], isDirty: true };
 }
 
 function applyToSettings(state: State, fn: (s: ProjectSettings) => ProjectSettings): State {
@@ -379,38 +357,52 @@ interface StoreContextValue extends State {
 
 const StoreContext = createContext<StoreContextValue | null>(null);
 
-export function StoreProvider({ children }: { children: React.ReactNode }) {
+interface StoreProviderProps {
+  children: React.ReactNode;
+  storageKey: string;
+  migrateLegacy?: boolean;
+}
+
+export function StoreProvider({ children, storageKey, migrateLegacy = false }: StoreProviderProps) {
   const [state, dispatch] = useReducer(reducer, initialState, (init) => {
-    // Carga lazy desde localStorage solo en el cliente
     if (typeof window === 'undefined') return init;
+
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
+      const raw = localStorage.getItem(storageKey);
+      if (raw !== null) {
         const projects = JSON.parse(raw) as Project[];
-        if (Array.isArray(projects) && projects.length > 0) {
-          return { ...init, projects };
+        if (Array.isArray(projects)) return { ...init, projects };
+      }
+
+      if (migrateLegacy) {
+        const legacyRaw = localStorage.getItem(LEGACY_STORAGE_KEY);
+        if (legacyRaw) {
+          const legacyProjects = JSON.parse(legacyRaw) as Project[];
+          if (Array.isArray(legacyProjects)) {
+            localStorage.setItem(storageKey, JSON.stringify(legacyProjects));
+            return { ...init, projects: legacyProjects };
+          }
         }
       }
     } catch {
-      // ignorar errores de parseo
+      // Si un almacenamiento local está dañado, comenzamos con una lista vacía.
     }
+
     return init;
   });
 
-  // Persistir automáticamente cada vez que cambien los proyectos
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state.projects));
+      localStorage.setItem(storageKey, JSON.stringify(state.projects));
     } catch {
-      // ignorar errores de quota
+      // El guardado explícito sigue disponible si el navegador agota la cuota local.
     }
-  }, [state.projects]);
+  }, [state.projects, storageKey]);
 
   const currentProject =
     state.projects.find((p) => p.id === state.currentProjectId) ?? null;
 
-  // ... el resto de los useCallback se mantienen IGUALES ...
   const updateSettings = useCallback(
     (s: Partial<ProjectSettings>) => dispatch({ type: 'UPDATE_SETTINGS', settings: s }),
     []
