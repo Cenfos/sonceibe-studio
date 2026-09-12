@@ -24,25 +24,36 @@ interface ColorInputProps {
   label?: string;
 }
 
+function normalizeHexColor(value: string, fallback = '#000000'): string {
+  const trimmed = value?.trim?.() ?? '';
+  if (/^#[0-9a-fA-F]{6}$/.test(trimmed)) return trimmed.toLowerCase();
+  if (/^#[0-9a-fA-F]{3}$/.test(trimmed)) {
+    const [r, g, b] = trimmed.slice(1).split('');
+    return `#${r}${r}${g}${g}${b}${b}`.toLowerCase();
+  }
+  return fallback;
+}
+
 export function ColorInput({ value, onChange, label }: ColorInputProps) {
+  const safeValue = normalizeHexColor(value);
+
   return (
-    <div className="flex items-center gap-2">
-      <div className="relative h-9 w-9 rounded-md border border-border overflow-hidden shrink-0">
-        <input
-          type="color"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="absolute inset-0 w-full h-full cursor-pointer opacity-0"
-        />
-        <div className="absolute inset-0" style={{ backgroundColor: value }} />
-      </div>
+    <label
+      className="flex items-center gap-3 rounded-md border border-border bg-background p-2 cursor-pointer hover:border-primary/50 transition-colors"
+      title={label ? `Elegir ${label.toLowerCase()}` : 'Elegir color'}
+    >
       <input
-        type="text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm font-mono"
+        type="color"
+        value={safeValue}
+        onChange={(e) => onChange(normalizeHexColor(e.target.value))}
+        className="h-9 w-12 shrink-0 cursor-pointer rounded-md border-0 bg-transparent p-0"
+        aria-label={label || 'Elegir color'}
       />
-    </div>
+      <div className="min-w-0">
+        <div className="text-xs font-medium">Pulsa para elegir color</div>
+        <div className="text-[11px] font-mono text-muted-foreground uppercase">{safeValue}</div>
+      </div>
+    </label>
   );
 }
 
@@ -70,8 +81,11 @@ export function SliderRow({ label, value, min, max, step = 1, unit = '', onChang
         min={min}
         max={max}
         step={step}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
+        value={Number.isFinite(value) ? value : min}
+        onChange={(e) => {
+          const next = Number(e.target.value);
+          if (Number.isFinite(next)) onChange(next);
+        }}
         className="w-full h-1.5 rounded-full bg-secondary appearance-none cursor-pointer accent-primary"
       />
     </div>
@@ -89,6 +103,7 @@ export function ToggleRow({ label, checked, onChange }: ToggleRowProps) {
     <div className="flex items-center justify-between">
       <Label className="text-xs text-muted-foreground font-normal">{label}</Label>
       <button
+        type="button"
         onClick={() => onChange(!checked)}
         className={cn(
           'relative h-5 w-9 rounded-full transition-colors',
