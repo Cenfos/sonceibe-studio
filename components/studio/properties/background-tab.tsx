@@ -4,10 +4,12 @@ import { useStore } from '@/lib/store';
 import { ControlRow, ColorInput, SliderRow } from './controls';
 import { sampleBackgroundImages } from '@/lib/mock-data';
 import { Button } from '@/components/ui/button';
-import { Image as ImageIcon, Images, Video, Palette, Blend, Upload, Clock3, Sparkles } from 'lucide-react';
+import { Image as ImageIcon, Images, Video, Palette, Blend, Upload, Clock3, Sparkles, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { BackgroundImageClip, ImageSequenceMode } from '@/lib/types';
+
+const IMAGE_DRAG_TYPE = 'application/x-sonceibe-image-index';
 
 const bgTypes = [
   { v: 'image', label: 'Imagen', icon: ImageIcon },
@@ -200,6 +202,26 @@ export function BackgroundTab() {
     toast.success('Imágenes repartidas por toda la canción');
   };
 
+  const handleLibraryDragStart = (index: number, e: React.DragEvent<HTMLDivElement>) => {
+    e.dataTransfer.effectAllowed = 'copy';
+    e.dataTransfer.setData(IMAGE_DRAG_TYPE, String(index));
+  };
+
+  const removeLibraryImage = (index: number) => {
+    const url = bg.images[index];
+    if (!url) return;
+
+    const images = bg.images.filter((_, itemIndex) => itemIndex !== index);
+    const imageClips = (bg.imageClips ?? []).filter((clip) => clip.url !== url);
+
+    updateBackground({
+      images,
+      imageClips,
+      imageUrl: bg.imageUrl === url ? images[0] || '' : bg.imageUrl,
+    });
+    toast.success('Imagen eliminada');
+  };
+
   return (
     <div className="space-y-5">
       <ControlRow label="Tipo de fondo">
@@ -283,7 +305,7 @@ export function BackgroundTab() {
                 ) : (
                   <div className="space-y-2">
                     <p className="text-[11px] text-muted-foreground leading-relaxed">
-                      Cada fotografía aparece como un bloque en la pista Fondo. Arrástrala para moverla y usa sus extremos para ajustar inicio y final.
+                      Arrastra una miniatura hasta la pista Fondo para colocarla donde quieras. También puedes mover y redimensionar cada bloque directamente en la línea de tiempo.
                     </p>
                     <Button
                       variant="outline"
@@ -315,10 +337,28 @@ export function BackgroundTab() {
                     : ` · ${imageClips.length} bloque${imageClips.length !== 1 ? 's' : ''} en timeline`}
                 </p>
                 <div className="grid grid-cols-3 gap-2">
-                  {bg.images.slice(0, 6).map((url, index) => (
-                    <div key={`${url}-${index}`} className="aspect-video rounded-md overflow-hidden border border-border">
+                  {bg.images.map((url, index) => (
+                    <div
+                      key={`${url}-${index}`}
+                      draggable
+                      onDragStart={(e) => handleLibraryDragStart(index, e)}
+                      title="Arrastra esta imagen hasta la pista Fondo"
+                      className="relative aspect-video rounded-md overflow-hidden border border-border cursor-grab active:cursor-grabbing group"
+                    >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={url} alt="" className="w-full h-full object-cover" />
+                      <img src={url} alt="" className="w-full h-full object-cover pointer-events-none" />
+                      <button
+                        type="button"
+                        title="Eliminar imagen"
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeLibraryImage(index);
+                        }}
+                        className="absolute top-1 right-1 h-6 w-6 rounded-md bg-black/70 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
                     </div>
                   ))}
                 </div>
