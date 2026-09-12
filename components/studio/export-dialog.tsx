@@ -24,18 +24,33 @@ import {
   Tv,
   FileText,
 } from 'lucide-react';
-import type { ExportResolution, ExportFps } from '@/lib/types';
+import type { ExportResolution, ExportFps, VideoOrientation } from '@/lib/types';
 
-const resolutions: { v: ExportResolution; label: string; desc: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { v: '720p', label: '720p HD', desc: '1280×720', icon: Smartphone },
-  { v: '1080p', label: '1080p Full HD', desc: '1920×1080', icon: Monitor },
-  { v: '4k', label: '4K Ultra HD', desc: '3840×2160', icon: Tv },
+const resolutions: { v: ExportResolution; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { v: '720p', label: '720p HD', icon: Smartphone },
+  { v: '1080p', label: '1080p Full HD', icon: Monitor },
+  { v: '4k', label: '4K Ultra HD', icon: Tv },
 ];
 
 const fpsOptions: { v: ExportFps; label: string }[] = [
   { v: 30, label: '30 FPS' },
   { v: 60, label: '60 FPS' },
 ];
+
+function getResolutionDescription(resolution: ExportResolution, orientation: VideoOrientation): string {
+  const landscape = {
+    '720p': '1280×720',
+    '1080p': '1920×1080',
+    '4k': '3840×2160',
+  } as const;
+  const portrait = {
+    '720p': '720×1280',
+    '1080p': '1080×1920',
+    '4k': '2160×3840',
+  } as const;
+
+  return orientation === 'portrait' ? portrait[resolution] : landscape[resolution];
+}
 
 export function ExportDialog() {
   const { isExportOpen, setExportOpen, currentProject, updateExport } = useStore();
@@ -46,6 +61,7 @@ export function ExportDialog() {
 
   if (!currentProject) return null;
   const cfg = currentProject.settings.exportConfig;
+  const orientation: VideoOrientation = cfg.orientation ?? 'landscape';
   const lyrics = currentProject.settings.lyrics;
   const title = currentProject.settings.title || 'letra';
 
@@ -121,7 +137,7 @@ export function ExportDialog() {
               />
             </div>
             <div className="text-xs text-center text-muted-foreground">
-              {cfg.resolution.toUpperCase()} · {cfg.fps} FPS · MP4
+              {getResolutionDescription(cfg.resolution, orientation)} · {cfg.fps} FPS · {orientation === 'portrait' ? '9:16' : '16:9'} · MP4
             </div>
           </div>
         ) : (
@@ -171,74 +187,113 @@ export function ExportDialog() {
 
             {exportType === 'video' ? (
               <>
-              {/* Resolution */}
-              <div className="space-y-2">
-                <Label>Resolución</Label>
-              <div className="grid grid-cols-3 gap-2">
-                {resolutions.map((r) => {
-                  const Icon = r.icon;
-                  const active = cfg.resolution === r.v;
-                  return (
+                {/* Orientation */}
+                <div className="space-y-2">
+                  <Label>Formato de pantalla</Label>
+                  <div className="grid grid-cols-2 gap-2">
                     <button
-                      key={r.v}
-                      onClick={() => updateExport({ resolution: r.v })}
+                      onClick={() => updateExport({ orientation: 'landscape' })}
                       className={cn(
-                        'flex flex-col items-center gap-1.5 p-3 rounded-lg border transition-all',
-                        active
+                        'flex items-center justify-center gap-2 p-3 rounded-lg border transition-all',
+                        orientation === 'landscape'
                           ? 'border-primary bg-primary/10 text-primary'
                           : 'border-border hover:border-primary/40'
                       )}
                     >
-                      <Icon className="h-5 w-5" />
-                      <span className="text-xs font-medium">{r.label}</span>
-                      <span className="text-[10px] text-muted-foreground">{r.desc}</span>
+                      <Monitor className="h-5 w-5" />
+                      <div className="text-left">
+                        <div className="text-sm font-medium">PC / TV</div>
+                        <div className="text-[10px] text-muted-foreground">Horizontal 16:9</div>
+                      </div>
                     </button>
-                  );
-                })}
-              </div>
-            </div>
+                    <button
+                      onClick={() => updateExport({ orientation: 'portrait' })}
+                      className={cn(
+                        'flex items-center justify-center gap-2 p-3 rounded-lg border transition-all',
+                        orientation === 'portrait'
+                          ? 'border-primary bg-primary/10 text-primary'
+                          : 'border-border hover:border-primary/40'
+                      )}
+                    >
+                      <Smartphone className="h-5 w-5" />
+                      <div className="text-left">
+                        <div className="text-sm font-medium">Móvil</div>
+                        <div className="text-[10px] text-muted-foreground">Vertical 9:16</div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
 
-            {/* FPS */}
-            <div className="space-y-2">
-              <Label>Fotogramas por segundo</Label>
-              <div className="grid grid-cols-2 gap-2">
-                {fpsOptions.map((f) => (
-                  <button
-                    key={f.v}
-                    onClick={() => updateExport({ fps: f.v })}
-                    className={cn(
-                      'p-3 rounded-lg border text-sm font-medium transition-all',
-                      cfg.fps === f.v
-                        ? 'border-primary bg-primary/10 text-primary'
-                        : 'border-border hover:border-primary/40'
-                    )}
-                  >
-                    {f.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+                {/* Resolution */}
+                <div className="space-y-2">
+                  <Label>Resolución</Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {resolutions.map((r) => {
+                      const Icon = r.icon;
+                      const active = cfg.resolution === r.v;
+                      return (
+                        <button
+                          key={r.v}
+                          onClick={() => updateExport({ resolution: r.v })}
+                          className={cn(
+                            'flex flex-col items-center gap-1.5 p-3 rounded-lg border transition-all',
+                            active
+                              ? 'border-primary bg-primary/10 text-primary'
+                              : 'border-border hover:border-primary/40'
+                          )}
+                        >
+                          <Icon className="h-5 w-5" />
+                          <span className="text-xs font-medium">{r.label}</span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {getResolutionDescription(r.v, orientation)}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
 
-            {/* Format */}
-            <div className="space-y-2">
-              <Label>Formato</Label>
-              <div className="flex items-center gap-2 p-3 rounded-lg border border-border bg-secondary/30">
-                <Film className="h-5 w-5 text-primary" />
-                <span className="text-sm font-medium">MP4 (H.264 + AAC)</span>
-              </div>
-            </div>
+                {/* FPS */}
+                <div className="space-y-2">
+                  <Label>Fotogramas por segundo</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {fpsOptions.map((f) => (
+                      <button
+                        key={f.v}
+                        onClick={() => updateExport({ fps: f.v })}
+                        className={cn(
+                          'p-3 rounded-lg border text-sm font-medium transition-all',
+                          cfg.fps === f.v
+                            ? 'border-primary bg-primary/10 text-primary'
+                            : 'border-border hover:border-primary/40'
+                        )}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-            {/* Include audio */}
-            <label className="flex items-center justify-between cursor-pointer">
-              <span className="text-sm">Incluir pista de audio</span>
-              <input
-                type="checkbox"
-                checked={cfg.includeAudio}
-                onChange={(e) => updateExport({ includeAudio: e.target.checked })}
-                className="h-4 w-4 accent-primary"
-              />
-            </label>
-            </>
+                {/* Format */}
+                <div className="space-y-2">
+                  <Label>Formato</Label>
+                  <div className="flex items-center gap-2 p-3 rounded-lg border border-border bg-secondary/30">
+                    <Film className="h-5 w-5 text-primary" />
+                    <span className="text-sm font-medium">MP4 (H.264 + AAC)</span>
+                  </div>
+                </div>
+
+                {/* Include audio */}
+                <label className="flex items-center justify-between cursor-pointer">
+                  <span className="text-sm">Incluir pista de audio</span>
+                  <input
+                    type="checkbox"
+                    checked={cfg.includeAudio}
+                    onChange={(e) => updateExport({ includeAudio: e.target.checked })}
+                    className="h-4 w-4 accent-primary"
+                  />
+                </label>
+              </>
             ) : (
               <div className="space-y-3 py-4">
                 <p className="text-sm text-muted-foreground">
