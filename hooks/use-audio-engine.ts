@@ -11,6 +11,7 @@ export interface AudioEngine {
   muted: boolean;
   loadFile: (file: File) => Promise<void>;
   loadFromUrl: (url: string, name: string) => Promise<void>;
+  clear: () => void;
   play: () => void;
   pause: () => void;
   stop: () => void;
@@ -30,7 +31,6 @@ export function useAudioEngine(): AudioEngine {
   const [muted, setMutedState] = useState(false);
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
 
-  // Initialize audio element once
   useEffect(() => {
     const el = new Audio();
     el.preload = 'auto';
@@ -61,22 +61,19 @@ export function useAudioEngine(): AudioEngine {
       el.removeEventListener('ended', onEnded);
       el.removeEventListener('volumechange', onVolume);
       el.pause();
-      el.src = '';
-      // Cleanup AudioContext on unmount
+      el.removeAttribute('src');
       if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
         audioCtxRef.current.close();
       }
     };
   }, []);
 
-  // Cleanup object URLs
   useEffect(() => {
     return () => {
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [objectUrl]);
 
-  // Reuse single AudioContext
   const getAudioContext = useCallback((): AudioContext => {
     if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
       const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
@@ -89,8 +86,7 @@ export function useAudioEngine(): AudioEngine {
     const arrayBuffer = await file.arrayBuffer();
     const ctx = getAudioContext();
     try {
-      const buffer = await ctx.decodeAudioData(arrayBuffer);
-      return buffer;
+      return await ctx.decodeAudioData(arrayBuffer);
     } catch (err) {
       console.error('Failed to decode audio:', err);
       throw err;
@@ -140,10 +136,28 @@ export function useAudioEngine(): AudioEngine {
       } else {
         audioRef.current.src = url;
         audioRef.current.load();
+        audioBufferRef.current = null;
+        setAudioBuffer(null);
       }
     },
     [decodeAudio, objectUrl]
   );
+
+  const clear = useCallback(() => {
+    const el = audioRef.current;
+    if (el) {
+      el.pause();
+      el.removeAttribute('src');
+      el.load();
+    }
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+    setObjectUrl(null);
+    audioBufferRef.current = null;
+    setAudioBuffer(null);
+    setIsPlaying(false);
+    setCurrentTime(0);
+    setDuration(0);
+  }, [objectUrl]);
 
   const play = useCallback(() => {
     audioRef.current?.play().catch(() => {});
@@ -185,6 +199,7 @@ export function useAudioEngine(): AudioEngine {
     muted,
     loadFile,
     loadFromUrl,
+    clear,
     play,
     pause,
     stop,
