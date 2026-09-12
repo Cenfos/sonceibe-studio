@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, useCallback, useEffect, useMemo } from 'react';
+import { useRef, useState, useCallback, useMemo } from 'react';
 import { useStore } from '@/lib/store';
 import { useAudioEngineContext } from '@/lib/audio-engine-context';
 import { formatTime } from '@/lib/format';
@@ -9,6 +9,7 @@ import { WaveformDisplay } from './waveform-display';
 import { cn } from '@/lib/utils';
 import { Music, FileText, Image, Wand2, Plus, ZoomIn, ZoomOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import type { BackgroundImageClip } from '@/lib/types';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -27,11 +28,19 @@ function snapTime(t: number): number {
 }
 
 export function Timeline() {
-  const { currentProject, updateLyric, addLyric, deleteLyric, duplicateLyric } = useStore();
+  const {
+    currentProject,
+    updateLyric,
+    addLyric,
+    deleteLyric,
+    duplicateLyric,
+    updateBackground,
+  } = useStore();
   const audio = useAudioEngineContext();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [pxPerSec, setPxPerSec] = useState(20);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedBackgroundId, setSelectedBackgroundId] = useState<string | null>(null);
   const [editingClipId, setEditingClipId] = useState<string | null>(null);
   const [snapEnabled, setSnapEnabled] = useState(true);
 
@@ -39,6 +48,9 @@ export function Timeline() {
   const duration = audio.duration || settings?.audioDuration || 0;
   const lyrics = settings?.lyrics || [];
   const playheadTime = audio.currentTime;
+  const imageMode = settings?.background.imageMode ?? 'auto';
+  const imageDuration = settings?.background.imageDuration ?? 5;
+  const imageClips = settings?.background.imageClips ?? [];
 
   const waveformPeaks = useMemo(() => {
     if (audio.audioBuffer) {
@@ -79,6 +91,7 @@ export function Timeline() {
   const onClipClick = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setSelectedId(id);
+    setSelectedBackgroundId(null);
     const line = lyrics.find((l) => l.id === id);
     if (line) audio.seek(line.start);
   };
@@ -91,10 +104,11 @@ export function Timeline() {
     }
   };
 
-  // Clip drag with snapping
+  // Lyric clip drag with snapping
   const onClipMouseDown = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setSelectedId(id);
+    setSelectedBackgroundId(null);
     const line = lyrics.find((l) => l.id === id);
     if (!line) return;
     const startX = e.clientX;
@@ -114,7 +128,7 @@ export function Timeline() {
         updateLyric(id, { end: newEnd });
       } else {
         const len = origEnd - origStart;
-        let newStart = Math.max(0, Math.min(duration - len, origStart + dx));
+        let newStart = Math.max(0, Math.min(Math.max(0, duration - len), origStart + dx));
         if (snapEnabled) newStart = snapTime(newStart);
         updateLyric(id, { start: newStart, end: newStart + len });
       }
@@ -126,6 +140,72 @@ export function Timeline() {
     window.addEventListener('mousemove', move);
     window.addEventListener('mouseup', up);
   };
+
+  const updateBackgroundClip = (id: string, patch: Partial<BackgroundImageClip>) => {
+    const clips = imageClips.map((clip) =>
+      clip.id === id ? { ...clip, ...patch } : clip
+    );
+    updateBackground({ imageClips: clips });
+  };
+
+  const deleteBackgroundClip = (id: string) => {
+    updateBackground({
+      imageClips: imageClips.filter((clip) => clip.id !== id),
+    });
+    if (selectedBackgroundId === id) setSelectedBackgroundId(null);
+  };
+
+  const onBackgroundClipMouseDown = (clip: BackgroundImageClip, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedBackgroundId(clip.id);
+    setSelectedId(null);
+
+    const startX = e.clientX;
+    const origStart = clip.start;
+    const origEnd = clip.end;
+    const mode = (e.target as HTMLElement).dataset.handle;
+
+    const move = (ev: MouseEvent) => {
+      const dx = (ev.clientX - startX) / pxPerSec;
+
+      if (mode === 'left') {
+        let newStart = Math.max(0, Math.min(origEnd - 0.2, origStart + dx));
+        if (snapEnabled) newStart = snapTime(newStart);
+        updateBackgroundClip(clip.id, { start: newStart });
+      } else if (mode === 'right') {
+        const maxEnd = duration > 0 ? duration : origEnd + Math.abs(dx) + 30;
+        let newEnd = Math.max(origStart + 0.2, Math.min(maxEnd, origEnd + dx));
+        if (snapEnabled) newEnd = snapTime(newEnd);
+        updateBackgroundClip(clip.id, { end: newEnd });
+      } else {
+        const len = origEnd - origStart;
+        const maxStart = duration > 0 ? Math.max(0, duration - len) : Number.POSITIVE_INFINITY;
+        let newStart = Math.max(0, Math.min(maxStart, origStart + dx));
+        if (snapEnabled) newStart = snapTime(newStart);
+        updateBackgroundClip(clip.id, { start: newStart, end: newStart + len });
+      }
+    };
+
+    const up = () => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+    };
+
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+  };
+
+  const backgroundLabel = settings?.background.type === 'gradient'
+    ? 'Gradiente animado'
+    : settings?.background.type === 'color'
+      ? 'Color sólido'
+      : settings?.background.type === 'image'
+        ? 'Imagen fija'
+        : settings?.background.type === 'images'
+          ? imageMode === 'auto'
+            ? `Automático · ${settings.background.images.length} imágenes · ${imageDuration}s`
+            : 'Imágenes manuales'
+          : 'Video';
 
   return (
     <div className="h-64 shrink-0 flex flex-col border-t border-border bg-card/30">
@@ -164,15 +244,10 @@ export function Timeline() {
       <div className="flex-1 flex min-h-0">
         {/* Track labels */}
         <div className="shrink-0 border-r border-border" style={{ width: TRACK_LABEL_W }}>
-          {/* Ruler spacer */}
           <div style={{ height: RULER_H }} className="border-b border-border bg-card/50" />
-          {/* Audio track label */}
           <TrackLabel icon={Music} label="Audio" color="hsl(var(--track-audio))" />
-          {/* Lyrics track label */}
           <TrackLabel icon={FileText} label="Letra" color="hsl(var(--track-lyrics))" />
-          {/* Background track label */}
           <TrackLabel icon={Image} label="Fondo" color="hsl(var(--track-bg))" />
-          {/* Effects track label */}
           <TrackLabel icon={Wand2} label="Efectos" color="hsl(var(--track-effect))" />
         </div>
 
@@ -222,7 +297,7 @@ export function Timeline() {
                 {waveformPeaks.length > 0 ? (
                   <WaveformDisplay
                     peaks={waveformPeaks}
-                    width={duration * pxPerSec - 4}
+                    width={Math.max(0, duration * pxPerSec - 4)}
                     height={TRACK_H - 8}
                     playheadRatio={duration > 0 ? playheadTime / duration : 0}
                   />
@@ -314,27 +389,95 @@ export function Timeline() {
 
             {/* Background track */}
             <TrackRow height={TRACK_H} color="hsl(var(--track-bg) / 0.1)">
-              <div
-                className="absolute rounded-md flex items-center px-2 text-xs"
-                style={{
-                  left: 0,
-                  width: duration * pxPerSec,
-                  top: 4,
-                  bottom: 4,
-                  background: 'hsl(var(--track-bg) / 0.2)',
-                  border: '1px solid hsl(var(--track-bg) / 0.5)',
-                }}
-              >
-                {settings?.background.type === 'gradient'
-                  ? 'Gradiente animado'
-                  : settings?.background.type === 'color'
-                  ? 'Color sólido'
-                  : settings?.background.type === 'image'
-                  ? 'Imagen'
-                  : settings?.background.type === 'images'
-                  ? 'Múltiples imágenes'
-                  : 'Video'}
-              </div>
+              {settings?.background.type === 'images' && imageMode === 'manual' ? (
+                imageClips.length > 0 ? (
+                  imageClips.map((clip, index) => {
+                    const left = clip.start * pxPerSec;
+                    const width = (clip.end - clip.start) * pxPerSec;
+                    const selected = selectedBackgroundId === clip.id;
+                    const active = playheadTime >= clip.start && playheadTime < clip.end;
+
+                    return (
+                      <ContextMenu key={clip.id}>
+                        <ContextMenuTrigger asChild>
+                          <div
+                            className={cn(
+                              'absolute rounded-md overflow-hidden cursor-grab active:cursor-grabbing group text-xs font-medium',
+                              selected ? 'ring-2 ring-primary z-10' : 'hover:ring-1 hover:ring-primary/50',
+                              active && 'ring-2 ring-primary/70 z-10'
+                            )}
+                            style={{
+                              left,
+                              width: Math.max(width, 30),
+                              top: 4,
+                              bottom: 4,
+                              backgroundImage: `linear-gradient(rgba(0,0,0,.28), rgba(0,0,0,.55)), url("${clip.url}")`,
+                              backgroundSize: 'cover',
+                              backgroundPosition: 'center',
+                              border: '1px solid hsl(var(--track-bg) / 0.6)',
+                            }}
+                            onMouseDown={(e) => onBackgroundClipMouseDown(clip, e)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedBackgroundId(clip.id);
+                              setSelectedId(null);
+                              audio.seek(clip.start);
+                            }}
+                          >
+                            <span className="absolute inset-0 flex items-center px-2 text-white drop-shadow truncate">
+                              Foto {index + 1}
+                            </span>
+                            <span
+                              data-handle="left"
+                              className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize bg-white/0 group-hover:bg-white/50"
+                            />
+                            <span
+                              data-handle="right"
+                              className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize bg-white/0 group-hover:bg-white/50"
+                            />
+                          </div>
+                        </ContextMenuTrigger>
+                        <ContextMenuContent>
+                          <ContextMenuItem onClick={() => audio.seek(clip.start)}>
+                            Ir al inicio de la imagen
+                          </ContextMenuItem>
+                          <ContextMenuSeparator />
+                          <ContextMenuItem className="text-destructive" onClick={() => deleteBackgroundClip(clip.id)}>
+                            Quitar de la línea de tiempo
+                          </ContextMenuItem>
+                        </ContextMenuContent>
+                      </ContextMenu>
+                    );
+                  })
+                ) : (
+                  <div
+                    className="absolute rounded-md flex items-center px-2 text-xs text-muted-foreground"
+                    style={{
+                      left: 0,
+                      width: Math.max(duration * pxPerSec, 220),
+                      top: 4,
+                      bottom: 4,
+                      border: '1px dashed hsl(var(--track-bg) / 0.5)',
+                    }}
+                  >
+                    Modo manual · añade imágenes o usa “Repartir por toda la canción”
+                  </div>
+                )
+              ) : (
+                <div
+                  className="absolute rounded-md flex items-center px-2 text-xs"
+                  style={{
+                    left: 0,
+                    width: duration * pxPerSec,
+                    top: 4,
+                    bottom: 4,
+                    background: 'hsl(var(--track-bg) / 0.2)',
+                    border: '1px solid hsl(var(--track-bg) / 0.5)',
+                  }}
+                >
+                  {backgroundLabel}
+                </div>
+              )}
             </TrackRow>
 
             {/* Effects track */}
