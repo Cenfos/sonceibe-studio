@@ -31,17 +31,41 @@ export function PreviewPanel() {
   const duration = audio.duration || currentProject?.settings.audioDuration || 0;
   const settings = currentProject?.settings;
 
-  const draw = useCallback(() => {
+  const draw = useCallback((time: number) => {
     const canvas = canvasRef.current;
     if (!canvas || !settings) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    renderFrame(ctx, canvas.width, canvas.height, settings, audio.currentTime);
-  }, [settings, audio.currentTime]);
+    renderFrame(ctx, canvas.width, canvas.height, settings, time);
+  }, [settings]);
 
+  // Draw once when paused, seeking, or project settings change.
   useEffect(() => {
-    draw();
-  }, [draw]);
+    if (!audio.isPlaying) {
+      draw(audio.audioEl?.currentTime ?? audio.currentTime);
+    }
+  }, [audio.isPlaying, audio.audioEl, audio.currentTime, draw]);
+
+  // While audio is playing, redraw the canvas every animation frame using
+  // the HTMLAudioElement clock directly. This keeps animations and karaoke
+  // smooth instead of waiting for the relatively infrequent `timeupdate` event.
+  useEffect(() => {
+    if (!audio.isPlaying || !audio.audioEl) return;
+
+    const el = audio.audioEl;
+    let frameId = 0;
+
+    const loop = () => {
+      draw(el.currentTime);
+      frameId = requestAnimationFrame(loop);
+    };
+
+    frameId = requestAnimationFrame(loop);
+
+    return () => {
+      cancelAnimationFrame(frameId);
+    };
+  }, [audio.isPlaying, audio.audioEl, draw]);
 
   const togglePlay = () => {
     if (audio.currentTime >= duration) audio.seek(0);
