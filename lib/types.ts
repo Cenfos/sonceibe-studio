@@ -7,6 +7,9 @@ export type BackgroundType =
   | 'color'
   | 'gradient';
 
+export type ImageSequenceMode = 'auto' | 'manual';
+export type VideoOrientation = 'landscape' | 'portrait';
+
 export type AnimationType =
   | 'fade'
   | 'zoom'
@@ -37,6 +40,13 @@ export interface LyricLine {
   words?: { text: string; start: number; end: number }[];
 }
 
+export interface BackgroundImageClip {
+  id: ID;
+  url: string;
+  start: number;
+  end: number;
+}
+
 export interface BackgroundConfig {
   type: BackgroundType;
   color: string;
@@ -45,6 +55,9 @@ export interface BackgroundConfig {
   gradientAngle: number;
   imageUrl: string;
   images: string[];
+  imageMode: ImageSequenceMode;
+  imageDuration: number;
+  imageClips: BackgroundImageClip[];
   videoUrl: string;
   blur: number;
   overlay: number;
@@ -96,6 +109,7 @@ export interface ExportConfig {
   resolution: ExportResolution;
   fps: ExportFps;
   includeAudio: boolean;
+  orientation: VideoOrientation;
 }
 
 export interface SyncProgress {
@@ -155,6 +169,9 @@ export const defaultBackground: BackgroundConfig = {
   gradientAngle: 135,
   imageUrl: '',
   images: [],
+  imageMode: 'auto',
+  imageDuration: 5,
+  imageClips: [],
   videoUrl: '',
   blur: 0,
   overlay: 0.3,
@@ -186,6 +203,7 @@ export const defaultExport: ExportConfig = {
   resolution: '1080p',
   fps: 30,
   includeAudio: true,
+  orientation: 'landscape',
 };
 
 export function createDefaultProjectSettings(): ProjectSettings {
