@@ -8,6 +8,7 @@ export type BackgroundType =
   | 'gradient';
 
 export type ImageSequenceMode = 'auto' | 'manual';
+export type ImageFitMode = 'contain' | 'cover';
 export type VideoOrientation = 'landscape' | 'portrait';
 
 export type AnimationType =
@@ -58,6 +59,7 @@ export interface BackgroundConfig {
   imageMode: ImageSequenceMode;
   imageDuration: number;
   imageClips: BackgroundImageClip[];
+  imageFit: ImageFitMode;
   videoUrl: string;
   blur: number;
   overlay: number;
@@ -172,6 +174,7 @@ export const defaultBackground: BackgroundConfig = {
   imageMode: 'auto',
   imageDuration: 5,
   imageClips: [],
+  imageFit: 'contain',
   videoUrl: '',
   blur: 0,
   overlay: 0.3,
