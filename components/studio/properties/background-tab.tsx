@@ -257,27 +257,29 @@ export function BackgroundTab() {
             </Button>
 
             <div className="space-y-2 rounded-lg border border-border bg-card/30 p-3">
-              <p className="text-xs font-medium">Ajuste de imagen</p>
-              <div className="grid grid-cols-2 gap-2">
+              <p className="text-xs font-medium">Cómo mostrar la imagen</p>
+              <div className="space-y-2">
                 <Button
                   size="sm"
+                  className="w-full justify-start h-auto min-h-10 py-2 whitespace-normal text-left"
                   variant={imageFit === 'contain' ? 'default' : 'outline'}
                   onClick={() => updateBackground({ imageFit: 'contain' })}
                 >
-                  Imagen completa
+                  Ver completa · sin recortar
                 </Button>
                 <Button
                   size="sm"
+                  className="w-full justify-start h-auto min-h-10 py-2 whitespace-normal text-left"
                   variant={imageFit === 'cover' ? 'default' : 'outline'}
                   onClick={() => updateBackground({ imageFit: 'cover' })}
                 >
-                  Rellenar / recortar
+                  Llenar pantalla · recortar bordes
                 </Button>
               </div>
               <p className="text-[11px] text-muted-foreground leading-relaxed">
                 {imageFit === 'contain'
-                  ? 'No se recorta la fotografía. Si su proporción no coincide con el vídeo, las zonas libres quedan negras.'
-                  : 'La fotografía llena todo el vídeo y se recorta por los bordes cuando sea necesario.'}
+                  ? 'Recomendado: la foto se ve entera. El espacio sobrante queda negro.'
+                  : 'La foto ocupa toda la pantalla. Puede perder parte de los bordes.'}
               </p>
             </div>
 
