@@ -26,6 +26,8 @@ const animations = [
   { v: 'blur', label: 'Blur', icon: Focus },
 ] as const;
 
+const exitAnimations = animations.filter((animation) => animation.v !== 'karaoke');
+
 export function AnimationTab() {
   const { currentProject, updateAnimation } = useStore();
   if (!currentProject) return null;
@@ -33,6 +35,10 @@ export function AnimationTab() {
 
   return (
     <div className="space-y-5">
+      <p className="text-[11px] text-muted-foreground leading-relaxed">
+        Las animaciones se aplican a cada línea de letra. Para apreciarlas, reproduce el audio atravesando el inicio o el final de una frase sincronizada.
+      </p>
+
       <ControlRow label="Animación de entrada">
         <div className="grid grid-cols-4 gap-1.5">
           {animations.map((an) => {
@@ -59,7 +65,7 @@ export function AnimationTab() {
 
       <ControlRow label="Animación de salida">
         <div className="grid grid-cols-4 gap-1.5">
-          {animations.slice(0, 5).map((an) => {
+          {exitAnimations.map((an) => {
             const Icon = an.icon;
             const active = a.out === an.v;
             return (
@@ -91,23 +97,13 @@ export function AnimationTab() {
         onChange={(v) => updateAnimation({ duration: v })}
       />
 
-      {(a.in === 'karaoke' || a.out === 'karaoke') && (
-        <>
-          <ControlRow label="Color de karaoke">
-            <ColorInput
-              value={a.karaokeColor}
-              onChange={(v) => updateAnimation({ karaokeColor: v })}
-            />
-          </ControlRow>
-          <SliderRow
-            label="Retraso entre palabras"
-            value={a.wordStagger}
-            min={0}
-            max={200}
-            unit="ms"
-            onChange={(v) => updateAnimation({ wordStagger: v })}
+      {a.in === 'karaoke' && (
+        <ControlRow label="Color de karaoke">
+          <ColorInput
+            value={a.karaokeColor}
+            onChange={(v) => updateAnimation({ karaokeColor: v })}
           />
-        </>
+        </ControlRow>
       )}
     </div>
   );
