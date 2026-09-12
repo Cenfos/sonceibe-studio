@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useStore } from '@/lib/store';
 import { useAudioEngineContext } from '@/lib/audio-engine-context';
 import { formatTimecode } from '@/lib/format';
-import { renderFrame } from './canvas-renderer';
+import { preloadBackgroundImage, renderFrame } from './canvas-renderer';
 import {
   Play,
   Pause,
@@ -22,7 +22,7 @@ import { Slider } from '@/components/ui/slider';
 import { Separator } from '@/components/ui/separator';
 
 export function PreviewPanel() {
-  const { currentProject, updateSettings } = useStore();
+  const { currentProject } = useStore();
   const audio = useAudioEngineContext();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -45,6 +45,34 @@ export function PreviewPanel() {
       draw(audio.audioEl?.currentTime ?? audio.currentTime);
     }
   }, [audio.isPlaying, audio.audioEl, audio.currentTime, draw]);
+
+  // Preload image backgrounds and force a redraw when loading finishes.
+  // Without this, a paused preview could keep showing the fallback color until
+  // another UI change or playback frame triggers a redraw.
+  useEffect(() => {
+    if (!settings) return;
+    const bg = settings.background;
+    if (bg.type !== 'image' && bg.type !== 'images') return;
+
+    const sources = bg.type === 'images' && bg.images.length > 0
+      ? bg.images
+      : bg.imageUrl
+        ? [bg.imageUrl]
+        : [];
+
+    if (sources.length === 0) return;
+
+    let cancelled = false;
+    Promise.all(sources.map(preloadBackgroundImage)).then(() => {
+      if (!cancelled) {
+        draw(audio.audioEl?.currentTime ?? audio.currentTime);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [settings, audio.audioEl, audio.currentTime, draw]);
 
   // While audio is playing, redraw the canvas every animation frame using
   // the HTMLAudioElement clock directly. This keeps animations and karaoke
