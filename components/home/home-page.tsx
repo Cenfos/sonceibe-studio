@@ -1,6 +1,6 @@
 'use client';
 
-import { Music, Plus, Clock, MoreVertical, Trash2, Film, Sparkles } from 'lucide-react';
+import { Music, Plus, Clock, MoreVertical, Trash2, Film, Sparkles, LogOut } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -27,12 +27,29 @@ export function HomePage() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/studio-auth/logout', { method: 'POST' });
+    } finally {
+      window.location.replace('/access');
+    }
+  };
+
   return (
     <div className="h-full overflow-y-auto scrollbar-thin bg-background">
       {/* Hero */}
       <div className="relative overflow-hidden border-b border-border">
         <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-transparent to-transparent" />
         <div className="absolute inset-0 bg-grid opacity-30" />
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleLogout}
+          className="absolute right-5 top-5 z-20 gap-1.5 text-muted-foreground"
+        >
+          <LogOut className="h-4 w-4" />
+          Salir
+        </Button>
         <div className="relative px-8 py-12 md:px-16 md:py-20">
           <div className="flex items-center gap-3 mb-4">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/20 ring-1 ring-primary/30">
@@ -84,7 +101,6 @@ export function HomePage() {
                   className="group relative overflow-hidden border-border bg-card hover:border-primary/50 transition-all cursor-pointer"
                   onClick={() => openProject(p.id)}
                 >
-                  {/* Thumbnail */}
                   <div
                     className="aspect-video relative overflow-hidden"
                     style={{
@@ -110,18 +126,16 @@ export function HomePage() {
                     </div>
                   </div>
 
-                  {/* Info */}
                   <div className="p-4">
                     <h3 className="font-medium truncate">{p.settings.title}</h3>
                     <p className="text-sm text-muted-foreground truncate">
-                      {p.settings.artist || 'Artista desconido'}
+                      {p.settings.artist || 'Artista desconocido'}
                     </p>
                     <p className="text-xs text-muted-foreground mt-2">
                       {formatRelative(p.settings.updatedAt)}
                     </p>
                   </div>
 
-                  {/* Menu */}
                   <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -189,7 +203,6 @@ export function HomePage() {
           )}
         </section>
 
-        {/* Templates */}
         <section>
           <div className="flex items-center gap-2 mb-6">
             <Sparkles className="h-5 w-5 text-primary" />
