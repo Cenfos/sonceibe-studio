@@ -88,8 +88,14 @@ export function StudioLayout() {
   }, [audio.duration, currentProject, updateSettings]);
 
   useEffect(() => {
-    if (currentProject?.settings.audioUrl && audio.audioEl) {
+    if (!currentProject || !audio.audioEl) return;
+
+    if (currentProject.settings.audioUrl) {
       audio.loadFromUrl(currentProject.settings.audioUrl, currentProject.settings.audioName);
+    } else {
+      // A new project must always start without audio, even when another
+      // project was open a moment before in the same browser session.
+      audio.clear();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentProject?.id]);
