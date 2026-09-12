@@ -4,9 +4,10 @@ import { useStore } from '@/lib/store';
 import { ControlRow, ColorInput, SliderRow } from './controls';
 import { sampleBackgroundImages } from '@/lib/mock-data';
 import { Button } from '@/components/ui/button';
-import { Image as ImageIcon, Images, Video, Palette, Blend, Upload } from 'lucide-react';
+import { Image as ImageIcon, Images, Video, Palette, Blend, Upload, Clock3, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import type { BackgroundImageClip, ImageSequenceMode } from '@/lib/types';
 
 const bgTypes = [
   { v: 'image', label: 'Imagen', icon: ImageIcon },
@@ -16,6 +17,10 @@ const bgTypes = [
   { v: 'gradient', label: 'Gradiente', icon: Blend },
 ] as const;
 
+function genClipId(): string {
+  return Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+}
+
 function prepareImage(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const objectUrl = URL.createObjectURL(file);
@@ -23,8 +28,9 @@ function prepareImage(file: File): Promise<string> {
 
     image.onload = () => {
       try {
+        // Keep enough detail for both 16:9 and 9:16 projects.
         const maxWidth = 1920;
-        const maxHeight = 1080;
+        const maxHeight = 1920;
         const scale = Math.min(1, maxWidth / image.naturalWidth, maxHeight / image.naturalHeight);
         const width = Math.max(1, Math.round(image.naturalWidth * scale));
         const height = Math.max(1, Math.round(image.naturalHeight * scale));
@@ -36,7 +42,7 @@ function prepareImage(file: File): Promise<string> {
         if (!ctx) throw new Error('No se pudo preparar la imagen');
 
         ctx.drawImage(image, 0, 0, width, height);
-        const dataUrl = canvas.toDataURL('image/webp', 0.85);
+        const dataUrl = canvas.toDataURL('image/webp', 0.82);
         resolve(dataUrl);
       } catch (error) {
         reject(error);
@@ -54,10 +60,63 @@ function prepareImage(file: File): Promise<string> {
   });
 }
 
+function distributeImagesAcrossSong(images: string[], duration: number): BackgroundImageClip[] {
+  if (images.length === 0) return [];
+  const safeDuration = duration > 0 ? duration : images.length * 5;
+  const clipDuration = safeDuration / images.length;
+
+  return images.map((url, index) => ({
+    id: genClipId(),
+    url,
+    start: index * clipDuration,
+    end: index === images.length - 1 ? safeDuration : (index + 1) * clipDuration,
+  }));
+}
+
+function appendManualClips(
+  prepared: string[],
+  existing: BackgroundImageClip[],
+  duration: number,
+  fallbackLength: number
+): BackgroundImageClip[] {
+  if (prepared.length === 0) return existing;
+
+  if (existing.length === 0) {
+    return distributeImagesAcrossSong(prepared, duration);
+  }
+
+  const defaultLength = Math.max(1, fallbackLength || 5);
+  let cursor = Math.max(...existing.map((clip) => clip.end));
+  const clips = [...existing];
+
+  for (const url of prepared) {
+    let start = cursor;
+    let end = cursor + defaultLength;
+
+    if (duration > 0) {
+      if (start >= duration) {
+        start = Math.max(0, duration - defaultLength);
+        end = duration;
+      } else {
+        end = Math.min(duration, end);
+      }
+    }
+
+    clips.push({ id: genClipId(), url, start, end: Math.max(start + 0.2, end) });
+    cursor = end;
+  }
+
+  return clips;
+}
+
 export function BackgroundTab() {
   const { currentProject, updateBackground } = useStore();
   if (!currentProject) return null;
   const bg = currentProject.settings.background;
+  const duration = currentProject.settings.audioDuration || 0;
+  const imageMode: ImageSequenceMode = bg.imageMode ?? 'auto';
+  const imageDuration = bg.imageDuration ?? 5;
+  const imageClips = bg.imageClips ?? [];
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
@@ -68,10 +127,21 @@ export function BackgroundTab() {
 
       if (bg.type === 'images') {
         const images = [...bg.images, ...prepared];
-        updateBackground({
+        const patch: Parameters<typeof updateBackground>[0] = {
           images,
           imageUrl: bg.imageUrl || images[0] || '',
-        });
+        };
+
+        if (imageMode === 'manual') {
+          patch.imageClips = appendManualClips(
+            prepared,
+            imageClips,
+            duration,
+            imageDuration
+          );
+        }
+
+        updateBackground(patch);
         toast.success(`${prepared.length} imagen${prepared.length !== 1 ? 'es' : ''} añadida${prepared.length !== 1 ? 's' : ''}`);
       } else {
         updateBackground({ imageUrl: prepared[0] });
@@ -85,18 +155,49 @@ export function BackgroundTab() {
     }
   };
 
+  const setImageMode = (mode: ImageSequenceMode) => {
+    if (mode === 'manual' && imageClips.length === 0 && bg.images.length > 0) {
+      updateBackground({
+        imageMode: mode,
+        imageClips: distributeImagesAcrossSong(bg.images, duration),
+      });
+      return;
+    }
+
+    updateBackground({ imageMode: mode });
+  };
+
   const selectSampleImage = (url: string) => {
     if (bg.type === 'images') {
       const exists = bg.images.includes(url);
       const images = exists ? bg.images.filter((item) => item !== url) : [...bg.images, url];
+      let clips = imageClips;
+
+      if (imageMode === 'manual') {
+        if (exists) {
+          clips = imageClips.filter((clip) => clip.url !== url);
+        } else {
+          clips = appendManualClips([url], imageClips, duration, imageDuration);
+        }
+      }
+
       updateBackground({
         images,
         imageUrl: images[0] || '',
+        imageClips: clips,
       });
       return;
     }
 
     updateBackground({ imageUrl: url });
+  };
+
+  const redistributeManualImages = () => {
+    if (bg.images.length === 0) return;
+    updateBackground({
+      imageClips: distributeImagesAcrossSong(bg.images, duration),
+    });
+    toast.success('Imágenes repartidas por toda la canción');
   };
 
   return (
@@ -142,6 +243,62 @@ export function BackgroundTab() {
               </label>
             </Button>
 
+            {bg.type === 'images' && (
+              <div className="space-y-3 rounded-lg border border-border bg-card/30 p-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    size="sm"
+                    variant={imageMode === 'auto' ? 'default' : 'outline'}
+                    className="gap-1.5"
+                    onClick={() => setImageMode('auto')}
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    Automático
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={imageMode === 'manual' ? 'default' : 'outline'}
+                    className="gap-1.5"
+                    onClick={() => setImageMode('manual')}
+                  >
+                    <Clock3 className="h-3.5 w-3.5" />
+                    Manual
+                  </Button>
+                </div>
+
+                {imageMode === 'auto' ? (
+                  <div className="space-y-2">
+                    <SliderRow
+                      label="Duración por imagen"
+                      value={imageDuration}
+                      min={1}
+                      max={30}
+                      unit=" s"
+                      onChange={(value) => updateBackground({ imageDuration: value })}
+                    />
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                      Las imágenes cambian automáticamente siguiendo este intervalo.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                      Cada fotografía aparece como un bloque en la pista Fondo. Arrástrala para moverla y usa sus extremos para ajustar inicio y final.
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      onClick={redistributeManualImages}
+                      disabled={bg.images.length === 0 || duration <= 0}
+                    >
+                      Repartir por toda la canción
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+
             {bg.type === 'image' && bg.imageUrl && !sampleBackgroundImages.includes(bg.imageUrl) && (
               <div className="overflow-hidden rounded-md border border-border aspect-video">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -152,7 +309,10 @@ export function BackgroundTab() {
             {bg.type === 'images' && bg.images.length > 0 && (
               <div className="space-y-2">
                 <p className="text-[11px] text-muted-foreground">
-                  {bg.images.length} imagen{bg.images.length !== 1 ? 'es' : ''} · cambio automático cada 5 segundos
+                  {bg.images.length} imagen{bg.images.length !== 1 ? 'es' : ''}
+                  {imageMode === 'auto'
+                    ? ` · cambio cada ${imageDuration}s`
+                    : ` · ${imageClips.length} bloque${imageClips.length !== 1 ? 's' : ''} en timeline`}
                 </p>
                 <div className="grid grid-cols-3 gap-2">
                   {bg.images.slice(0, 6).map((url, index) => (
