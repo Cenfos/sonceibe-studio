@@ -1,5 +1,7 @@
 import type { ProjectSettings, LyricLine } from '@/lib/types';
 
+const imageCache = new Map<string, HTMLImageElement>();
+
 function getActiveLine(lyrics: LyricLine[], time: number): LyricLine | null {
   for (const line of lyrics) {
     if (time >= line.start && time <= line.end) return line;
@@ -17,6 +19,87 @@ function hexToRgba(hex: string, alpha: number): string {
   const g = parseInt(h.substring(2, 4), 16) || 0;
   const b = parseInt(h.substring(4, 6), 16) || 0;
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function getCachedImage(src: string): HTMLImageElement | null {
+  if (!src || typeof Image === 'undefined') return null;
+
+  const cached = imageCache.get(src);
+  if (cached) return cached;
+
+  const image = new Image();
+  if (/^https?:\/\//i.test(src)) {
+    image.crossOrigin = 'anonymous';
+  }
+  image.src = src;
+  imageCache.set(src, image);
+  return image;
+}
+
+export function preloadBackgroundImage(src: string): Promise<void> {
+  if (!src || typeof Image === 'undefined') return Promise.resolve();
+
+  const image = getCachedImage(src);
+  if (!image) return Promise.resolve();
+  if (image.complete && image.naturalWidth > 0) return Promise.resolve();
+
+  return new Promise((resolve) => {
+    const onLoad = () => {
+      cleanup();
+      resolve();
+    };
+    const onError = () => {
+      cleanup();
+      resolve();
+    };
+    const cleanup = () => {
+      image.removeEventListener('load', onLoad);
+      image.removeEventListener('error', onError);
+    };
+
+    image.addEventListener('load', onLoad);
+    image.addEventListener('error', onError);
+  });
+}
+
+function drawImageCover(
+  ctx: CanvasRenderingContext2D,
+  image: HTMLImageElement,
+  w: number,
+  h: number
+) {
+  const imageW = image.naturalWidth;
+  const imageH = image.naturalHeight;
+  if (!imageW || !imageH) return;
+
+  const scale = Math.max(w / imageW, h / imageH);
+  const sourceW = w / scale;
+  const sourceH = h / scale;
+  const sourceX = (imageW - sourceW) / 2;
+  const sourceY = (imageH - sourceH) / 2;
+
+  ctx.drawImage(
+    image,
+    sourceX,
+    sourceY,
+    sourceW,
+    sourceH,
+    0,
+    0,
+    w,
+    h
+  );
+}
+
+function getBackgroundImageSource(settings: ProjectSettings, time: number): string {
+  const bg = settings.background;
+
+  if (bg.type === 'images' && bg.images.length > 0) {
+    const index = Math.floor(time / 5) % bg.images.length;
+    return bg.images[index] || bg.imageUrl;
+  }
+
+  return bg.imageUrl;
 }
 
 function drawBackground(
@@ -60,11 +143,16 @@ function drawBackground(
     ctx.fillStyle = grad2;
     ctx.fillRect(0, 0, w, h);
   } else if (bg.type === 'image' || bg.type === 'images') {
-    // Placeholder colored block for image
+    const src = getBackgroundImageSource(settings, time);
+    const image = getCachedImage(src);
+
+    // Fallback while the image is loading or if no image is selected.
     ctx.fillStyle = '#1a1a2e';
     ctx.fillRect(0, 0, w, h);
-    ctx.fillStyle = 'rgba(255,255,255,0.05)';
-    ctx.fillRect(0, 0, w, h);
+
+    if (image?.complete && image.naturalWidth > 0) {
+      drawImageCover(ctx, image, w, h);
+    }
   } else if (bg.type === 'video') {
     ctx.fillStyle = '#0a0a0a';
     ctx.fillRect(0, 0, w, h);
@@ -262,7 +350,7 @@ function drawEffects(
     for (let i = 0; i < count; i++) {
       const seed = i * 137.5;
       const x = ((Math.sin(seed) * 0.5 + 0.5) * w + time * 20 * (i % 3 - 1)) % w;
-      const y = (h - ((time * 30 + seed * 50) % (h + 100))) ;
+      const y = h - ((time * 30 + seed * 50) % (h + 100));
       const size = 1 + (i % 3);
       const opacity = 0.3 + 0.4 * Math.sin(time * 2 + seed);
       ctx.fillStyle = `rgba(255, 255, 255, ${opacity * 0.5})`;
