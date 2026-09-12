@@ -9,9 +9,11 @@ import {
   Undo2,
   Redo2,
   Upload,
+  FileText,
 } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { useAudioEngineContext } from '@/lib/audio-engine-context';
+import { readFileWithEncoding, parseTxtLyrics, parseLrcLyrics } from '@/lib/lyrics-utils';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -25,6 +27,8 @@ export function TopBar() {
     setExportOpen,
     setSettingsOpen,
     updateSettings,
+    setLyrics,
+    setTab,
     undo,
     redo,
     markSaved,
@@ -35,6 +39,7 @@ export function TopBar() {
   const audio = useAudioEngineContext();
   const [editingTitle, setEditingTitle] = useState(false);
   const audioInputRef = useRef<HTMLInputElement>(null);
+  const lyricsInputRef = useRef<HTMLInputElement>(null);
 
   const handleSave = () => {
     markSaved();
@@ -55,6 +60,42 @@ export function TopBar() {
     } catch (error) {
       console.error('Failed to load audio:', error);
       toast.error('No se pudo cargar el archivo de audio');
+    } finally {
+      e.target.value = '';
+    }
+  };
+
+  const handleLyricsUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await readFileWithEncoding(file);
+      const duration = audio.duration || currentProject?.settings.audioDuration || 0;
+      const isLrc = file.name.toLowerCase().endsWith('.lrc');
+      const parsedLyrics = isLrc
+        ? parseLrcLyrics(text)
+        : parseTxtLyrics(text, duration);
+
+      if (parsedLyrics.length === 0) {
+        toast.error('El archivo no contiene líneas de letra');
+        return;
+      }
+
+      setLyrics(parsedLyrics);
+      setTab('lyrics');
+
+      if (isLrc) {
+        toast.success(`Letra LRC cargada y sincronizada: ${file.name}`);
+      } else if (duration > 0) {
+        toast.success(`Letra TXT cargada: ${parsedLyrics.length} líneas distribuidas en la canción`);
+      } else {
+        toast.success(`Letra TXT cargada: ${parsedLyrics.length} líneas`);
+        toast.info('Carga un MP3 para poder sincronizar la letra con la música');
+      }
+    } catch (error) {
+      console.error('Failed to load lyrics:', error);
+      toast.error('No se pudo cargar el archivo de letra');
     } finally {
       e.target.value = '';
     }
@@ -171,6 +212,23 @@ export function TopBar() {
         >
           <Upload className="h-4 w-4" />
           Cargar MP3
+        </Button>
+
+        <input
+          ref={lyricsInputRef}
+          type="file"
+          accept=".txt,.lrc,text/plain"
+          className="hidden"
+          onChange={handleLyricsUpload}
+        />
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => lyricsInputRef.current?.click()}
+          className="gap-1.5"
+        >
+          <FileText className="h-4 w-4" />
+          Cargar letra
         </Button>
 
         <Button
