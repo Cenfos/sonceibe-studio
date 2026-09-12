@@ -4,10 +4,20 @@ import { useStore } from '@/lib/store';
 import { ControlRow, ColorInput, SliderRow } from './controls';
 import { sampleBackgroundImages } from '@/lib/mock-data';
 import { Button } from '@/components/ui/button';
-import { Image as ImageIcon, Images, Video, Palette, Blend, Upload, Clock3, Sparkles, Trash2 } from 'lucide-react';
+import {
+  Image as ImageIcon,
+  Images,
+  Video,
+  Palette,
+  Blend,
+  Upload,
+  Clock3,
+  Sparkles,
+  Trash2,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import type { BackgroundImageClip, ImageSequenceMode } from '@/lib/types';
+import type { BackgroundImageClip, ImageFitMode, ImageSequenceMode } from '@/lib/types';
 
 const IMAGE_DRAG_TYPE = 'application/x-sonceibe-image-index';
 
@@ -30,7 +40,6 @@ function prepareImage(file: File): Promise<string> {
 
     image.onload = () => {
       try {
-        // Keep enough detail for both 16:9 and 9:16 projects.
         const maxWidth = 1920;
         const maxHeight = 1920;
         const scale = Math.min(1, maxWidth / image.naturalWidth, maxHeight / image.naturalHeight);
@@ -82,10 +91,7 @@ function appendManualClips(
   fallbackLength: number
 ): BackgroundImageClip[] {
   if (prepared.length === 0) return existing;
-
-  if (existing.length === 0) {
-    return distributeImagesAcrossSong(prepared, duration);
-  }
+  if (existing.length === 0) return distributeImagesAcrossSong(prepared, duration);
 
   const defaultLength = Math.max(1, fallbackLength || 5);
   let cursor = Math.max(...existing.map((clip) => clip.end));
@@ -114,9 +120,11 @@ function appendManualClips(
 export function BackgroundTab() {
   const { currentProject, updateBackground } = useStore();
   if (!currentProject) return null;
+
   const bg = currentProject.settings.background;
   const duration = currentProject.settings.audioDuration || 0;
   const imageMode: ImageSequenceMode = bg.imageMode ?? 'auto';
+  const imageFit: ImageFitMode = bg.imageFit ?? 'contain';
   const imageDuration = bg.imageDuration ?? 5;
   const imageClips = bg.imageClips ?? [];
 
@@ -135,12 +143,7 @@ export function BackgroundTab() {
         };
 
         if (imageMode === 'manual') {
-          patch.imageClips = appendManualClips(
-            prepared,
-            imageClips,
-            duration,
-            imageDuration
-          );
+          patch.imageClips = appendManualClips(prepared, imageClips, duration, imageDuration);
         }
 
         updateBackground(patch);
@@ -165,7 +168,6 @@ export function BackgroundTab() {
       });
       return;
     }
-
     updateBackground({ imageMode: mode });
   };
 
@@ -176,18 +178,12 @@ export function BackgroundTab() {
       let clips = imageClips;
 
       if (imageMode === 'manual') {
-        if (exists) {
-          clips = imageClips.filter((clip) => clip.url !== url);
-        } else {
-          clips = appendManualClips([url], imageClips, duration, imageDuration);
-        }
+        clips = exists
+          ? imageClips.filter((clip) => clip.url !== url)
+          : appendManualClips([url], imageClips, duration, imageDuration);
       }
 
-      updateBackground({
-        images,
-        imageUrl: images[0] || '',
-        imageClips: clips,
-      });
+      updateBackground({ images, imageUrl: images[0] || '', imageClips: clips });
       return;
     }
 
@@ -196,9 +192,7 @@ export function BackgroundTab() {
 
   const redistributeManualImages = () => {
     if (bg.images.length === 0) return;
-    updateBackground({
-      imageClips: distributeImagesAcrossSong(bg.images, duration),
-    });
+    updateBackground({ imageClips: distributeImagesAcrossSong(bg.images, duration) });
     toast.success('Imágenes repartidas por toda la canción');
   };
 
@@ -212,11 +206,11 @@ export function BackgroundTab() {
     if (!url) return;
 
     const images = bg.images.filter((_, itemIndex) => itemIndex !== index);
-    const imageClips = (bg.imageClips ?? []).filter((clip) => clip.url !== url);
+    const nextClips = (bg.imageClips ?? []).filter((clip) => clip.url !== url);
 
     updateBackground({
       images,
-      imageClips,
+      imageClips: nextClips,
       imageUrl: bg.imageUrl === url ? images[0] || '' : bg.imageUrl,
     });
     toast.success('Imagen eliminada');
@@ -234,10 +228,7 @@ export function BackgroundTab() {
                 key={bt.v}
                 variant={active ? 'default' : 'outline'}
                 size="sm"
-                className={cn(
-                  'flex-col h-16 gap-1 px-1',
-                  !active && 'text-muted-foreground'
-                )}
+                className={cn('flex-col h-16 gap-1 px-1', !active && 'text-muted-foreground')}
                 onClick={() => updateBackground({ type: bt.v })}
               >
                 <Icon className="h-4 w-4" />
@@ -264,6 +255,31 @@ export function BackgroundTab() {
                 />
               </label>
             </Button>
+
+            <div className="space-y-2 rounded-lg border border-border bg-card/30 p-3">
+              <p className="text-xs font-medium">Ajuste de imagen</p>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  size="sm"
+                  variant={imageFit === 'contain' ? 'default' : 'outline'}
+                  onClick={() => updateBackground({ imageFit: 'contain' })}
+                >
+                  Imagen completa
+                </Button>
+                <Button
+                  size="sm"
+                  variant={imageFit === 'cover' ? 'default' : 'outline'}
+                  onClick={() => updateBackground({ imageFit: 'cover' })}
+                >
+                  Rellenar / recortar
+                </Button>
+              </div>
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                {imageFit === 'contain'
+                  ? 'No se recorta la fotografía. Si su proporción no coincide con el vídeo, las zonas libres quedan negras.'
+                  : 'La fotografía llena todo el vídeo y se recorta por los bordes cuando sea necesario.'}
+              </p>
+            </div>
 
             {bg.type === 'images' && (
               <div className="space-y-3 rounded-lg border border-border bg-card/30 p-3">
@@ -322,9 +338,13 @@ export function BackgroundTab() {
             )}
 
             {bg.type === 'image' && bg.imageUrl && !sampleBackgroundImages.includes(bg.imageUrl) && (
-              <div className="overflow-hidden rounded-md border border-border aspect-video">
+              <div className="overflow-hidden rounded-md border border-border aspect-video bg-black">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={bg.imageUrl} alt="Imagen de fondo seleccionada" className="w-full h-full object-cover" />
+                <img
+                  src={bg.imageUrl}
+                  alt="Imagen de fondo seleccionada"
+                  className={cn('w-full h-full', imageFit === 'contain' ? 'object-contain' : 'object-cover')}
+                />
               </div>
             )}
 
@@ -343,10 +363,10 @@ export function BackgroundTab() {
                       draggable
                       onDragStart={(e) => handleLibraryDragStart(index, e)}
                       title="Arrastra esta imagen hasta la pista Fondo"
-                      className="relative aspect-video rounded-md overflow-hidden border border-border cursor-grab active:cursor-grabbing group"
+                      className="relative aspect-video rounded-md overflow-hidden border border-border cursor-grab active:cursor-grabbing group bg-black"
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={url} alt="" className="w-full h-full object-cover pointer-events-none" />
+                      <img src={url} alt="" className="w-full h-full object-contain pointer-events-none" />
                       <button
                         type="button"
                         title="Eliminar imagen"
@@ -373,12 +393,12 @@ export function BackgroundTab() {
                     key={url}
                     onClick={() => selectSampleImage(url)}
                     className={cn(
-                      'aspect-video rounded-md overflow-hidden border-2 transition-all',
+                      'aspect-video rounded-md overflow-hidden border-2 transition-all bg-black',
                       selected ? 'border-primary' : 'border-border hover:border-primary/50'
                     )}
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={url} alt="" className="w-full h-full object-cover" />
+                    <img src={url} alt="" className="w-full h-full object-contain" />
                   </button>
                 );
               })}
