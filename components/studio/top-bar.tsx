@@ -10,6 +10,7 @@ import {
   Upload,
   FileText,
   Hand,
+  LogOut,
 } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { useAudioEngineContext } from '@/lib/audio-engine-context';
@@ -44,6 +45,14 @@ export function TopBar() {
 
   const handleSave = () => {
     setExportOpen(true);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/studio-auth/logout', { method: 'POST' });
+    } finally {
+      window.location.replace('/access');
+    }
   };
 
   const handleAudioUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -261,6 +270,17 @@ export function TopBar() {
           >
             <Settings className="h-4 w-4" />
             Ajustes
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleLogout}
+            className="gap-1.5 text-muted-foreground"
+            title="Cerrar acceso privado"
+          >
+            <LogOut className="h-4 w-4" />
+            Salir
           </Button>
         </div>
       </header>
