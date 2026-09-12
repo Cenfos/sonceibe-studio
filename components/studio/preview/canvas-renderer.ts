@@ -202,7 +202,10 @@ function drawText(
   if (t.transform === 'uppercase') text = text.toUpperCase();
   if (t.transform === 'lowercase') text = text.toLowerCase();
 
-  const fontSize = t.fontSize * (w / 1920);
+  // Use the short side as the visual scale reference so text keeps a
+  // comparable apparent size in both 16:9 and 9:16 projects.
+  const renderScale = Math.min(w, h) / 1080;
+  const fontSize = t.fontSize * renderScale;
   ctx.font = `${t.fontWeight} ${fontSize}px ${t.fontFamily}, sans-serif`;
   ctx.textAlign = t.align === 'left' ? 'left' : t.align === 'right' ? 'right' : 'center';
   ctx.textBaseline = 'middle';
@@ -232,11 +235,11 @@ function drawText(
   if (anim.in === 'zoom') {
     scale = 0.8 + 0.2 * fadeIn;
   } else if (anim.in === 'slide') {
-    offsetX = (1 - fadeIn) * 100;
+    offsetX = (1 - fadeIn) * 100 * renderScale;
   } else if (anim.in === 'bounce') {
     scale = 1 + Math.sin(fadeIn * Math.PI) * 0.1;
   } else if (anim.in === 'blur') {
-    ctx.filter = `blur(${(1 - fadeIn) * 20}px)`;
+    ctx.filter = `blur(${(1 - fadeIn) * 20 * renderScale}px)`;
   }
 
   ctx.save();
@@ -268,21 +271,21 @@ function drawText(
     // Shadow
     if (t.shadow) {
       ctx.shadowColor = t.shadowColor;
-      ctx.shadowBlur = t.shadowBlur * (w / 1920);
+      ctx.shadowBlur = t.shadowBlur * renderScale;
       ctx.shadowOffsetX = 0;
-      ctx.shadowOffsetY = 2;
+      ctx.shadowOffsetY = 2 * renderScale;
     }
 
     // Glow
     if (t.glow) {
       ctx.shadowColor = t.glowColor;
-      ctx.shadowBlur = t.glowIntensity * (w / 1920);
+      ctx.shadowBlur = t.glowIntensity * renderScale;
     }
 
     // Outline
     if (t.outlineWidth > 0) {
       ctx.strokeStyle = t.outlineColor;
-      ctx.lineWidth = t.outlineWidth * (w / 1920);
+      ctx.lineWidth = t.outlineWidth * renderScale;
       ctx.strokeText(l, 0, startY);
     }
 
