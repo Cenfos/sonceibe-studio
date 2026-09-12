@@ -9,65 +9,74 @@ import { Timeline } from './timeline/timeline';
 import { useStore } from '@/lib/store';
 import { useAudioEngineContext } from '@/lib/audio-engine-context';
 import { LyricsEditor } from './lyrics/lyrics-editor';
-import { downloadCurrentProject } from '@/lib/project/download-current-project';
-import { toast } from 'sonner';
 
 export function StudioLayout() {
-  const { activeTab, currentProject, updateSettings, undo, redo, markSaved, setExportOpen, setSettingsOpen, setTab } = useStore();
+  const {
+    activeTab,
+    currentProject,
+    updateSettings,
+    undo,
+    redo,
+    setExportOpen,
+    setSettingsOpen,
+    setTab,
+  } = useStore();
   const audio = useAudioEngineContext();
 
   useEffect(() => {
-    const handler = async (e: KeyboardEvent) => {
+    const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
-      const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
+      const isInput = target.tagName === 'INPUT'
+        || target.tagName === 'TEXTAREA'
+        || target.tagName === 'SELECT'
+        || target.isContentEditable;
 
       if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
         e.preventDefault();
         undo();
         return;
       }
+
       if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
         e.preventDefault();
         redo();
         return;
       }
+
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
-        if (!currentProject) return;
-        try {
-          markSaved();
-          await downloadCurrentProject(currentProject, audio.audioEl?.src);
-          toast.success('Proyecto descargado en formato .scs');
-        } catch (error) {
-          console.error('Failed to download project:', error);
-          toast.error('No se pudo descargar el proyecto');
-        }
+        setExportOpen(true);
         return;
       }
+
       if ((e.ctrlKey || e.metaKey) && e.key === 'e') {
         e.preventDefault();
         setExportOpen(true);
         return;
       }
+
       if ((e.ctrlKey || e.metaKey) && e.key === 'o') {
         e.preventDefault();
         setSettingsOpen(true);
         return;
       }
+
       if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
         e.preventDefault();
         setTab('lyrics');
         return;
       }
+
       if (e.code === 'Space' && !isInput) {
         e.preventDefault();
         if (audio.isPlaying) audio.pause();
         else audio.play();
       }
     };
+
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [undo, redo, markSaved, setExportOpen, setSettingsOpen, setTab, audio, currentProject]);
+  }, [undo, redo, setExportOpen, setSettingsOpen, setTab, audio]);
 
   useEffect(() => {
     if (audio.duration > 0 && currentProject) {
