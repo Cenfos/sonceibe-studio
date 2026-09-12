@@ -2,7 +2,9 @@
 
 import { useState } from 'react';
 import { useStore } from '@/lib/store';
+import { useAudioEngineContext } from '@/lib/audio-engine-context';
 import { exportToTxt, exportToLrc, downloadTextFile } from '@/lib/lyrics-utils';
+import { preloadBackgroundImage, renderFrame } from './preview/canvas-renderer';
 import {
   Dialog,
   DialogContent,
@@ -14,6 +16,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 import {
   Download,
   Film,
@@ -52,62 +55,262 @@ function getResolutionDescription(resolution: ExportResolution, orientation: Vid
   return orientation === 'portrait' ? portrait[resolution] : landscape[resolution];
 }
 
+function getDimensions(resolution: ExportResolution, orientation: VideoOrientation) {
+  const landscape = {
+    '720p': { width: 1280, height: 720 },
+    '1080p': { width: 1920, height: 1080 },
+    '4k': { width: 3840, height: 2160 },
+  } as const;
+
+  const base = landscape[resolution];
+  return orientation === 'portrait'
+    ? { width: base.height, height: base.width }
+    : base;
+}
+
+function safeFilename(value: string): string {
+  return (value || 'sonceibe-video')
+    .replace(/[\\/:*?"<>|]+/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 120) || 'sonceibe-video';
+}
+
+function getSupportedMp4MimeType(): string | null {
+  if (typeof MediaRecorder === 'undefined') return null;
+
+  const candidates = [
+    'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+    'video/mp4;codecs=avc1.42E01E',
+    'video/mp4',
+  ];
+
+  for (const candidate of candidates) {
+    try {
+      if (MediaRecorder.isTypeSupported(candidate)) return candidate;
+    } catch {
+      // Try the next MIME type.
+    }
+  }
+
+  return null;
+}
+
+function downloadBlob(filename: string, blob: Blob) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+type CapturableAudioElement = HTMLAudioElement & {
+  captureStream?: () => MediaStream;
+  mozCaptureStream?: () => MediaStream;
+};
+
 export function ExportDialog() {
-  const { isExportOpen, setExportOpen, currentProject, updateExport } = useStore();
+  const {
+    isExportOpen,
+    setExportOpen,
+    currentProject,
+    updateExport,
+    markSaved,
+  } = useStore();
+  const audio = useAudioEngineContext();
   const [exporting, setExporting] = useState(false);
   const [progress, setProgress] = useState(0);
   const [done, setDone] = useState(false);
+  const [doneFileName, setDoneFileName] = useState('');
   const [exportType, setExportType] = useState<'video' | 'txt' | 'lrc'>('video');
 
   if (!currentProject) return null;
+
   const cfg = currentProject.settings.exportConfig;
   const orientation: VideoOrientation = cfg.orientation ?? 'landscape';
   const lyrics = currentProject.settings.lyrics;
-  const title = currentProject.settings.title || 'letra';
+  const title = currentProject.settings.title || 'SonCeibe';
 
   const handleExportTxt = () => {
-    const text = exportToTxt(lyrics);
-    downloadTextFile(`${title}.txt`, text);
+    const filename = `${safeFilename(title)}.txt`;
+    downloadTextFile(filename, exportToTxt(lyrics));
+    markSaved();
+    toast.success(`Guardado: ${filename}`);
   };
 
   const handleExportLrc = () => {
+    const filename = `${safeFilename(title)}.lrc`;
     const text = exportToLrc(lyrics, title, currentProject.settings.artist);
-    downloadTextFile(`${title}.lrc`, text, 'application/octet-stream');
+    downloadTextFile(filename, text, 'application/octet-stream');
+    markSaved();
+    toast.success(`Guardado: ${filename}`);
   };
 
-  const startExport = () => {
+  const startVideoExport = async () => {
+    if (exporting) return;
+
+    const audioEl = audio.audioEl as CapturableAudioElement | null;
+    const duration = audio.duration || currentProject.settings.audioDuration || 0;
+    const mimeType = getSupportedMp4MimeType();
+
+    if (!audioEl || duration <= 0) {
+      toast.error('Carga primero el MP3 antes de crear el vídeo');
+      return;
+    }
+
+    if (!mimeType) {
+      toast.error('Este navegador no puede crear MP4 directamente. Prueba con Chrome o Edge actualizado.');
+      return;
+    }
+
+    const captureAudio = audioEl.captureStream ?? audioEl.mozCaptureStream;
+    if (cfg.includeAudio && !captureAudio) {
+      toast.error('Este navegador no permite capturar el audio del MP3 para el vídeo.');
+      return;
+    }
+
     setExporting(true);
     setProgress(0);
     setDone(false);
-    const interval = setInterval(() => {
-      setProgress((p) => {
-        if (p >= 100) {
-          clearInterval(interval);
-          setExporting(false);
-          setDone(true);
-          return 100;
+    setDoneFileName('');
+
+    const previousTime = audioEl.currentTime;
+    const wasPlaying = !audioEl.paused;
+    let recorder: MediaRecorder | null = null;
+    let frameId = 0;
+    let outputStream: MediaStream | null = null;
+    let capturedAudioStream: MediaStream | null = null;
+
+    try {
+      audioEl.pause();
+      audioEl.currentTime = 0;
+
+      const sources = new Set<string>();
+      const bg = currentProject.settings.background;
+      if (bg.imageUrl) sources.add(bg.imageUrl);
+      for (const src of bg.images ?? []) if (src) sources.add(src);
+      for (const clip of bg.imageClips ?? []) if (clip.url) sources.add(clip.url);
+      await Promise.all(Array.from(sources).map((src) => preloadBackgroundImage(src)));
+
+      const { width, height } = getDimensions(cfg.resolution, orientation);
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('No se pudo preparar el lienzo de exportación');
+
+      renderFrame(ctx, width, height, currentProject.settings, 0);
+      outputStream = canvas.captureStream(cfg.fps);
+
+      if (cfg.includeAudio && captureAudio) {
+        capturedAudioStream = captureAudio.call(audioEl);
+        const audioTracks = capturedAudioStream.getAudioTracks();
+        if (audioTracks.length === 0) {
+          throw new Error('El navegador no ha proporcionado una pista de audio');
         }
-        return p + 5;
+        audioTracks.forEach((track) => outputStream?.addTrack(track));
+      }
+
+      const bitrate = cfg.resolution === '4k'
+        ? 20_000_000
+        : cfg.resolution === '1080p'
+          ? 9_000_000
+          : 5_000_000;
+
+      const chunks: BlobPart[] = [];
+      recorder = new MediaRecorder(outputStream, {
+        mimeType,
+        videoBitsPerSecond: bitrate,
       });
-    }, 150);
+
+      const recordingFinished = new Promise<Blob>((resolve, reject) => {
+        if (!recorder) return reject(new Error('No se pudo iniciar el grabador'));
+
+        recorder.ondataavailable = (event) => {
+          if (event.data && event.data.size > 0) chunks.push(event.data);
+        };
+        recorder.onerror = () => reject(new Error('Error durante la creación del MP4'));
+        recorder.onstop = () => resolve(new Blob(chunks, { type: mimeType }));
+      });
+
+      const renderLoop = () => {
+        const t = Math.min(duration, audioEl.currentTime || 0);
+        renderFrame(ctx, width, height, currentProject.settings, t);
+        setProgress(Math.min(99, Math.round((t / duration) * 100)));
+        frameId = requestAnimationFrame(renderLoop);
+      };
+
+      const onEnded = () => {
+        cancelAnimationFrame(frameId);
+        renderFrame(ctx, width, height, currentProject.settings, duration);
+        setProgress(100);
+        if (recorder?.state !== 'inactive') recorder?.stop();
+      };
+
+      audioEl.addEventListener('ended', onEnded, { once: true });
+      recorder.start(1000);
+      frameId = requestAnimationFrame(renderLoop);
+
+      try {
+        await audioEl.play();
+      } catch (error) {
+        audioEl.removeEventListener('ended', onEnded);
+        cancelAnimationFrame(frameId);
+        if (recorder.state !== 'inactive') recorder.stop();
+        throw error;
+      }
+
+      const blob = await recordingFinished;
+      if (blob.size === 0) throw new Error('El vídeo generado está vacío');
+
+      const filename = `${safeFilename(title)}.mp4`;
+      downloadBlob(filename, blob);
+      markSaved();
+      setDoneFileName(filename);
+      setDone(true);
+      toast.success(`Vídeo MP4 guardado: ${filename}`);
+    } catch (error) {
+      console.error('Video export failed:', error);
+      toast.error(error instanceof Error ? error.message : 'No se pudo crear el vídeo MP4');
+    } finally {
+      cancelAnimationFrame(frameId);
+      if (recorder?.state !== 'inactive') recorder?.stop();
+      outputStream?.getTracks().forEach((track) => track.stop());
+      capturedAudioStream?.getTracks().forEach((track) => track.stop());
+      audioEl.pause();
+      audioEl.currentTime = Math.min(previousTime, duration);
+      if (wasPlaying) audioEl.play().catch(() => {});
+      setExporting(false);
+    }
   };
 
   const reset = () => {
     setDone(false);
+    setDoneFileName('');
     setProgress(0);
     setExportOpen(false);
   };
 
   return (
-    <Dialog open={isExportOpen} onOpenChange={(o) => { setExportOpen(o); if (!o) reset(); }}>
+    <Dialog
+      open={isExportOpen}
+      onOpenChange={(open) => {
+        if (!open && exporting) return;
+        if (!open) reset();
+        else setExportOpen(true);
+      }}
+    >
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Download className="h-5 w-5" />
-            Exportar Video
+            Guardar / Exportar
           </DialogTitle>
           <DialogDescription>
-            Exporta tu video de letras o la letra en formato TXT/LRC.
+            Elige el formato que quieres descargar. Para compartir por WhatsApp, Instagram o redes sociales, usa MP4.
           </DialogDescription>
         </DialogHeader>
 
@@ -116,9 +319,10 @@ export function ExportDialog() {
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-500/20 mb-4">
               <Check className="h-8 w-8 text-green-500" />
             </div>
-            <h3 className="font-semibold text-lg mb-1">¡Exportación completada!</h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              Tu video se ha exportado correctamente.
+            <h3 className="font-semibold text-lg mb-1">Vídeo guardado</h3>
+            <p className="text-sm text-muted-foreground mb-1">{doneFileName}</p>
+            <p className="text-xs text-muted-foreground mb-4">
+              El MP4 está listo para compartir desde tu carpeta de descargas.
             </p>
             <Button onClick={reset}>Cerrar</Button>
           </div>
@@ -128,7 +332,7 @@ export function ExportDialog() {
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
             <div className="text-center text-sm text-muted-foreground">
-              Exportando video... {progress}%
+              Creando MP4... {progress}%
             </div>
             <div className="w-full h-2 rounded-full bg-secondary overflow-hidden">
               <div
@@ -139,12 +343,14 @@ export function ExportDialog() {
             <div className="text-xs text-center text-muted-foreground">
               {getResolutionDescription(cfg.resolution, orientation)} · {cfg.fps} FPS · {orientation === 'portrait' ? '9:16' : '16:9'} · MP4
             </div>
+            <p className="text-[11px] text-center text-muted-foreground">
+              La creación se realiza en tiempo real para mantener sincronizados música, letra, imágenes y efectos.
+            </p>
           </div>
         ) : (
           <div className="space-y-5">
-            {/* Export type selector */}
             <div className="space-y-2">
-              <Label>Tipo de exportación</Label>
+              <Label>Formato de salida</Label>
               <div className="grid grid-cols-3 gap-2">
                 <button
                   onClick={() => setExportType('video')}
@@ -156,7 +362,8 @@ export function ExportDialog() {
                   )}
                 >
                   <Film className="h-5 w-5" />
-                  <span className="text-xs font-medium">Video MP4</span>
+                  <span className="text-xs font-medium">Vídeo MP4</span>
+                  <span className="text-[9px] text-muted-foreground">Recomendado</span>
                 </button>
                 <button
                   onClick={() => setExportType('txt')}
@@ -187,9 +394,8 @@ export function ExportDialog() {
 
             {exportType === 'video' ? (
               <>
-                {/* Orientation */}
                 <div className="space-y-2">
-                  <Label>Formato de pantalla</Label>
+                  <Label>Pantalla</Label>
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       onClick={() => updateExport({ orientation: 'landscape' })}
@@ -224,17 +430,16 @@ export function ExportDialog() {
                   </div>
                 </div>
 
-                {/* Resolution */}
                 <div className="space-y-2">
                   <Label>Resolución</Label>
                   <div className="grid grid-cols-3 gap-2">
-                    {resolutions.map((r) => {
-                      const Icon = r.icon;
-                      const active = cfg.resolution === r.v;
+                    {resolutions.map((resolution) => {
+                      const Icon = resolution.icon;
+                      const active = cfg.resolution === resolution.v;
                       return (
                         <button
-                          key={r.v}
-                          onClick={() => updateExport({ resolution: r.v })}
+                          key={resolution.v}
+                          onClick={() => updateExport({ resolution: resolution.v })}
                           className={cn(
                             'flex flex-col items-center gap-1.5 p-3 rounded-lg border transition-all',
                             active
@@ -243,9 +448,9 @@ export function ExportDialog() {
                           )}
                         >
                           <Icon className="h-5 w-5" />
-                          <span className="text-xs font-medium">{r.label}</span>
+                          <span className="text-xs font-medium">{resolution.label}</span>
                           <span className="text-[10px] text-muted-foreground">
-                            {getResolutionDescription(r.v, orientation)}
+                            {getResolutionDescription(resolution.v, orientation)}
                           </span>
                         </button>
                       );
@@ -253,39 +458,28 @@ export function ExportDialog() {
                   </div>
                 </div>
 
-                {/* FPS */}
                 <div className="space-y-2">
                   <Label>Fotogramas por segundo</Label>
                   <div className="grid grid-cols-2 gap-2">
-                    {fpsOptions.map((f) => (
+                    {fpsOptions.map((fps) => (
                       <button
-                        key={f.v}
-                        onClick={() => updateExport({ fps: f.v })}
+                        key={fps.v}
+                        onClick={() => updateExport({ fps: fps.v })}
                         className={cn(
                           'p-3 rounded-lg border text-sm font-medium transition-all',
-                          cfg.fps === f.v
+                          cfg.fps === fps.v
                             ? 'border-primary bg-primary/10 text-primary'
                             : 'border-border hover:border-primary/40'
                         )}
                       >
-                        {f.label}
+                        {fps.label}
                       </button>
                     ))}
                   </div>
                 </div>
 
-                {/* Format */}
-                <div className="space-y-2">
-                  <Label>Formato</Label>
-                  <div className="flex items-center gap-2 p-3 rounded-lg border border-border bg-secondary/30">
-                    <Film className="h-5 w-5 text-primary" />
-                    <span className="text-sm font-medium">MP4 (H.264 + AAC)</span>
-                  </div>
-                </div>
-
-                {/* Include audio */}
                 <label className="flex items-center justify-between cursor-pointer">
-                  <span className="text-sm">Incluir pista de audio</span>
+                  <span className="text-sm">Incluir música</span>
                   <input
                     type="checkbox"
                     checked={cfg.includeAudio}
@@ -298,17 +492,11 @@ export function ExportDialog() {
               <div className="space-y-3 py-4">
                 <p className="text-sm text-muted-foreground">
                   {exportType === 'txt'
-                    ? 'Exporta la letra como texto plano sin tiempos.'
-                    : 'Exporta la letra con marcas de tiempo LRC para reproductores compatibles.'}
+                    ? 'Guarda la letra como texto plano.'
+                    : 'Guarda la letra con sus marcas de tiempo para reproductores compatibles.'}
                 </p>
-                <div className="flex items-center gap-2 p-3 rounded-lg border border-border bg-secondary/30">
-                  <FileText className="h-5 w-5 text-primary" />
-                  <span className="text-sm font-medium">
-                    {exportType === 'txt' ? 'TXT (texto plano)' : 'LRC (con tiempos)'}
-                  </span>
-                </div>
                 <div className="text-xs text-muted-foreground">
-                  {lyrics.length} líneas · {lyrics.filter((l) => l.start > 0).length} sincronizadas
+                  {lyrics.length} líneas · {lyrics.filter((line) => line.start > 0).length} sincronizadas
                 </div>
               </div>
             )}
@@ -321,14 +509,14 @@ export function ExportDialog() {
               Cancelar
             </Button>
             {exportType === 'video' ? (
-              <Button onClick={startExport} className="gap-2">
+              <Button onClick={startVideoExport} className="gap-2">
                 <Download className="h-4 w-4" />
-                Exportar Video
+                Crear MP4
               </Button>
             ) : (
               <Button onClick={exportType === 'txt' ? handleExportTxt : handleExportLrc} className="gap-2">
                 <Download className="h-4 w-4" />
-                Exportar {exportType.toUpperCase()}
+                Guardar {exportType.toUpperCase()}
               </Button>
             )}
           </DialogFooter>
