@@ -16,13 +16,15 @@ import {
   ZoomOut,
   Volume2,
   VolumeX,
+  Monitor,
+  Smartphone,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Separator } from '@/components/ui/separator';
 
 export function PreviewPanel() {
-  const { currentProject } = useStore();
+  const { currentProject, updateExport } = useStore();
   const audio = useAudioEngineContext();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -30,6 +32,11 @@ export function PreviewPanel() {
 
   const duration = audio.duration || currentProject?.settings.audioDuration || 0;
   const settings = currentProject?.settings;
+  const orientation = settings?.exportConfig.orientation ?? 'landscape';
+  const isPortrait = orientation === 'portrait';
+  const canvasWidth = isPortrait ? 1080 : 1920;
+  const canvasHeight = isPortrait ? 1920 : 1080;
+  const aspectRatio = isPortrait ? '9 / 16' : '16 / 9';
 
   const draw = useCallback((time: number) => {
     const canvas = canvasRef.current;
@@ -39,31 +46,31 @@ export function PreviewPanel() {
     renderFrame(ctx, canvas.width, canvas.height, settings, time);
   }, [settings]);
 
-  // Draw once when paused, seeking, or project settings change.
+  // Draw once when paused, seeking, changing format, or project settings change.
   useEffect(() => {
     if (!audio.isPlaying) {
       draw(audio.audioEl?.currentTime ?? audio.currentTime);
     }
-  }, [audio.isPlaying, audio.audioEl, audio.currentTime, draw]);
+  }, [audio.isPlaying, audio.audioEl, audio.currentTime, draw, orientation]);
 
   // Preload image backgrounds and force a redraw when loading finishes.
-  // Without this, a paused preview could keep showing the fallback color until
-  // another UI change or playback frame triggers a redraw.
   useEffect(() => {
     if (!settings) return;
     const bg = settings.background;
     if (bg.type !== 'image' && bg.type !== 'images') return;
 
+    const clipSources = (bg.imageClips ?? []).map((clip) => clip.url);
     const sources = bg.type === 'images' && bg.images.length > 0
-      ? bg.images
+      ? [...bg.images, ...clipSources]
       : bg.imageUrl
         ? [bg.imageUrl]
         : [];
 
-    if (sources.length === 0) return;
+    const uniqueSources = Array.from(new Set(sources.filter(Boolean)));
+    if (uniqueSources.length === 0) return;
 
     let cancelled = false;
-    Promise.all(sources.map(preloadBackgroundImage)).then(() => {
+    Promise.all(uniqueSources.map(preloadBackgroundImage)).then(() => {
       if (!cancelled) {
         draw(audio.audioEl?.currentTime ?? audio.currentTime);
       }
@@ -75,8 +82,7 @@ export function PreviewPanel() {
   }, [settings, audio.audioEl, audio.currentTime, draw]);
 
   // While audio is playing, redraw the canvas every animation frame using
-  // the HTMLAudioElement clock directly. This keeps animations and karaoke
-  // smooth instead of waiting for the relatively infrequent `timeupdate` event.
+  // the HTMLAudioElement clock directly.
   useEffect(() => {
     if (!audio.isPlaying || !audio.audioEl) return;
 
@@ -124,9 +130,32 @@ export function PreviewPanel() {
       <div className="h-10 shrink-0 flex items-center justify-between px-3 border-b border-border bg-card/30">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <span className="font-medium text-foreground">Vista Previa</span>
-          <span className="text-xs">1920×1080 · 16:9</span>
+          <span className="text-xs">
+            {canvasWidth}×{canvasHeight} · {isPortrait ? '9:16 Móvil' : '16:9 PC'}
+          </span>
         </div>
         <div className="flex items-center gap-1">
+          <Button
+            variant={orientation === 'landscape' ? 'secondary' : 'ghost'}
+            size="sm"
+            className="h-7 gap-1 px-2 text-xs"
+            onClick={() => updateExport({ orientation: 'landscape' })}
+            title="Formato horizontal 16:9"
+          >
+            <Monitor className="h-3.5 w-3.5" />
+            PC
+          </Button>
+          <Button
+            variant={orientation === 'portrait' ? 'secondary' : 'ghost'}
+            size="sm"
+            className="h-7 gap-1 px-2 text-xs"
+            onClick={() => updateExport({ orientation: 'portrait' })}
+            title="Formato vertical 9:16"
+          >
+            <Smartphone className="h-3.5 w-3.5" />
+            Móvil
+          </Button>
+          <Separator orientation="vertical" className="h-5 mx-1" />
           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom((z) => Math.max(0.25, z - 0.25))}>
             <ZoomOut className="h-4 w-4" />
           </Button>
@@ -147,18 +176,17 @@ export function PreviewPanel() {
       <div className="flex-1 min-h-0 flex items-center justify-center p-6 bg-[hsl(222_20%_5%)] overflow-hidden">
         <div
           ref={containerRef}
-          className="relative shadow-2xl rounded-lg overflow-hidden"
+          className="relative shadow-2xl rounded-lg overflow-hidden bg-black"
           style={{
-            width: `${zoom * 100}%`,
+            height: `${Math.min(100, zoom * 100)}%`,
             maxWidth: '100%',
-            aspectRatio: '16 / 9',
-            maxHeight: '100%',
+            aspectRatio,
           }}
         >
           <canvas
             ref={canvasRef}
-            width={1920}
-            height={1080}
+            width={canvasWidth}
+            height={canvasHeight}
             className="w-full h-full block"
           />
         </div>
