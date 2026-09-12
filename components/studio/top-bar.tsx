@@ -15,6 +15,7 @@ import {
 import { useStore } from '@/lib/store';
 import { useAudioEngineContext } from '@/lib/audio-engine-context';
 import { readFileWithEncoding, parseTxtLyrics, parseLrcLyrics } from '@/lib/lyrics-utils';
+import { downloadCurrentProject } from '@/lib/project/download-current-project';
 import { LyricsSyncDialog } from './lyrics/lyrics-sync-dialog';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -41,12 +42,24 @@ export function TopBar() {
   const audio = useAudioEngineContext();
   const [editingTitle, setEditingTitle] = useState(false);
   const [lyricsSyncOpen, setLyricsSyncOpen] = useState(false);
+  const [savingProject, setSavingProject] = useState(false);
   const audioInputRef = useRef<HTMLInputElement>(null);
   const lyricsInputRef = useRef<HTMLInputElement>(null);
 
-  const handleSave = () => {
-    markSaved();
-    toast.success('Proyecto guardado');
+  const handleSave = async () => {
+    if (!currentProject || savingProject) return;
+
+    try {
+      setSavingProject(true);
+      markSaved();
+      await downloadCurrentProject(currentProject, audio.audioEl?.src);
+      toast.success('Proyecto descargado en formato .scs');
+    } catch (error) {
+      console.error('Failed to download project:', error);
+      toast.error('No se pudo descargar el proyecto');
+    } finally {
+      setSavingProject(false);
+    }
   };
 
   const handleAudioUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -191,11 +204,18 @@ export function TopBar() {
           <TooltipProvider delayDuration={300}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleSave}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={handleSave}
+                  disabled={!currentProject || savingProject}
+                >
                   <Save className="h-4 w-4" />
+                  {savingProject ? 'Guardando…' : 'Guardar .scs'}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Guardar (Ctrl+S)</TooltipContent>
+              <TooltipContent>Descargar una copia del proyecto en este PC</TooltipContent>
             </Tooltip>
           </TooltipProvider>
 
