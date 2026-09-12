@@ -8,21 +8,56 @@ import {
   Save,
   Undo2,
   Redo2,
+  Upload,
 } from 'lucide-react';
 import { useStore } from '@/lib/store';
+import { useAudioEngineContext } from '@/lib/audio-engine-context';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 export function TopBar() {
-  const { currentProject, closeProject, setExportOpen, setSettingsOpen, updateSettings, undo, redo, markSaved, isDirty, undoStack, redoStack } = useStore();
+  const {
+    currentProject,
+    closeProject,
+    setExportOpen,
+    setSettingsOpen,
+    updateSettings,
+    undo,
+    redo,
+    markSaved,
+    isDirty,
+    undoStack,
+    redoStack,
+  } = useStore();
+  const audio = useAudioEngineContext();
   const [editingTitle, setEditingTitle] = useState(false);
+  const audioInputRef = useRef<HTMLInputElement>(null);
 
   const handleSave = () => {
     markSaved();
     toast.success('Proyecto guardado');
+  };
+
+  const handleAudioUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      await audio.loadFile(file);
+      updateSettings({
+        audioName: file.name,
+        audioUrl: URL.createObjectURL(file),
+      });
+      toast.success(`MP3 cargado: ${file.name}`);
+    } catch (error) {
+      console.error('Failed to load audio:', error);
+      toast.error('No se pudo cargar el archivo de audio');
+    } finally {
+      e.target.value = '';
+    }
   };
 
   return (
@@ -66,7 +101,7 @@ export function TopBar() {
             </button>
           )}
           {isDirty && (
-            <span className="h-2 w-2 rounded-full bg-amber-500" title='Cambios sin guardar' />
+            <span className="h-2 w-2 rounded-full bg-amber-500" title="Cambios sin guardar" />
           )}
           {currentProject?.settings.artist && (
             <>
@@ -120,6 +155,24 @@ export function TopBar() {
           <Home className="h-4 w-4" />
           Inicio
         </Button>
+
+        <input
+          ref={audioInputRef}
+          type="file"
+          accept=".mp3,audio/*"
+          className="hidden"
+          onChange={handleAudioUpload}
+        />
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => audioInputRef.current?.click()}
+          className="gap-1.5"
+        >
+          <Upload className="h-4 w-4" />
+          Cargar MP3
+        </Button>
+
         <Button
           variant="ghost"
           size="sm"
