@@ -57,7 +57,6 @@ function isChordOnlyLine(line: string): boolean {
   const allChords = parts.every((part) => MUSIC_NOTE_RE.test(part) || SOLFEGE_CHORD_RE.test(part));
   if (!allChords) return false;
 
-  // A single plain A-G or Do/Re/etc. could genuinely be a lyric. Be conservative.
   if (parts.length === 1) {
     const token = parts[0];
     return /[#b/0-9]|m$|maj|min|sus|dim|aug|add/i.test(token);
@@ -120,10 +119,6 @@ export function cleanLyricsText(text: string): LyricsCleanupResult {
   };
 }
 
-/**
- * Apply the same cleanup to already-parsed timed lyrics (for example LRC)
- * without losing their timestamps.
- */
 export function cleanParsedLyrics(lyrics: LyricLine[]): { lyrics: LyricLine[]; removedLines: number; removedChordMarks: number } {
   const cleaned: LyricLine[] = [];
   let removedLines = 0;
@@ -146,10 +141,6 @@ export function cleanParsedLyrics(lyrics: LyricLine[]): { lyrics: LyricLine[]; r
   return { lyrics: cleaned, removedLines, removedChordMarks };
 }
 
-/**
- * Detect whether a byte array is UTF-8 or ANSI (windows-1252).
- * Returns 'utf-8' or 'windows-1252'.
- */
 export function detectEncoding(bytes: Uint8Array): 'utf-8' | 'windows-1252' {
   if (bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
     return 'utf-8';
@@ -178,16 +169,6 @@ export function detectEncoding(bytes: Uint8Array): 'utf-8' | 'windows-1252' {
   return validUtf8 ? 'utf-8' : 'windows-1252';
 }
 
-/** Read a File as text with encoding detection. */
-export async function readFileWithEncoding(file: File): Promise<string> {
-  const arrayBuffer = await file.arrayBuffer();
-  const bytes = new Uint8Array(arrayBuffer);
-  const encoding = detectEncoding(bytes);
-  let text = new TextDecoder(encoding).decode(bytes);
-  if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
-  return text;
-}
-
 async function inflateRaw(data: Uint8Array): Promise<Uint8Array> {
   const DecompressionStreamCtor = (globalThis as unknown as {
     DecompressionStream?: new (format: string) => TransformStream<Uint8Array, Uint8Array>;
@@ -201,7 +182,6 @@ async function inflateRaw(data: Uint8Array): Promise<Uint8Array> {
   return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
-/** Extract one UTF-8 file from a ZIP container (ODT/DOCX) without external dependencies. */
 async function extractZipText(buffer: ArrayBuffer, wantedPath: string): Promise<string> {
   const bytes = new Uint8Array(buffer);
   const view = new DataView(buffer);
@@ -296,36 +276,58 @@ function htmlToText(html: string): string {
 }
 
 /**
+ * Read supported lyric/document files as real text. Office files such as ODT
+ * and DOCX are ZIP containers, so they must never be decoded as plain bytes.
+ */
+export async function readFileWithEncoding(file: File): Promise<string> {
+  const lower = file.name.toLowerCase();
+
+  if (lower.endsWith('.odt')) {
+    const xml = await extractZipText(await file.arrayBuffer(), 'content.xml');
+    return xmlParagraphsToText(xml, ['text:p', 'text:h']);
+  }
+
+  if (lower.endsWith('.docx')) {
+    const xml = await extractZipText(await file.arrayBuffer(), 'word/document.xml');
+    return xmlParagraphsToText(xml, ['w:p']);
+  }
+
+  const arrayBuffer = await file.arrayBuffer();
+  const bytes = new Uint8Array(arrayBuffer);
+  const encoding = detectEncoding(bytes);
+  let text = new TextDecoder(encoding).decode(bytes);
+  if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
+
+  if (lower.endsWith('.rtf')) return rtfToText(text);
+  if (lower.endsWith('.html') || lower.endsWith('.htm')) return htmlToText(text);
+  return text;
+}
+
+/**
  * Convert common lyric/document formats into plain text in the browser.
  * Supported: TXT, LRC, ODT (LibreOffice), DOCX (Word), RTF, HTML and Markdown.
  */
 export async function readLyricsFile(file: File): Promise<LyricsTextImport> {
   const lower = file.name.toLowerCase();
-
-  if (lower.endsWith('.odt')) {
-    const xml = await extractZipText(await file.arrayBuffer(), 'content.xml');
-    return { text: xmlParagraphsToText(xml, ['text:p', 'text:h']), format: 'odt' };
-  }
-
-  if (lower.endsWith('.docx')) {
-    const xml = await extractZipText(await file.arrayBuffer(), 'word/document.xml');
-    return { text: xmlParagraphsToText(xml, ['w:p']), format: 'docx' };
-  }
-
   const text = await readFileWithEncoding(file);
+
   if (lower.endsWith('.lrc')) return { text, format: 'lrc' };
-  if (lower.endsWith('.rtf')) return { text: rtfToText(text), format: 'rtf' };
-  if (lower.endsWith('.html') || lower.endsWith('.htm')) return { text: htmlToText(text), format: 'html' };
+  if (lower.endsWith('.odt')) return { text, format: 'odt' };
+  if (lower.endsWith('.docx')) return { text, format: 'docx' };
+  if (lower.endsWith('.rtf')) return { text, format: 'rtf' };
+  if (lower.endsWith('.html') || lower.endsWith('.htm')) return { text, format: 'html' };
   if (lower.endsWith('.md') || lower.endsWith('.markdown')) return { text, format: 'md' };
   return { text, format: 'txt' };
 }
 
 /**
- * Parse plain text lyrics into LyricLine[]. Blank rows remain as visual verse
- * separators but no longer consume song time.
+ * Parse plain text lyrics into LyricLine[]. Cleaning is intentionally done
+ * here too, so every import path (top bar, lyrics editor or pasted text) gets
+ * the same automatic removal of section labels and chord notation.
  */
 export function parseTxtLyrics(text: string, duration: number): LyricLine[] {
-  const lines = text.replace(/\r\n?/g, '\n').split('\n').map((line) => line.trim());
+  const cleanedText = cleanLyricsText(text).text;
+  const lines = cleanedText.replace(/\r\n?/g, '\n').split('\n').map((line) => line.trim());
   const nonEmptyCount = lines.filter((line) => line.length > 0).length;
   const perLine = nonEmptyCount > 0 && duration > 0 ? duration / nonEmptyCount : 4;
 
@@ -345,7 +347,6 @@ export function parseTxtLyrics(text: string, duration: number): LyricLine[] {
   return result;
 }
 
-/** Parse LRC formatted lyrics. */
 export function parseLrcLyrics(text: string): LyricLine[] {
   const rawLines = text.split('\n');
   const result: LyricLine[] = [];
@@ -387,7 +388,7 @@ export function parseLrcLyrics(text: string): LyricLine[] {
   if (sorted.length > 0 && sorted[sorted.length - 1].end <= sorted[sorted.length - 1].start) {
     sorted[sorted.length - 1].end = sorted[sorted.length - 1].start + 4;
   }
-  return sorted;
+  return cleanParsedLyrics(sorted).lyrics;
 }
 
 export function exportToTxt(lyrics: LyricLine[]): string {
