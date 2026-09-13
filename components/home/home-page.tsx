@@ -1,6 +1,6 @@
 'use client';
 
-import { Music, Plus, Clock, MoreVertical, Trash2, Film, Sparkles, LogOut } from 'lucide-react';
+import { Music, Plus, Clock, MoreVertical, Trash2, Film, Sparkles, LogOut, HardDrive } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -37,7 +37,6 @@ export function HomePage() {
 
   return (
     <div className="h-full overflow-y-auto scrollbar-thin bg-background">
-      {/* Hero */}
       <div className="relative overflow-hidden border-b border-border">
         <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-transparent to-transparent" />
         <div className="absolute inset-0 bg-grid opacity-30" />
@@ -56,35 +55,37 @@ export function HomePage() {
               <Music className="h-6 w-6 text-primary" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">Lyric Video Studio</h1>
-              <p className="text-sm text-muted-foreground">Crea videos de letras profesionales</p>
+              <h1 className="text-3xl font-bold tracking-tight">SonCeibe Studio</h1>
+              <p className="text-sm text-muted-foreground">Crea vídeos musicales con letras, fotos y efectos</p>
             </div>
           </div>
-          <p className="text-muted-foreground max-w-2xl mb-8">
-            Importa tu música, sincroniza las letras automáticamente, personaliza
-            el estilo y exporta en calidad profesional.
+          <p className="text-muted-foreground max-w-2xl mb-4">
+            Importa tu música, sincroniza la letra, coloca tus fotografías en la línea de tiempo y exporta el resultado en MP4 para PC o móvil.
+          </p>
+          <p className="text-xs text-muted-foreground max-w-2xl mb-8 flex items-center gap-1.5">
+            <HardDrive className="h-3.5 w-3.5" />
+            Tus proyectos se guardan localmente en este navegador y no se suben a la nube.
           </p>
           <div className="flex flex-wrap gap-3">
             <Button size="lg" onClick={createProject} className="gap-2">
               <Plus className="h-5 w-5" />
               Nuevo Proyecto
             </Button>
-            <Button size="lg" variant="outline" className="gap-2">
+            <Button size="lg" variant="outline" className="gap-2" disabled title="Lo añadiremos más adelante">
               <Film className="h-5 w-5" />
-              Ver Tutoriales
+              Tutoriales · próximamente
             </Button>
           </div>
         </div>
       </div>
 
       <div className="px-8 py-8 md:px-16 space-y-12">
-        {/* Recent Projects */}
         <section>
           <div className="flex items-center justify-between mb-6">
             <div>
               <h2 className="text-xl font-semibold">Proyectos Recientes</h2>
               <p className="text-sm text-muted-foreground">
-                {mounted ? `${projects.length} proyecto${projects.length !== 1 ? 's' : ''}` : 'Cargando...'}
+                {mounted ? `${projects.length} proyecto${projects.length !== 1 ? 's' : ''} en este navegador` : 'Cargando...'}
               </p>
             </div>
             <Button variant="ghost" size="sm" onClick={createProject} className="gap-1">
@@ -204,16 +205,16 @@ export function HomePage() {
         </section>
 
         <section>
-          <div className="flex items-center gap-2 mb-6">
+          <div className="flex items-center gap-2 mb-2">
             <Sparkles className="h-5 w-5 text-primary" />
-            <h2 className="text-xl font-semibold">Plantillas</h2>
+            <h2 className="text-xl font-semibold">Estilos preparados</h2>
           </div>
+          <p className="text-sm text-muted-foreground mb-6">Estas plantillas visuales se activarán en una próxima mejora. De momento no modifican el proyecto.</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {templates.map((t) => (
               <Card
                 key={t.name}
-                className="group overflow-hidden border-border bg-card hover:border-primary/50 transition-all cursor-pointer"
-                onClick={createProject}
+                className="overflow-hidden border-border bg-card opacity-80 cursor-default"
               >
                 <div className={`aspect-video bg-gradient-to-br ${t.color} relative`}>
                   <div className="absolute inset-0 flex items-center justify-center">
@@ -221,8 +222,11 @@ export function HomePage() {
                   </div>
                 </div>
                 <div className="p-4">
-                  <h3 className="font-medium">{t.name}</h3>
-                  <p className="text-sm text-muted-foreground">{t.desc}</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="font-medium">{t.name}</h3>
+                    <Badge variant="outline" className="text-[10px]">Próximamente</Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-1">{t.desc}</p>
                 </div>
               </Card>
             ))}
