@@ -6,10 +6,14 @@ import { Toaster } from '@/components/ui/sonner';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Lyric Video Studio',
-  description: 'Crea videos de letras profesionales desde un MP3 y tu texto',
+  metadataBase: new URL('https://sonceibe-studio.vercel.app'),
+  title: 'SonCeibe Studio',
+  applicationName: 'SonCeibe Studio',
+  description: 'Crea vídeos musicales con letras, fotografías, animaciones y efectos desde tu navegador.',
   openGraph: {
-    images: [{ url: 'https://bolt.new/static/og_default.png' }],
+    title: 'SonCeibe Studio',
+    description: 'Crea vídeos musicales con letras, fotografías, animaciones y efectos desde tu navegador.',
+    type: 'website',
   },
 };
 
