@@ -15,7 +15,13 @@ import {
 } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { useAudioEngineContext } from '@/lib/audio-engine-context';
-import { readFileWithEncoding, parseTxtLyrics, parseLrcLyrics } from '@/lib/lyrics-utils';
+import {
+  cleanLyricsText,
+  cleanParsedLyrics,
+  parseTxtLyrics,
+  parseLrcLyrics,
+  readLyricsFile,
+} from '@/lib/lyrics-utils';
 import { LyricsSyncDialog } from './lyrics/lyrics-sync-dialog';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -79,34 +85,54 @@ export function TopBar() {
     if (!file) return;
 
     try {
-      const text = await readFileWithEncoding(file);
+      const imported = await readLyricsFile(file);
       const duration = audio.duration || currentProject?.settings.audioDuration || 0;
-      const isLrc = file.name.toLowerCase().endsWith('.lrc');
-      const parsedLyrics = isLrc
-        ? parseLrcLyrics(text)
-        : parseTxtLyrics(text, duration);
+      const isLrc = imported.format === 'lrc';
 
-      if (parsedLyrics.length === 0) {
-        toast.error('El archivo no contiene líneas de letra');
+      let parsedLyrics;
+      let removedLines = 0;
+      let removedChordMarks = 0;
+
+      if (isLrc) {
+        const cleaned = cleanParsedLyrics(parseLrcLyrics(imported.text));
+        parsedLyrics = cleaned.lyrics;
+        removedLines = cleaned.removedLines;
+        removedChordMarks = cleaned.removedChordMarks;
+      } else {
+        const cleaned = cleanLyricsText(imported.text);
+        parsedLyrics = parseTxtLyrics(cleaned.text, duration);
+        removedLines = cleaned.removedLines;
+        removedChordMarks = cleaned.removedChordMarks;
+      }
+
+      const sungLines = parsedLyrics.filter((line) => line.text.trim().length > 0);
+      if (sungLines.length === 0) {
+        toast.error('El archivo no contiene líneas de letra utilizables');
         return;
       }
 
       setLyrics(parsedLyrics);
       setTab('lyrics');
 
+      const formatLabel = imported.format.toUpperCase();
+      const cleanupCount = removedLines + removedChordMarks;
+      const cleanupMessage = cleanupCount > 0
+        ? ` · ${removedLines} línea${removedLines !== 1 ? 's' : ''} y ${removedChordMarks} acorde${removedChordMarks !== 1 ? 's' : ''} eliminados`
+        : '';
+
       if (isLrc) {
-        toast.success(`Letra LRC cargada y sincronizada: ${file.name}`);
+        toast.success(`Letra ${formatLabel} cargada y sincronizada${cleanupMessage}`);
       } else if (duration > 0) {
-        toast.success(`Letra TXT cargada: ${parsedLyrics.length} líneas`);
-        toast.info('El TXT no contiene tiempos. Sincronízalo escuchando la canción y pulsando ESPACIO.');
+        toast.success(`${formatLabel} convertido a letra limpia: ${sungLines.length} líneas${cleanupMessage}`);
+        toast.info('El documento no contiene tiempos. Sincronízalo escuchando la canción y pulsando ESPACIO.');
         setLyricsSyncOpen(true);
       } else {
-        toast.success(`Letra TXT cargada: ${parsedLyrics.length} líneas`);
+        toast.success(`${formatLabel} convertido a letra limpia: ${sungLines.length} líneas${cleanupMessage}`);
         toast.info('Carga un MP3 para poder sincronizar la letra con la música');
       }
     } catch (error) {
       console.error('Failed to load lyrics:', error);
-      toast.error('No se pudo cargar el archivo de letra');
+      toast.error(error instanceof Error ? error.message : 'No se pudo cargar el archivo de letra');
     } finally {
       e.target.value = '';
     }
@@ -241,7 +267,7 @@ export function TopBar() {
           <input
             ref={lyricsInputRef}
             type="file"
-            accept=".txt,.lrc,text/plain"
+            accept=".txt,.lrc,.odt,.docx,.rtf,.html,.htm,.md,.markdown,text/plain,application/rtf,application/vnd.oasis.opendocument.text,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             className="hidden"
             onChange={handleLyricsUpload}
           />
@@ -250,6 +276,7 @@ export function TopBar() {
             size="sm"
             onClick={() => lyricsInputRef.current?.click()}
             className="gap-1.5"
+            title="TXT, LRC, ODT, DOCX, RTF, HTML o Markdown"
           >
             <FileText className="h-4 w-4" />
             Cargar letra
