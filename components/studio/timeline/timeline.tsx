@@ -160,10 +160,30 @@ export function Timeline() {
     if (selectedBackgroundId === id) setSelectedBackgroundId(null);
   };
 
-  // Delete the selected photo clip with Supr/Delete (or Backspace).
-  // The photo remains in the image library so it can be dragged back later.
+  const duplicateBackgroundClip = (id: string) => {
+    const clip = imageClips.find((item) => item.id === id);
+    if (!clip) return;
+
+    const clipLength = Math.max(0.2, clip.end - clip.start);
+    const desiredStart = clip.end + 0.2;
+    const maxStart = duration > 0 ? Math.max(0, duration - clipLength) : desiredStart;
+    const start = Math.max(0, Math.min(maxStart, desiredStart));
+    const copy: BackgroundImageClip = {
+      ...clip,
+      id: genClipId(),
+      start,
+      end: start + clipLength,
+    };
+
+    updateBackground({ imageClips: [...imageClips, copy] });
+    setSelectedBackgroundId(copy.id);
+    setSelectedId(null);
+    audio.seek(copy.start);
+  };
+
+  // Keyboard editing for the selected lyric/photo clip.
   useEffect(() => {
-    if (!selectedBackgroundId) return;
+    if (!selectedId && !selectedBackgroundId) return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
@@ -171,18 +191,79 @@ export function Timeline() {
         || target?.tagName === 'TEXTAREA'
         || target?.isContentEditable;
       if (isEditing) return;
-      if (event.key !== 'Delete' && event.key !== 'Backspace') return;
 
+      const isDelete = event.key === 'Delete' || event.key === 'Backspace';
+      const isDuplicate = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'd';
+      const isNudge = event.key === 'ArrowLeft' || event.key === 'ArrowRight';
+
+      if (!isDelete && !isDuplicate && !isNudge) return;
       event.preventDefault();
-      updateBackground({
-        imageClips: imageClips.filter((clip) => clip.id !== selectedBackgroundId),
-      });
-      setSelectedBackgroundId(null);
+
+      if (isDelete) {
+        if (selectedBackgroundId) {
+          updateBackground({
+            imageClips: imageClips.filter((clip) => clip.id !== selectedBackgroundId),
+          });
+          setSelectedBackgroundId(null);
+          return;
+        }
+
+        if (selectedId) {
+          deleteLyric(selectedId);
+          setSelectedId(null);
+        }
+        return;
+      }
+
+      if (isDuplicate) {
+        if (selectedBackgroundId) {
+          duplicateBackgroundClip(selectedBackgroundId);
+        } else if (selectedId) {
+          duplicateLyric(selectedId);
+        }
+        return;
+      }
+
+      const direction = event.key === 'ArrowLeft' ? -1 : 1;
+      const step = event.shiftKey ? 0.5 : 0.1;
+      const offset = direction * step;
+
+      if (selectedBackgroundId) {
+        const clip = imageClips.find((item) => item.id === selectedBackgroundId);
+        if (!clip) return;
+        const len = Math.max(0.2, clip.end - clip.start);
+        const maxStart = duration > 0 ? Math.max(0, duration - len) : Number.POSITIVE_INFINITY;
+        const start = Math.max(0, Math.min(maxStart, clip.start + offset));
+        updateBackgroundClip(clip.id, { start, end: start + len });
+        audio.seek(start);
+        return;
+      }
+
+      if (selectedId) {
+        const line = lyrics.find((item) => item.id === selectedId);
+        if (!line) return;
+        const len = Math.max(0.2, line.end - line.start);
+        const maxStart = duration > 0 ? Math.max(0, duration - len) : Number.POSITIVE_INFINITY;
+        const start = Math.max(0, Math.min(maxStart, line.start + offset));
+        updateLyric(line.id, { start, end: start + len });
+        audio.seek(start);
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [imageClips, selectedBackgroundId, updateBackground]);
+  }, [
+    audio,
+    deleteLyric,
+    duplicateLyric,
+    duration,
+    imageClips,
+    lyrics,
+    selectedBackgroundId,
+    selectedId,
+    updateBackground,
+    updateLyric,
+  ]);
 
   const onBackgroundClipMouseDown = (clip: BackgroundImageClip, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -292,9 +373,12 @@ export function Timeline() {
     <div className="h-64 shrink-0 flex flex-col border-t border-border bg-card/30">
       {/* Header */}
       <div className="h-9 flex items-center justify-between px-3 border-b border-border">
-        <div className="flex items-center gap-2 text-sm font-medium">
-          <Music className="h-4 w-4 text-primary" />
-          Línea de Tiempo
+        <div className="flex items-center gap-2 text-sm font-medium min-w-0">
+          <Music className="h-4 w-4 text-primary shrink-0" />
+          <span className="shrink-0">Línea de Tiempo</span>
+          <span className="hidden 2xl:inline text-[10px] font-normal text-muted-foreground truncate">
+            Supr elimina · ← → mueve 0,1 s · Shift + ← → 0,5 s · Ctrl+D duplica
+          </span>
         </div>
         <div className="flex items-center gap-1">
           <span className="text-xs text-muted-foreground mr-2 font-mono">
@@ -398,7 +482,7 @@ export function Timeline() {
                 const left = line.start * pxPerSec;
                 const width = (line.end - line.start) * pxPerSec;
                 const selected = selectedId === line.id;
-                const isPlaying = playheadTime >= line.start && playheadTime <= line.end && line.start > 0;
+                const isPlaying = playheadTime >= line.start && playheadTime <= line.end && line.end > line.start;
                 return (
                   <ContextMenu key={line.id}>
                     <ContextMenuTrigger asChild>
@@ -526,6 +610,9 @@ export function Timeline() {
                           <ContextMenuContent>
                             <ContextMenuItem onClick={() => audio.seek(clip.start)}>
                               Ir al inicio de la imagen
+                            </ContextMenuItem>
+                            <ContextMenuItem onClick={() => duplicateBackgroundClip(clip.id)}>
+                              Duplicar
                             </ContextMenuItem>
                             <ContextMenuSeparator />
                             <ContextMenuItem className="text-destructive" onClick={() => deleteBackgroundClip(clip.id)}>
