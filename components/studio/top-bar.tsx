@@ -4,13 +4,14 @@ import {
   Music,
   Home,
   Settings,
-  Save,
+  Download,
   Undo2,
   Redo2,
   Upload,
   FileText,
   Hand,
   LogOut,
+  HardDrive,
 } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { useAudioEngineContext } from '@/lib/audio-engine-context';
@@ -33,7 +34,6 @@ export function TopBar() {
     setTab,
     undo,
     redo,
-    isDirty,
     undoStack,
     redoStack,
   } = useStore();
@@ -43,7 +43,7 @@ export function TopBar() {
   const audioInputRef = useRef<HTMLInputElement>(null);
   const lyricsInputRef = useRef<HTMLInputElement>(null);
 
-  const handleSave = () => {
+  const handleExport = () => {
     setExportOpen(true);
   };
 
@@ -122,6 +122,7 @@ export function TopBar() {
           <button
             onClick={closeProject}
             className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+            title="Volver al inicio de SonCeibe Studio"
           >
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/20 ring-1 ring-primary/30">
               <Music className="h-4 w-4 text-primary" />
@@ -155,9 +156,6 @@ export function TopBar() {
                 {currentProject?.settings.title || 'Sin título'}
               </button>
             )}
-            {isDirty && (
-              <span className="h-2 w-2 rounded-full bg-amber-500" title="Cambios sin guardar" />
-            )}
             {currentProject?.settings.artist && (
               <>
                 <span className="text-muted-foreground">·</span>
@@ -166,6 +164,13 @@ export function TopBar() {
                 </span>
               </>
             )}
+            <span
+              className="hidden xl:flex items-center gap-1 text-[11px] text-muted-foreground ml-1"
+              title="El proyecto se conserva en el almacenamiento local de este navegador"
+            >
+              <HardDrive className="h-3 w-3" />
+              Proyecto local
+            </span>
           </div>
         </div>
 
@@ -195,17 +200,17 @@ export function TopBar() {
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
-                  variant="outline"
+                  variant="default"
                   size="sm"
                   className="gap-1.5"
-                  onClick={handleSave}
+                  onClick={handleExport}
                   disabled={!currentProject}
                 >
-                  <Save className="h-4 w-4" />
-                  Guardar
+                  <Download className="h-4 w-4" />
+                  Exportar
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Elegir formato de salida (Ctrl+S)</TooltipContent>
+              <TooltipContent>Crear MP4 o exportar la letra (Ctrl+S)</TooltipContent>
             </Tooltip>
           </TooltipProvider>
 
