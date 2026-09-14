@@ -107,7 +107,7 @@ export function MobileStudioWizard() {
     updateBackground({ imageFit: 'cover' });
     // Only apply the mobile defaults when entering this project in mobile mode.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentProject.id]);
+  }, [currentProject?.id]);
 
   useEffect(() => {
     if (!currentProject || !audio.audioEl) return;
@@ -150,7 +150,7 @@ export function MobileStudioWizard() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentProject.id, userId, audio.audioEl]);
+  }, [currentProject?.id, userId, audio.audioEl]);
 
   useEffect(() => {
     if (!currentProject || audio.duration <= 0) return;
