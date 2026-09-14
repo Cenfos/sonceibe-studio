@@ -7,7 +7,7 @@ import { Card } from '@/components/ui/card';
 import { useStore } from '@/lib/store';
 import { useAudioEngineContext } from '@/lib/audio-engine-context';
 import { preloadBackgroundImage, renderFrame } from '@/components/studio/preview/canvas-renderer';
-import { drawVisualBranding, preloadVisualBranding } from '@/lib/visual-branding';
+import { preloadVisualBranding } from '@/lib/visual-branding';
 import { toast } from 'sonner';
 
 // 720×1280 keeps the same full-screen 9:16 format while allowing a much lower
@@ -170,7 +170,6 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
 
       const renderMobileFrame = (time: number) => {
         renderFrame(ctx, WIDTH, HEIGHT, settings, time);
-        drawVisualBranding(ctx, WIDTH, HEIGHT, settings.visualStyle, time);
       };
 
       renderMobileFrame(0);
