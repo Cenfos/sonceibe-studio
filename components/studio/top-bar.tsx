@@ -15,6 +15,8 @@ import {
 } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { useAudioEngineContext } from '@/lib/audio-engine-context';
+import { useStudioUserId } from '@/lib/studio-user-context';
+import { LOCAL_AUDIO_URL, saveProjectAudio } from '@/lib/local-media-storage';
 import {
   cleanLyricsText,
   cleanParsedLyrics,
@@ -43,6 +45,7 @@ export function TopBar() {
     undoStack,
     redoStack,
   } = useStore();
+  const userId = useStudioUserId();
   const audio = useAudioEngineContext();
   const [editingTitle, setEditingTitle] = useState(false);
   const [lyricsSyncOpen, setLyricsSyncOpen] = useState(false);
@@ -63,18 +66,20 @@ export function TopBar() {
 
   const handleAudioUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !currentProject) return;
 
     try {
       await audio.loadFile(file);
+      await saveProjectAudio(userId, currentProject.id, file);
       updateSettings({
         audioName: file.name,
-        audioUrl: URL.createObjectURL(file),
+        audioUrl: LOCAL_AUDIO_URL,
       });
-      toast.success(`MP3 cargado: ${file.name}`);
+      toast.success(`MP3 cargado y guardado en este equipo: ${file.name}`);
     } catch (error) {
-      console.error('Failed to load audio:', error);
-      toast.error('No se pudo cargar el archivo de audio');
+      console.error('Failed to load or persist audio:', error);
+      updateSettings({ audioName: file.name, audioUrl: '' });
+      toast.error('El MP3 se ha abierto, pero no se pudo guardar de forma permanente en este navegador');
     } finally {
       e.target.value = '';
     }
@@ -192,7 +197,7 @@ export function TopBar() {
             )}
             <span
               className="hidden xl:flex items-center gap-1 text-[11px] text-muted-foreground ml-1"
-              title="El proyecto se conserva en el almacenamiento local de este navegador"
+              title="El proyecto y su audio se conservan en el almacenamiento local de este equipo"
             >
               <HardDrive className="h-3 w-3" />
               Proyecto local
