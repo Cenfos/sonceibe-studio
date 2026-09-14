@@ -10,6 +10,7 @@ import { useStore } from '@/lib/store';
 import { useAudioEngineContext } from '@/lib/audio-engine-context';
 import { useStudioUserId } from '@/lib/studio-user-context';
 import { getProjectAudio, LOCAL_AUDIO_URL, saveProjectAudio } from '@/lib/local-media-storage';
+import { getProjectAudioFromWorkspace } from '@/lib/local-workspace';
 import { LyricsEditor } from './lyrics/lyrics-editor';
 import { MobileOrientationGate } from './mobile-orientation-gate';
 import { toast } from 'sonner';
@@ -111,6 +112,19 @@ export function StudioLayout() {
             if (audioUrl !== LOCAL_AUDIO_URL || audioName !== storedFile.name) {
               updateSettings({ audioUrl: LOCAL_AUDIO_URL, audioName: storedFile.name });
             }
+            return;
+          }
+
+          const workspaceFile = audioName
+            ? await getProjectAudioFromWorkspace(userId, projectId, audioName)
+            : null;
+          if (cancelled) return;
+
+          if (workspaceFile) {
+            await saveProjectAudio(userId, projectId, workspaceFile);
+            await audio.loadFile(workspaceFile);
+            updateSettings({ audioUrl: LOCAL_AUDIO_URL, audioName: workspaceFile.name });
+            toast.success('Audio recuperado desde la carpeta de trabajo');
             return;
           }
         }
