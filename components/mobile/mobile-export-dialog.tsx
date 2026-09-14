@@ -7,13 +7,18 @@ import { Card } from '@/components/ui/card';
 import { useStore } from '@/lib/store';
 import { useAudioEngineContext } from '@/lib/audio-engine-context';
 import { preloadBackgroundImage, renderFrame } from '@/components/studio/preview/canvas-renderer';
+import { drawVisualBranding, preloadVisualBranding } from '@/lib/visual-branding';
 import { toast } from 'sonner';
 
-const WIDTH = 1080;
-const HEIGHT = 1920;
+// 720×1280 keeps the same full-screen 9:16 format while allowing a much lower
+// bitrate than 1080×1920. WhatsApp/Instagram will recompress it again anyway.
+const WIDTH = 720;
+const HEIGHT = 1280;
 const FPS = 30;
-const VIDEO_BITRATE = 3_000_000;
-const AUDIO_BITRATE = 128_000;
+const AUDIO_BITRATE = 96_000;
+const TARGET_SIZE_BYTES = 34_000_000;
+const MIN_VIDEO_BITRATE = 600_000;
+const MAX_VIDEO_BITRATE = 1_400_000;
 
 type CapturableAudioElement = HTMLAudioElement & {
   captureStream?: () => MediaStream;
@@ -61,6 +66,18 @@ function downloadBlob(filename: string, blob: Blob) {
   window.setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
+function mobileVideoBitrate(duration: number): number {
+  if (duration <= 0) return 1_000_000;
+  const desiredTotalBitrate = (TARGET_SIZE_BYTES * 8) / (duration * 1.03);
+  const desiredVideoBitrate = desiredTotalBitrate - AUDIO_BITRATE;
+  return Math.round(Math.min(MAX_VIDEO_BITRATE, Math.max(MIN_VIDEO_BITRATE, desiredVideoBitrate)));
+}
+
+function estimatedSizeBytes(duration: number, videoBitrate: number): number {
+  if (duration <= 0) return 0;
+  return duration * (videoBitrate + AUDIO_BITRATE) / 8 * 1.03;
+}
+
 export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { currentProject, markSaved } = useStore();
   const audio = useAudioEngineContext();
@@ -70,10 +87,11 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
   const [filename, setFilename] = useState('');
 
   const duration = audio.duration || currentProject?.settings.audioDuration || 0;
-  const estimatedSize = useMemo(() => {
-    if (duration <= 0) return 0;
-    return duration * (VIDEO_BITRATE + AUDIO_BITRATE) / 8 * 1.03;
-  }, [duration]);
+  const videoBitrate = useMemo(() => mobileVideoBitrate(duration), [duration]);
+  const estimatedSize = useMemo(
+    () => estimatedSizeBytes(duration, videoBitrate),
+    [duration, videoBitrate]
+  );
 
   useEffect(() => {
     if (!open) {
@@ -130,7 +148,7 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
         exportConfig: {
           ...currentProject.settings.exportConfig,
           orientation: 'portrait' as const,
-          resolution: '1080p' as const,
+          resolution: '720p' as const,
           fps: 30 as const,
           includeAudio: true,
         },
@@ -142,6 +160,7 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
       for (const src of bg.images ?? []) if (src) sources.add(src);
       for (const clip of bg.imageClips ?? []) if (clip.url) sources.add(clip.url);
       await Promise.all(Array.from(sources).map((src) => preloadBackgroundImage(src)));
+      await preloadVisualBranding(settings.visualStyle);
 
       const canvas = document.createElement('canvas');
       canvas.width = WIDTH;
@@ -149,7 +168,12 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
       const ctx = canvas.getContext('2d');
       if (!ctx) throw new Error('No se pudo preparar el vídeo');
 
-      renderFrame(ctx, WIDTH, HEIGHT, settings, 0);
+      const renderMobileFrame = (time: number) => {
+        renderFrame(ctx, WIDTH, HEIGHT, settings, time);
+        drawVisualBranding(ctx, WIDTH, HEIGHT, settings.visualStyle, time);
+      };
+
+      renderMobileFrame(0);
       outputStream = canvas.captureStream(FPS);
       capturedAudioStream = captureAudio.call(audioEl);
       const audioTracks = capturedAudioStream.getAudioTracks();
@@ -159,7 +183,7 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
       const chunks: BlobPart[] = [];
       recorder = new MediaRecorder(outputStream, {
         mimeType,
-        videoBitsPerSecond: VIDEO_BITRATE,
+        videoBitsPerSecond: videoBitrate,
         audioBitsPerSecond: AUDIO_BITRATE,
       });
 
@@ -178,7 +202,7 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
       const renderLoop = () => {
         const t = Math.min(duration, audioEl.currentTime || 0);
         if (t - lastRendered >= frameInterval * 0.9 || t >= duration) {
-          renderFrame(ctx, WIDTH, HEIGHT, settings, t);
+          renderMobileFrame(t);
           lastRendered = t;
         }
         const nextProgress = Math.min(99, Math.round((t / duration) * 100));
@@ -191,7 +215,7 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
 
       const onEnded = () => {
         cancelAnimationFrame(frameId);
-        renderFrame(ctx, WIDTH, HEIGHT, settings, duration);
+        renderMobileFrame(duration);
         setProgress(100);
         if (recorder?.state !== 'inactive') recorder?.stop();
       };
@@ -246,7 +270,7 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
           <div className="mb-5 flex items-start justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold">Crear MP4 para móvil</h2>
-              <p className="mt-1 text-xs text-muted-foreground">Vertical 9:16 · 1080×1920 · pantalla completa · 30 FPS</p>
+              <p className="mt-1 text-xs text-muted-foreground">Vertical 9:16 · 720×1280 · pantalla completa · 30 FPS</p>
             </div>
             {!exporting && (
               <Button variant="ghost" size="icon" onClick={onClose} aria-label="Cerrar">
@@ -289,7 +313,9 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
                 <div className="flex justify-between"><span className="text-muted-foreground">Duración</span><span>{Math.round(duration)} s</span></div>
                 <div className="mt-1 flex justify-between"><span className="text-muted-foreground">Tamaño estimado</span><span>~{estimatedSize ? formatMb(estimatedSize) : '—'}</span></div>
               </div>
-              <p className="text-xs leading-5 text-muted-foreground">Las fotos rellenarán toda la pantalla vertical. Si son horizontales se recortarán por los lados para evitar el rectángulo pequeño con franjas negras.</p>
+              <p className="text-xs leading-5 text-muted-foreground">
+                El bitrate se adapta a la duración para intentar mantener una canción normal alrededor de 30–40 MB. Sigue siendo 9:16 a pantalla completa y está pensado para WhatsApp e Instagram.
+              </p>
               <Button className="w-full h-12 gap-2" onClick={exportVideo}>
                 <Film className="h-5 w-5" />
                 Crear MP4
