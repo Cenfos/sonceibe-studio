@@ -8,6 +8,11 @@ interface DownloadableProjectFile {
   audioDataUrl: string | null;
 }
 
+export interface ImportedPortableProject {
+  project: Project;
+  audioFile: File | null;
+}
+
 function safeFileName(value: string): string {
   return value
     .trim()
@@ -25,7 +30,8 @@ function blobToDataUrl(blob: Blob): Promise<string> {
   });
 }
 
-async function getAudioDataUrl(audioSrc?: string): Promise<string | null> {
+async function getAudioDataUrl(audioSrc?: string, audioBlob?: Blob | null): Promise<string | null> {
+  if (audioBlob) return blobToDataUrl(audioBlob);
   if (!audioSrc) return null;
   if (audioSrc.startsWith('data:')) return audioSrc;
 
@@ -38,16 +44,21 @@ async function getAudioDataUrl(audioSrc?: string): Promise<string | null> {
   }
 }
 
-export async function downloadCurrentProject(project: Project, audioSrc?: string): Promise<void> {
-  const audioDataUrl = await getAudioDataUrl(audioSrc);
+export async function downloadCurrentProject(
+  project: Project,
+  audioSrc?: string,
+  audioBlob?: Blob | null
+): Promise<void> {
+  const audioDataUrl = await getAudioDataUrl(audioSrc, audioBlob);
 
-  // Object URLs only work in the current browser session, so never save one as
-  // the project's persistent audio URL. The audio itself is embedded separately.
   const projectCopy: Project = {
     ...project,
     settings: {
       ...project.settings,
-      audioUrl: project.settings.audioUrl.startsWith('blob:') ? '' : project.settings.audioUrl,
+      audioUrl:
+        project.settings.audioUrl.startsWith('blob:') || project.settings.audioUrl.startsWith('sonceibe-local://')
+          ? ''
+          : project.settings.audioUrl,
     },
   };
 
@@ -59,7 +70,7 @@ export async function downloadCurrentProject(project: Project, audioSrc?: string
     audioDataUrl,
   };
 
-  const blob = new Blob([JSON.stringify(payload, null, 2)], {
+  const blob = new Blob([JSON.stringify(payload)], {
     type: 'application/json;charset=utf-8',
   });
   const url = URL.createObjectURL(blob);
@@ -69,5 +80,35 @@ export async function downloadCurrentProject(project: Project, audioSrc?: string
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
-  URL.revokeObjectURL(url);
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+export async function readPortableProjectFile(file: File): Promise<ImportedPortableProject> {
+  let payload: DownloadableProjectFile;
+  try {
+    payload = JSON.parse(await file.text()) as DownloadableProjectFile;
+  } catch {
+    throw new Error('El archivo no es un proyecto SonCeibe Studio válido');
+  }
+
+  if (payload?.format !== 'sonceibe-studio' || payload.version !== 1 || !payload.project?.settings) {
+    throw new Error('El archivo no es un proyecto SonCeibe Studio compatible');
+  }
+
+  let audioFile: File | null = null;
+  if (payload.audioDataUrl?.startsWith('data:')) {
+    try {
+      const response = await fetch(payload.audioDataUrl);
+      const blob = await response.blob();
+      audioFile = new File(
+        [blob],
+        payload.project.settings.audioName || 'audio.mp3',
+        { type: blob.type || 'audio/mpeg', lastModified: Date.now() }
+      );
+    } catch {
+      throw new Error('El proyecto se ha leído, pero el audio incrustado está dañado');
+    }
+  }
+
+  return { project: payload.project, audioFile };
 }
