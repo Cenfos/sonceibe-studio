@@ -10,6 +10,7 @@ export type BackgroundType =
 export type ImageSequenceMode = 'auto' | 'manual';
 export type ImageFitMode = 'contain' | 'cover';
 export type VideoOrientation = 'landscape' | 'portrait';
+export type VisualStyleId = 'default' | 'sonceibe' | 'karaoke-pop' | 'minimal' | 'neon' | 'cinema';
 
 export type AnimationType =
   | 'fade'
@@ -36,8 +37,8 @@ export type ExportFps = 30 | 60;
 export interface LyricLine {
   id: ID;
   text: string;
-  start: number; // seconds
-  end: number; // seconds
+  start: number;
+  end: number;
   words?: { text: string; start: number; end: number }[];
 }
 
@@ -134,6 +135,7 @@ export interface ProjectSettings {
   animation: AnimationConfig;
   effects: EffectsConfig;
   exportConfig: ExportConfig;
+  visualStyle?: VisualStyleId;
   createdAt: number;
   updatedAt: number;
 }
@@ -224,6 +226,7 @@ export function createDefaultProjectSettings(): ProjectSettings {
     animation: { ...defaultAnimation },
     effects: { ...defaultEffects },
     exportConfig: { ...defaultExport },
+    visualStyle: 'default',
     createdAt: now,
     updatedAt: now,
   };
