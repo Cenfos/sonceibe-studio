@@ -33,36 +33,259 @@ export async function preloadVisualBranding(
   });
 }
 
-function drawSonCeibeCorners(ctx: CanvasRenderingContext2D, w: number, h: number, inset: number, size: number) {
+function strokeCelticPath(
+  ctx: CanvasRenderingContext2D,
+  drawPath: () => void,
+  minSide: number,
+  widthScale = 1
+) {
+  const darkWidth = Math.max(7, minSide * 0.018 * widthScale);
+  const copperWidth = Math.max(5, minSide * 0.0125 * widthScale);
+  const highlightWidth = Math.max(1.3, minSide * 0.0028 * widthScale);
+
   ctx.save();
-  ctx.strokeStyle = 'rgba(231, 184, 109, 0.62)';
-  ctx.lineWidth = Math.max(2, w * 0.0023);
   ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
 
-  const corners: Array<[number, number, number, number]> = [
-    [inset, inset, 1, 1],
-    [w - inset, inset, -1, 1],
-    [inset, h - inset, 1, -1],
-    [w - inset, h - inset, -1, -1],
-  ];
+  ctx.beginPath();
+  drawPath();
+  ctx.strokeStyle = 'rgba(37, 20, 13, 0.98)';
+  ctx.lineWidth = darkWidth;
+  ctx.shadowColor = 'rgba(0,0,0,0.7)';
+  ctx.shadowBlur = Math.max(5, minSide * 0.009);
+  ctx.stroke();
 
-  for (const [x, y, sx, sy] of corners) {
-    ctx.beginPath();
-    ctx.moveTo(x, y + sy * size);
-    ctx.quadraticCurveTo(x, y, x + sx * size, y);
-    ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.beginPath();
+  drawPath();
+  ctx.strokeStyle = 'rgba(178, 96, 48, 0.98)';
+  ctx.lineWidth = copperWidth;
+  ctx.stroke();
 
-    ctx.beginPath();
-    ctx.moveTo(x + sx * size * 0.22, y + sy * size * 0.72);
-    ctx.quadraticCurveTo(
-      x + sx * size * 0.48,
-      y + sy * size * 0.42,
-      x + sx * size * 0.72,
-      y + sy * size * 0.2
-    );
-    ctx.stroke();
-  }
+  ctx.beginPath();
+  drawPath();
+  ctx.strokeStyle = 'rgba(238, 171, 104, 0.82)';
+  ctx.lineWidth = highlightWidth;
+  ctx.stroke();
   ctx.restore();
+}
+
+function drawHorizontalKnotBand(
+  ctx: CanvasRenderingContext2D,
+  y: number,
+  x1: number,
+  x2: number,
+  amplitude: number,
+  minSide: number
+) {
+  const width = Math.max(1, x2 - x1);
+  const segment = Math.max(42, minSide * 0.092);
+  const count = Math.max(2, Math.floor(width / segment));
+  const step = width / count;
+
+  const drawWave = (flip: number) => {
+    ctx.moveTo(x1, y);
+    for (let i = 0; i < count; i++) {
+      const start = x1 + i * step;
+      const end = start + step;
+      const dir = (i % 2 === 0 ? 1 : -1) * flip;
+      ctx.bezierCurveTo(
+        start + step * 0.24,
+        y + amplitude * dir,
+        start + step * 0.76,
+        y - amplitude * dir,
+        end,
+        y
+      );
+    }
+  };
+
+  strokeCelticPath(ctx, () => drawWave(1), minSide, 0.9);
+  strokeCelticPath(ctx, () => drawWave(-1), minSide, 0.9);
+}
+
+function drawVerticalKnotBand(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y1: number,
+  y2: number,
+  amplitude: number,
+  minSide: number
+) {
+  const height = Math.max(1, y2 - y1);
+  const segment = Math.max(42, minSide * 0.092);
+  const count = Math.max(2, Math.floor(height / segment));
+  const step = height / count;
+
+  const drawWave = (flip: number) => {
+    ctx.moveTo(x, y1);
+    for (let i = 0; i < count; i++) {
+      const start = y1 + i * step;
+      const end = start + step;
+      const dir = (i % 2 === 0 ? 1 : -1) * flip;
+      ctx.bezierCurveTo(
+        x + amplitude * dir,
+        start + step * 0.24,
+        x - amplitude * dir,
+        start + step * 0.76,
+        x,
+        end
+      );
+    }
+  };
+
+  strokeCelticPath(ctx, () => drawWave(1), minSide, 0.9);
+  strokeCelticPath(ctx, () => drawWave(-1), minSide, 0.9);
+}
+
+function drawCornerKnot(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  sx: number,
+  sy: number,
+  size: number,
+  minSide: number
+) {
+  const drawLoop = () => {
+    ctx.moveTo(x + sx * size, y);
+    ctx.bezierCurveTo(
+      x + sx * size * 0.42,
+      y,
+      x,
+      y + sy * size * 0.42,
+      x,
+      y + sy * size
+    );
+    ctx.bezierCurveTo(
+      x + sx * size * 0.18,
+      y + sy * size * 0.58,
+      x + sx * size * 0.58,
+      y + sy * size * 0.18,
+      x + sx * size,
+      y
+    );
+  };
+
+  strokeCelticPath(ctx, drawLoop, minSide, 1.05);
+}
+
+function drawTriskelMedallion(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  radius: number,
+  minSide: number
+) {
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.72)';
+  ctx.shadowBlur = Math.max(8, minSide * 0.014);
+  ctx.fillStyle = 'rgba(7, 30, 45, 0.98)';
+  ctx.strokeStyle = 'rgba(53, 27, 16, 0.98)';
+  ctx.lineWidth = Math.max(8, radius * 0.3);
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = 'rgba(187, 103, 52, 0.98)';
+  ctx.lineWidth = Math.max(4, radius * 0.18);
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius * 0.93, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.strokeStyle = 'rgba(235, 166, 99, 0.84)';
+  ctx.lineWidth = Math.max(1.2, radius * 0.045);
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius * 0.83, 0, Math.PI * 2);
+  ctx.stroke();
+
+  for (let i = 0; i < 3; i++) {
+    const angle = -Math.PI / 2 + (i * Math.PI * 2) / 3;
+    const armX = cx + Math.cos(angle) * radius * 0.28;
+    const armY = cy + Math.sin(angle) * radius * 0.28;
+    const armRadius = radius * 0.34;
+
+    strokeCelticPath(
+      ctx,
+      () => {
+        ctx.moveTo(cx, cy);
+        ctx.quadraticCurveTo(
+          cx + Math.cos(angle + 0.55) * radius * 0.66,
+          cy + Math.sin(angle + 0.55) * radius * 0.66,
+          armX,
+          armY
+        );
+        ctx.arc(armX, armY, armRadius, angle + 0.1, angle + Math.PI * 1.55, false);
+      },
+      minSide,
+      0.55
+    );
+  }
+
+  ctx.restore();
+}
+
+function drawSonCeibeCelticBorder(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  inset: number,
+  minSide: number
+) {
+  const band = Math.max(24, minSide * 0.052);
+  const halfBand = band / 2;
+  const cornerSize = Math.max(46, minSide * 0.105);
+  const topY = inset + halfBand;
+  const bottomY = h - inset - halfBand;
+  const leftX = inset + halfBand;
+  const rightX = w - inset - halfBand;
+  const horizontalStart = leftX + cornerSize * 0.68;
+  const horizontalEnd = rightX - cornerSize * 0.68;
+  const verticalStart = topY + cornerSize * 0.68;
+  const verticalEnd = bottomY - cornerSize * 0.68;
+
+  ctx.save();
+  ctx.strokeStyle = 'rgba(20, 12, 10, 0.94)';
+  ctx.lineWidth = band;
+  ctx.lineJoin = 'round';
+  ctx.shadowColor = 'rgba(0,0,0,0.72)';
+  ctx.shadowBlur = Math.max(10, minSide * 0.016);
+  ctx.strokeRect(
+    leftX,
+    topY,
+    Math.max(1, rightX - leftX),
+    Math.max(1, bottomY - topY)
+  );
+  ctx.restore();
+
+  ctx.save();
+  ctx.strokeStyle = 'rgba(35, 88, 139, 0.92)';
+  ctx.lineWidth = Math.max(9, band * 0.5);
+  ctx.lineJoin = 'round';
+  ctx.strokeRect(
+    leftX,
+    topY,
+    Math.max(1, rightX - leftX),
+    Math.max(1, bottomY - topY)
+  );
+  ctx.restore();
+
+  drawHorizontalKnotBand(ctx, topY, horizontalStart, horizontalEnd, band * 0.36, minSide);
+  drawHorizontalKnotBand(ctx, bottomY, horizontalStart, horizontalEnd, band * 0.36, minSide);
+  drawVerticalKnotBand(ctx, leftX, verticalStart, verticalEnd, band * 0.36, minSide);
+  drawVerticalKnotBand(ctx, rightX, verticalStart, verticalEnd, band * 0.36, minSide);
+
+  drawCornerKnot(ctx, leftX, topY, 1, 1, cornerSize, minSide);
+  drawCornerKnot(ctx, rightX, topY, -1, 1, cornerSize, minSide);
+  drawCornerKnot(ctx, leftX, bottomY, 1, -1, cornerSize, minSide);
+  drawCornerKnot(ctx, rightX, bottomY, -1, -1, cornerSize, minSide);
+
+  const medallionRadius = Math.max(17, minSide * 0.033);
+  drawTriskelMedallion(ctx, w / 2, topY, medallionRadius, minSide);
+  drawTriskelMedallion(ctx, leftX, h / 2, medallionRadius * 0.9, minSide);
+  drawTriskelMedallion(ctx, rightX, h / 2, medallionRadius * 0.9, minSide);
 }
 
 function drawBrandSignature(
@@ -133,26 +356,11 @@ export function drawVisualBranding(
   if (!isSonCeibeStyle && !showBranding) return;
 
   const minSide = Math.min(w, h);
-  const inset = Math.max(20, minSide * 0.032);
+  const inset = Math.max(14, minSide * 0.022);
   const borderWidth = Math.max(3, minSide * 0.0045);
 
   if (isSonCeibeStyle) {
-    ctx.save();
-    ctx.shadowColor = 'rgba(217, 154, 69, 0.42)';
-    ctx.shadowBlur = Math.max(12, minSide * 0.018);
-    ctx.strokeStyle = 'rgba(217, 154, 69, 0.82)';
-    ctx.lineWidth = borderWidth;
-    ctx.strokeRect(inset, inset, w - inset * 2, h - inset * 2);
-    ctx.restore();
-
-    ctx.save();
-    ctx.strokeStyle = 'rgba(37, 91, 145, 0.7)';
-    ctx.lineWidth = Math.max(1.5, borderWidth * 0.45);
-    const innerInset = inset + borderWidth * 2.2;
-    ctx.strokeRect(innerInset, innerInset, w - innerInset * 2, h - innerInset * 2);
-    ctx.restore();
-
-    drawSonCeibeCorners(ctx, w, h, inset + borderWidth, minSide * 0.11);
+    drawSonCeibeCelticBorder(ctx, w, h, inset, minSide);
 
     const pulse = 0.04 + ((Math.sin(time * 0.8) + 1) / 2) * 0.035;
     const glow = ctx.createRadialGradient(w * 0.5, h * 0.84, 0, w * 0.5, h * 0.84, minSide * 0.42);
