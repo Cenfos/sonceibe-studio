@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useStore } from '@/lib/store';
 import { useAudioEngineContext } from '@/lib/audio-engine-context';
 import { formatTime } from '@/lib/format';
@@ -86,32 +86,99 @@ export function LyricsEditor() {
   const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   const lyrics = currentProject?.settings.lyrics ?? [];
+  const syncableLyrics = useMemo(
+    () => lyrics.filter((line) => line.text.trim().length > 0),
+    [lyrics]
+  );
   const duration = audio.duration || currentProject?.settings.audioDuration || 0;
   const syncProgress = currentProject?.settings.syncProgress ?? { syncedCount: 0, totalCount: 0, currentIndex: 0, inProgress: false };
+  const tapCurrentLine = syncableLyrics[tapSyncIndex] ?? null;
 
   const activePlaybackLine = useCallback(() => {
     const t = audio.currentTime;
+    let active: LyricLine | null = null;
     for (const line of lyrics) {
-      if (line.start > 0 && t >= line.start && t <= line.end) return line.id;
+      if (!line.text.trim() || t < line.start || t > line.end) continue;
+      if (!active || line.start >= active.start) active = line;
     }
-    return null;
+    return active?.id ?? null;
   }, [lyrics, audio.currentTime]);
 
   const playingLineId = activePlaybackLine();
 
   useEffect(() => {
-    if (!playingLineId) return;
+    if (!playingLineId || tapSyncActive) return;
     const el = itemRefs.current.get(playingLineId);
     if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  }, [playingLineId]);
+  }, [playingLineId, tapSyncActive]);
 
   useEffect(() => {
-    if (!tapSyncActive) return;
-    const line = lyrics[tapSyncIndex];
-    if (!line) return;
-    const el = itemRefs.current.get(line.id);
+    if (!tapSyncActive || !tapCurrentLine) return;
+    const el = itemRefs.current.get(tapCurrentLine.id);
     if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
-  }, [tapSyncIndex, tapSyncActive, lyrics]);
+  }, [tapCurrentLine?.id, tapSyncActive]);
+
+  const stopTapSync = useCallback(() => {
+    setTapSyncActive(false);
+    audio.pause();
+    setSyncProgress({ inProgress: false });
+  }, [audio, setSyncProgress]);
+
+  const handleTapSync = useCallback(() => {
+    if (!tapSyncActive || !currentProject) return;
+    const line = syncableLyrics[tapSyncIndex];
+    if (!line) {
+      stopTapSync();
+      return;
+    }
+
+    const elementTime = audio.audioEl?.currentTime;
+    const rawTime = Number.isFinite(elementTime) ? Number(elementTime) : audio.currentTime;
+    const previousLine = tapSyncIndex > 0 ? syncableLyrics[tapSyncIndex - 1] : null;
+    const minimumTime = previousLine ? previousLine.start + 0.05 : 0;
+    const t = Math.min(duration, Math.max(minimumTime, rawTime));
+    const nextIndex = tapSyncIndex + 1;
+    const finished = nextIndex >= syncableLyrics.length;
+    const provisionalEnd = finished
+      ? Math.max(t + 0.05, duration)
+      : Math.min(duration, t + 4);
+
+    const nextLyrics = lyrics.map((item) => {
+      if (previousLine && item.id === previousLine.id) {
+        return { ...item, end: Math.max(item.start + 0.05, t) };
+      }
+      if (item.id === line.id) {
+        return { ...item, start: t, end: provisionalEnd };
+      }
+      return item;
+    });
+
+    setLyrics(nextLyrics);
+    setSyncProgress({
+      inProgress: !finished,
+      currentIndex: nextIndex,
+      syncedCount: nextIndex,
+      totalCount: syncableLyrics.length,
+    });
+
+    if (finished) {
+      setTapSyncActive(false);
+      audio.pause();
+    } else {
+      setTapSyncIndex(nextIndex);
+    }
+  }, [
+    audio,
+    currentProject,
+    duration,
+    lyrics,
+    setLyrics,
+    setSyncProgress,
+    stopTapSync,
+    syncableLyrics,
+    tapSyncActive,
+    tapSyncIndex,
+  ]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -142,38 +209,34 @@ export function LyricsEditor() {
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [activeId, deleteLyric, tapSyncActive, tapSyncIndex, lyrics, audio.currentTime]);
+  }, [activeId, deleteLyric, handleTapSync, stopTapSync, tapSyncActive]);
 
-  const handleTapSync = useCallback(() => {
-    if (!tapSyncActive) return;
-    const line = lyrics[tapSyncIndex];
-    if (!line) {
-      stopTapSync();
-      return;
-    }
-    const t = audio.currentTime;
-    updateLyric(line.id, { start: t, end: t + 4 });
-    setSyncProgress({ syncedCount: tapSyncIndex + 1, currentIndex: tapSyncIndex + 1 });
-    setTapSyncIndex((i) => i + 1);
-  }, [tapSyncActive, tapSyncIndex, lyrics, audio.currentTime, updateLyric, setSyncProgress]);
+  const startTapSync = async () => {
+    if (syncableLyrics.length === 0 || duration <= 0) return;
 
-  const startTapSync = () => {
-    if (lyrics.length === 0) return;
-    setTapSyncActive(true);
+    // Plain-text imports carry provisional times so they can be previewed.
+    // Manual synchronization must discard those times first; otherwise the
+    // lyrics appear to advance by themselves and the user's taps are obscured.
+    const clearedLyrics = lyrics.map((line) => ({ ...line, start: 0, end: 0 }));
+    setLyrics(clearedLyrics);
     setTapSyncIndex(0);
-    setSyncProgress({ inProgress: true, currentIndex: 0, syncedCount: 0 });
+    setTapSyncActive(true);
+    setSyncProgress({
+      inProgress: true,
+      currentIndex: 0,
+      syncedCount: 0,
+      totalCount: syncableLyrics.length,
+    });
     audio.seek(0);
-    audio.play();
+    try {
+      await audio.play();
+    } catch {
+      // The existing Reanudar button remains available if the browser blocks play().
+    }
   };
 
   const pauseTapSync = () => audio.pause();
   const resumeTapSync = () => audio.play();
-
-  const stopTapSync = () => {
-    setTapSyncActive(false);
-    audio.pause();
-    setSyncProgress({ inProgress: false });
-  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -277,10 +340,10 @@ export function LyricsEditor() {
         <Separator />
 
         <div className="p-3 space-y-2">
-          <div className="text-xs text-muted-foreground mb-1">Tap Sync</div>
+          <div className="text-xs text-muted-foreground mb-1">Sincronizar letra</div>
           {!tapSyncActive ? (
-            <Button size="sm" className="w-full gap-2" onClick={startTapSync} disabled={lyrics.length === 0 || duration === 0}>
-              <Hand className="h-4 w-4" /> Iniciar Tap Sync
+            <Button size="sm" className="w-full gap-2" onClick={startTapSync} disabled={syncableLyrics.length === 0 || duration === 0}>
+              <Hand className="h-4 w-4" /> Sincronizar letra
             </Button>
           ) : (
             <div className="space-y-2">
@@ -292,11 +355,15 @@ export function LyricsEditor() {
                 )}
                 <Button size="sm" variant="destructive" className="flex-1 gap-1" onClick={stopTapSync}><Square className="h-3.5 w-3.5" /> Detener</Button>
               </div>
-              <Button size="sm" className="w-full gap-2 animate-pulse-glow" onClick={handleTapSync}><Hand className="h-4 w-4" /> TAP (Espacio)</Button>
-              <div className="text-[11px] text-muted-foreground text-center">Línea {tapSyncIndex + 1} de {lyrics.length}</div>
+              <Button size="sm" className="w-full gap-2 animate-pulse-glow" onClick={handleTapSync} disabled={!audio.isPlaying}>
+                <Hand className="h-4 w-4" /> MARCAR ESTA LÍNEA (ESPACIO)
+              </Button>
+              <div className="text-[11px] text-muted-foreground text-center">
+                Línea {Math.min(tapSyncIndex + 1, syncableLyrics.length)} de {syncableLyrics.length}
+              </div>
             </div>
           )}
-          <p className="text-[11px] text-muted-foreground leading-relaxed">Pulsa ESPACIO al ritmo de cada línea para asignar tiempos automáticamente.</p>
+          <p className="text-[11px] text-muted-foreground leading-relaxed">Pulsa ESPACIO o el botón justo cuando empiece cada frase. Las líneas vacías se omiten.</p>
         </div>
 
         <Separator />
@@ -335,7 +402,7 @@ export function LyricsEditor() {
         <div className="mt-auto p-3">
           <div className="text-xs text-muted-foreground space-y-1">
             <div className="flex justify-between"><span>Líneas:</span><Badge variant="secondary">{lyrics.length}</Badge></div>
-            <div className="flex justify-between"><span>Sincronizadas:</span><Badge variant="secondary">{syncProgress.syncedCount}/{syncProgress.totalCount}</Badge></div>
+            <div className="flex justify-between"><span>Sincronizadas:</span><Badge variant="secondary">{syncProgress.syncedCount}/{syncableLyrics.length}</Badge></div>
             <div className="flex justify-between"><span>Audio:</span><span className="truncate ml-2 max-w-[120px]">{currentProject.settings.audioName || 'Sin audio'}</span></div>
           </div>
         </div>
@@ -365,7 +432,7 @@ export function LyricsEditor() {
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium">Editor de Letra</span>
                 {activeId && <Badge variant="secondary">Supr para eliminar línea</Badge>}
-                {tapSyncActive && <Badge className="bg-primary/20 text-primary border border-primary/30">Tap Sync: línea {tapSyncIndex + 1}/{lyrics.length}</Badge>}
+                {tapSyncActive && <Badge className="bg-primary/20 text-primary border border-primary/30">Sincronizando: línea {Math.min(tapSyncIndex + 1, syncableLyrics.length)}/{syncableLyrics.length}</Badge>}
               </div>
               <div className="flex items-center gap-1">
                 <Button variant="ghost" size="sm" className="gap-1.5 h-7" onClick={() => setSearchOpen(!searchOpen)}><Search className="h-3.5 w-3.5" /> Buscar</Button>
@@ -398,7 +465,7 @@ export function LyricsEditor() {
                   const status = getLineStatus(line);
                   const isActive = activeId === line.id;
                   const isPlaying = playingLineId === line.id;
-                  const isTapSyncCurrent = tapSyncActive && tapSyncIndex === idx;
+                  const isTapSyncCurrent = tapSyncActive && tapCurrentLine?.id === line.id;
                   const isDragOver = dragOverId === line.id;
                   const matchesSearch = searchQuery && (matchCase ? line.text.includes(searchQuery) : line.text.toLowerCase().includes(searchQuery.toLowerCase()));
 
