@@ -72,8 +72,12 @@ export function AppShell() {
       ) : (
         <StudioLayout />
       )}
-      <ExportDialog />
-      <SettingsDialog />
+      {currentProject && (
+        <>
+          <ExportDialog />
+          <SettingsDialog />
+        </>
+      )}
     </div>
   );
 }
