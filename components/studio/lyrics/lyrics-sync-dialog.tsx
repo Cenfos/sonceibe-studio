@@ -24,9 +24,7 @@ interface LyricsSyncDialogProps {
 export function LyricsSyncDialog({ open, onOpenChange }: LyricsSyncDialogProps) {
   const {
     currentProject,
-    updateLyric,
-    clearTimestamps,
-    setSyncProgress,
+    updateSettings,
   } = useStore();
   const audio = useAudioEngineContext();
 
@@ -64,25 +62,34 @@ export function LyricsSyncDialog({ open, onOpenChange }: LyricsSyncDialogProps) 
   }, [audio.audioEl]);
 
   const startSync = useCallback(async () => {
-    if (syncableLyrics.length === 0 || duration <= 0 || !audio.audioEl) return;
+    if (syncableLyrics.length === 0 || duration <= 0 || !audio.audioEl || !currentProject) return;
 
-    // Call play() directly from the user's tap before React state updates. This is
-    // important on mobile browsers, where playback can otherwise be rejected as
-    // an autoplay attempt.
+    // Keep play() directly attached to the user's tap for Android autoplay
+    // rules, but reset all timestamps and sync state in one atomic store write.
     audio.seek(0);
     const playPromise = audio.audioEl.play();
 
-    clearTimestamps();
+    const clearedLyrics = currentProject.settings.lyrics.map((line) => ({
+      ...line,
+      start: 0,
+      end: 0,
+    }));
+
+    updateSettings({
+      lyrics: clearedLyrics,
+      syncProgress: {
+        ...currentProject.settings.syncProgress,
+        inProgress: true,
+        currentIndex: 0,
+        syncedCount: 0,
+        totalCount: syncableLyrics.length,
+      },
+    });
+
     setPosition(0);
     setCompleted(false);
     setRunning(true);
     setPlaybackError('');
-    setSyncProgress({
-      inProgress: true,
-      currentIndex: 0,
-      syncedCount: 0,
-      totalCount: syncableLyrics.length,
-    });
 
     try {
       await playPromise;
@@ -90,46 +97,66 @@ export function LyricsSyncDialog({ open, onOpenChange }: LyricsSyncDialogProps) 
       console.error('Lyric sync start playback failed:', error);
       setPlaybackError('No se pudo iniciar la canción. Toca «Continuar» para volver a intentarlo.');
     }
-  }, [audio, clearTimestamps, duration, setSyncProgress, syncableLyrics.length]);
+  }, [audio, currentProject, duration, syncableLyrics.length, updateSettings]);
 
   const stopSync = useCallback(() => {
     setRunning(false);
     audio.pause();
     setPlaybackError('');
-    setSyncProgress({ inProgress: false });
-  }, [audio, setSyncProgress]);
+    if (currentProject) {
+      updateSettings({
+        syncProgress: {
+          ...currentProject.settings.syncProgress,
+          inProgress: false,
+        },
+      });
+    }
+  }, [audio, currentProject, updateSettings]);
 
   const registerCurrentLine = useCallback(() => {
     const element = audio.audioEl;
-    if (!running || !element || element.paused || element.ended || !currentLine) return;
+    if (!running || !element || element.paused || element.ended || !currentLine || !currentProject) return;
 
-    const t = element.currentTime;
-
-    if (position > 0) {
-      const previousLine = syncableLyrics[position - 1];
-      if (previousLine) {
-        updateLyric(previousLine.id, {
-          end: Math.max(previousLine.start + 0.05, t),
-        });
-      }
-    }
+    const rawTime = Number.isFinite(element.currentTime) ? element.currentTime : 0;
+    const previousLine = position > 0 ? syncableLyrics[position - 1] : null;
+    const minimumTime = previousLine ? previousLine.start + 0.05 : 0;
+    const t = Math.min(duration, Math.max(minimumTime, rawTime));
 
     const nextPosition = position + 1;
     const finished = nextPosition >= syncableLyrics.length;
     const provisionalEnd = finished
       ? Math.max(t + 0.05, duration)
-      : Math.min(duration, Math.max(t + 0.05, t + 4));
+      : Math.min(duration, t + 4);
 
-    updateLyric(currentLine.id, {
-      start: t,
-      end: provisionalEnd,
+    // Previous end + current start/end are committed together. This avoids a
+    // partially written lyric timeline on mobile if React/local persistence is
+    // busy while the song keeps playing.
+    const nextLyrics = currentProject.settings.lyrics.map((line) => {
+      if (previousLine && line.id === previousLine.id) {
+        return {
+          ...line,
+          end: Math.max(line.start + 0.05, t),
+        };
+      }
+      if (line.id === currentLine.id) {
+        return {
+          ...line,
+          start: t,
+          end: provisionalEnd,
+        };
+      }
+      return line;
     });
 
-    setSyncProgress({
-      inProgress: !finished,
-      currentIndex: nextPosition,
-      syncedCount: nextPosition,
-      totalCount: syncableLyrics.length,
+    updateSettings({
+      lyrics: nextLyrics,
+      syncProgress: {
+        ...currentProject.settings.syncProgress,
+        inProgress: !finished,
+        currentIndex: nextPosition,
+        syncedCount: nextPosition,
+        totalCount: syncableLyrics.length,
+      },
     });
 
     if (finished) {
@@ -142,12 +169,12 @@ export function LyricsSyncDialog({ open, onOpenChange }: LyricsSyncDialogProps) 
   }, [
     audio,
     currentLine,
+    currentProject,
     duration,
     position,
     running,
-    setSyncProgress,
     syncableLyrics,
-    updateLyric,
+    updateSettings,
   ]);
 
   useEffect(() => {
