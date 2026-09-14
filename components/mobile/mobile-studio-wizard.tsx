@@ -10,6 +10,7 @@ import {
   Home,
   Images,
   Music,
+  Palette,
   Upload,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -29,12 +30,14 @@ import { getProjectAudioFromWorkspace, saveProjectAudioToWorkspace } from '@/lib
 import { LyricsSyncDialog } from '@/components/studio/lyrics/lyrics-sync-dialog';
 import { MobileOrientationGate } from '@/components/studio/mobile-orientation-gate';
 import { MobileExportDialog } from '@/components/mobile/mobile-export-dialog';
+import { SONCEIBE_LOGO_URL, getVisualPreset, visualPresets } from '@/lib/visual-presets';
+import type { VisualStyleId } from '@/lib/types';
 import { toast } from 'sonner';
 
 const steps = [
   { id: 'music', label: 'Música', icon: Music },
   { id: 'lyrics', label: 'Letra', icon: FileText },
-  { id: 'photos', label: 'Fotos', icon: Images },
+  { id: 'photos', label: 'Fotos o estilo', icon: Images },
   { id: 'finish', label: 'Vídeo', icon: Film },
 ] as const;
 
@@ -77,6 +80,9 @@ export function MobileStudioWizard() {
     currentProject,
     updateSettings,
     updateBackground,
+    updateText,
+    updateAnimation,
+    updateEffects,
     updateExport,
     setLyrics,
     closeProject,
@@ -95,12 +101,15 @@ export function MobileStudioWizard() {
   const hasLyrics = Boolean(settings?.lyrics.some((line) => line.text.trim()));
   const hasPhotos = Boolean((settings?.background.images?.length ?? 0) > 0 || settings?.background.imageUrl);
   const hasAudio = Boolean(audio.duration > 0 || settings?.audioDuration);
+  const effectiveStyle: VisualStyleId = settings?.visualStyle && settings.visualStyle !== 'default'
+    ? settings.visualStyle
+    : 'sonceibe';
 
   useEffect(() => {
     if (!currentProject) return;
     updateExport({
       orientation: 'portrait',
-      resolution: '1080p',
+      resolution: '720p',
       fps: 30,
       includeAudio: true,
     });
@@ -163,6 +172,23 @@ export function MobileStudioWizard() {
   const progress = useMemo(() => ((step + 1) / steps.length) * 100, [step]);
 
   if (!currentProject || !settings) return null;
+
+  const applyVisualPreset = (styleId: VisualStyleId) => {
+    const preset = getVisualPreset(styleId);
+    if (!preset) return;
+    updateSettings({ visualStyle: preset.id });
+    updateBackground({
+      ...preset.background,
+      imageUrl: '',
+      images: [],
+      imageClips: [],
+      imageMode: 'auto',
+      imageFit: 'cover',
+    });
+    updateText(preset.text);
+    updateAnimation(preset.animation);
+    updateEffects(preset.effects);
+  };
 
   const loadAudio = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -240,11 +266,15 @@ export function MobileStudioWizard() {
   };
 
   const prepareVideo = () => {
-    updateExport({ orientation: 'portrait', resolution: '1080p', fps: 30, includeAudio: true });
+    if (!hasPhotos && (!settings.visualStyle || settings.visualStyle === 'default')) {
+      applyVisualPreset('sonceibe');
+    }
+    updateExport({ orientation: 'portrait', resolution: '720p', fps: 30, includeAudio: true });
     updateBackground({ imageFit: 'cover' });
     setMobileExportOpen(true);
   };
 
+  const selectedPreset = getVisualPreset(effectiveStyle);
   const StepIcon = steps[step].icon;
 
   return (
@@ -331,43 +361,101 @@ export function MobileStudioWizard() {
           )}
 
           {step === 2 && (
-            <Card className="p-5 space-y-4">
-              <div>
-                <h2 className="font-medium">Añade fotos</h2>
-                <p className="mt-1 text-sm text-muted-foreground">Puedes elegir varias de una vez. En vídeo móvil se recortarán automáticamente para llenar toda la pantalla 9:16.</p>
-              </div>
-              <input ref={photosInputRef} type="file" accept="image/*" multiple className="hidden" onChange={loadPhotos} />
-              <Button className="w-full gap-2 h-12" onClick={() => photosInputRef.current?.click()} disabled={busy}>
-                <Images className="h-4 w-4" />
-                {hasPhotos ? 'Añadir más fotos' : 'Elegir fotos'}
-              </Button>
-              {(settings.background.images?.length ?? 0) > 0 && (
-                <div className="grid grid-cols-3 gap-2">
-                  {settings.background.images.slice(0, 6).map((src, index) => (
-                    <div key={`${src}-${index}`} className="aspect-[9/16] overflow-hidden rounded-lg bg-black">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={src} alt="" className="h-full w-full object-cover" />
-                    </div>
-                  ))}
+            <div className="space-y-4">
+              <Card className="p-5 space-y-4">
+                <div>
+                  <h2 className="font-medium">Añade fotos</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">Puedes elegir varias de una vez. Se recortarán automáticamente para llenar toda la pantalla 9:16.</p>
                 </div>
+                <input ref={photosInputRef} type="file" accept="image/*" multiple className="hidden" onChange={loadPhotos} />
+                <Button className="w-full gap-2 h-12" onClick={() => photosInputRef.current?.click()} disabled={busy}>
+                  <Images className="h-4 w-4" />
+                  {hasPhotos ? 'Añadir más fotos' : 'Elegir fotos'}
+                </Button>
+                {(settings.background.images?.length ?? 0) > 0 && (
+                  <div className="grid grid-cols-3 gap-2">
+                    {settings.background.images.slice(0, 6).map((src, index) => (
+                      <div key={`${src}-${index}`} className="aspect-[9/16] overflow-hidden rounded-lg bg-black">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={src} alt="" className="h-full w-full object-cover" />
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {hasPhotos && (
+                  <div className="text-xs text-muted-foreground">Las fotos se repartirán automáticamente a lo largo de la canción.</div>
+                )}
+              </Card>
+
+              {!hasPhotos && (
+                <Card className="p-5 space-y-4">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
+                      <Palette className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <h2 className="font-medium">O usa un estilo preparado</h2>
+                      <p className="mt-1 text-sm text-muted-foreground">Si no añades fotos, SonCeibe será el estilo inicial. Puedes elegir cualquiera de estos fondos.</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    {visualPresets.map((preset) => {
+                      const active = effectiveStyle === preset.id;
+                      return (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() => applyVisualPreset(preset.id)}
+                          className={`overflow-hidden rounded-xl border text-left transition-all ${active ? 'border-primary ring-1 ring-primary/40' : 'border-border'}`}
+                        >
+                          <div
+                            className="relative aspect-[9/12] overflow-hidden p-3"
+                            style={{ background: `linear-gradient(145deg, ${preset.previewFrom}, ${preset.previewTo})` }}
+                          >
+                            <div
+                              className="absolute inset-2 rounded-lg border"
+                              style={{ borderColor: `${preset.accent}99`, boxShadow: `inset 0 0 18px ${preset.accent}22` }}
+                            />
+                            {preset.id === 'sonceibe' && (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={SONCEIBE_LOGO_URL}
+                                alt=""
+                                className="absolute bottom-3 right-3 h-12 w-12 rounded-full object-cover shadow-lg"
+                              />
+                            )}
+                            <div className="absolute inset-x-4 top-[44%] text-center text-sm font-bold text-white drop-shadow-lg">
+                              Son Ceibe
+                            </div>
+                          </div>
+                          <div className="p-2.5">
+                            <div className="text-sm font-medium">{preset.label}</div>
+                            <div className="mt-0.5 line-clamp-2 text-[10px] leading-4 text-muted-foreground">{preset.description}</div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </Card>
               )}
-              {hasPhotos && (
-                <div className="text-xs text-muted-foreground">Las fotos se repartirán automáticamente a lo largo de la canción.</div>
-              )}
-            </Card>
+            </div>
           )}
 
           {step === 3 && (
             <Card className="p-5 space-y-4">
               <div>
                 <h2 className="font-medium">Listo para crear el vídeo</h2>
-                <p className="mt-1 text-sm text-muted-foreground">El MP4 se generará en vertical 1080×1920 (9:16), pensado para verse a pantalla completa en el móvil.</p>
+                <p className="mt-1 text-sm text-muted-foreground">El MP4 se generará en vertical 720×1280 (9:16), a pantalla completa y optimizado para compartir.</p>
               </div>
               <div className="space-y-2 rounded-lg bg-secondary/40 p-3 text-sm">
                 <div className="flex justify-between gap-3"><span className="text-muted-foreground">Música</span><span className="truncate">{settings.audioName || 'No añadida'}</span></div>
                 <div className="flex justify-between gap-3"><span className="text-muted-foreground">Letra</span><span>{hasLyrics ? `${settings.lyrics.filter((line) => line.text.trim()).length} líneas` : 'Sin letra'}</span></div>
                 <div className="flex justify-between gap-3"><span className="text-muted-foreground">Fotos</span><span>{settings.background.images?.length ?? (settings.background.imageUrl ? 1 : 0)}</span></div>
-                <div className="flex justify-between gap-3"><span className="text-muted-foreground">Formato</span><span>1080×1920 · 30 FPS</span></div>
+                {!hasPhotos && (
+                  <div className="flex justify-between gap-3"><span className="text-muted-foreground">Estilo</span><span>{selectedPreset?.label || 'SonCeibe'}</span></div>
+                )}
+                <div className="flex justify-between gap-3"><span className="text-muted-foreground">Formato</span><span>720×1280 · 30 FPS</span></div>
               </div>
               <Button className="w-full h-12 gap-2" onClick={prepareVideo} disabled={!hasAudio}>
                 <Film className="h-5 w-5" />
