@@ -1,30 +1,37 @@
 'use client';
 
-import { Music, Plus, Clock, MoreVertical, Trash2, Film, Sparkles, LogOut, HardDrive } from 'lucide-react';
+import { Music, Plus, Clock, MoreVertical, Trash2, Film, Sparkles, LogOut, HardDrive, FolderOpen } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { formatRelative, formatTime } from '@/lib/format';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useStudioUserId } from '@/lib/studio-user-context';
+import { LOCAL_AUDIO_URL, saveProjectAudio } from '@/lib/local-media-storage';
+import { readPortableProjectFile } from '@/lib/project/download-current-project';
+import { PENDING_PROJECT_TITLE_KEY } from '@/lib/project-title';
+import { toast } from 'sonner';
 
 const templates = [
+  { name: 'SonCeibe', desc: 'Identidad propia con marco, logo e iluminación cálida', color: 'from-emerald-900 to-amber-900' },
   { name: 'Karaoke Pop', desc: 'Animación palabra por palabra con fondo de gradiente', color: 'from-pink-500 to-rose-500' },
   { name: 'Minimalista', desc: 'Texto limpio sobre color sólido', color: 'from-slate-600 to-slate-800' },
   { name: 'Neón Nocturno', desc: 'Efectos de glow y partículas', color: 'from-blue-500 to-cyan-400' },
-  { name: 'Cine Clásico', desc: 'Estilo cinematográfico con viñeta', color: 'from-amber-500 to-orange-600' },
 ];
 
 export function HomePage() {
   const { projects, openProject, createProject, deleteProject } = useStore();
+  const userId = useStudioUserId();
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
+  const importInputRef = useRef<HTMLInputElement>(null);
   useEffect(() => setMounted(true), []);
 
   const handleLogout = async () => {
@@ -32,6 +39,53 @@ export function HomePage() {
       await fetch('/api/studio-auth/logout', { method: 'POST' });
     } finally {
       window.location.replace('/access');
+    }
+  };
+
+  const handleCreateProject = () => {
+    const value = window.prompt(
+      'Título de la canción\n\nPuedes dejarlo en blanco: al cargar el MP3 se usará automáticamente el nombre del archivo.'
+    );
+    if (value === null) return;
+
+    const title = value.trim();
+    if (title) sessionStorage.setItem(PENDING_PROJECT_TITLE_KEY, title);
+    else sessionStorage.removeItem(PENDING_PROJECT_TITLE_KEY);
+    createProject();
+  };
+
+  const handleProjectImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    try {
+      const imported = await readPortableProjectFile(file);
+      const existingIds = new Set(projects.map((project) => project.id));
+      const projectId = existingIds.has(imported.project.id)
+        ? `${imported.project.id}-${Date.now().toString(36)}`
+        : imported.project.id;
+      const now = Date.now();
+      const project = {
+        ...imported.project,
+        id: projectId,
+        settings: {
+          ...imported.project.settings,
+          audioUrl: imported.audioFile ? LOCAL_AUDIO_URL : imported.project.settings.audioUrl,
+          updatedAt: now,
+        },
+      };
+
+      const storageKey = `sonceibe-projects-v2:${userId}`;
+      localStorage.setItem(storageKey, JSON.stringify([project, ...projects]));
+      if (imported.audioFile) {
+        await saveProjectAudio(userId, projectId, imported.audioFile);
+      }
+      toast.success('Proyecto importado. Se abrirá en este equipo.');
+      window.setTimeout(() => window.location.reload(), 250);
+    } catch (error) {
+      console.error('Project import failed:', error);
+      toast.error(error instanceof Error ? error.message : 'No se pudo importar el proyecto');
     }
   };
 
@@ -67,9 +121,20 @@ export function HomePage() {
             Tus proyectos se guardan localmente en este navegador y no se suben a la nube.
           </p>
           <div className="flex flex-wrap gap-3">
-            <Button size="lg" onClick={createProject} className="gap-2">
+            <Button size="lg" onClick={handleCreateProject} className="gap-2">
               <Plus className="h-5 w-5" />
               Nuevo Proyecto
+            </Button>
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".scs,application/json"
+              className="hidden"
+              onChange={handleProjectImport}
+            />
+            <Button size="lg" variant="outline" className="gap-2" onClick={() => importInputRef.current?.click()}>
+              <FolderOpen className="h-5 w-5" />
+              Importar proyecto .scs
             </Button>
             <Button size="lg" variant="outline" className="gap-2" disabled title="Lo añadiremos más adelante">
               <Film className="h-5 w-5" />
@@ -88,7 +153,7 @@ export function HomePage() {
                 {mounted ? `${projects.length} proyecto${projects.length !== 1 ? 's' : ''} en este navegador` : 'Cargando...'}
               </p>
             </div>
-            <Button variant="ghost" size="sm" onClick={createProject} className="gap-1">
+            <Button variant="ghost" size="sm" onClick={handleCreateProject} className="gap-1">
               <Plus className="h-4 w-4" />
               Nuevo
             </Button>
@@ -110,7 +175,7 @@ export function HomePage() {
                   >
                     <div className="absolute inset-0 flex items-center justify-center">
                       <span className="text-white/90 font-bold text-lg px-4 text-center drop-shadow-lg line-clamp-2">
-                        {p.settings.lyrics[0]?.text || p.settings.title}
+                        {p.settings.title}
                       </span>
                     </div>
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
@@ -209,12 +274,12 @@ export function HomePage() {
             <Sparkles className="h-5 w-5 text-primary" />
             <h2 className="text-xl font-semibold">Estilos preparados</h2>
           </div>
-          <p className="text-sm text-muted-foreground mb-6">Estas plantillas visuales se activarán en una próxima mejora. De momento no modifican el proyecto.</p>
+          <p className="text-sm text-muted-foreground mb-6">Disponibles dentro del editor para aplicar fondo, letra, iluminación y efectos de una sola vez.</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {templates.map((t) => (
               <Card
                 key={t.name}
-                className="overflow-hidden border-border bg-card opacity-80 cursor-default"
+                className="overflow-hidden border-border bg-card opacity-90 cursor-default"
               >
                 <div className={`aspect-video bg-gradient-to-br ${t.color} relative`}>
                   <div className="absolute inset-0 flex items-center justify-center">
@@ -224,7 +289,7 @@ export function HomePage() {
                 <div className="p-4">
                   <div className="flex items-center justify-between gap-2">
                     <h3 className="font-medium">{t.name}</h3>
-                    <Badge variant="outline" className="text-[10px]">Próximamente</Badge>
+                    <Badge variant="outline" className="text-[10px]">Disponible</Badge>
                   </div>
                   <p className="text-sm text-muted-foreground mt-1">{t.desc}</p>
                 </div>
