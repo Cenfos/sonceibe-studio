@@ -33,6 +33,7 @@ export function LyricsSyncDialog({ open, onOpenChange }: LyricsSyncDialogProps) 
   const [running, setRunning] = useState(false);
   const [position, setPosition] = useState(0);
   const [completed, setCompleted] = useState(false);
+  const [playbackError, setPlaybackError] = useState('');
 
   const lyrics = currentProject?.settings.lyrics ?? [];
   const syncableLyrics = useMemo(
@@ -42,37 +43,68 @@ export function LyricsSyncDialog({ open, onOpenChange }: LyricsSyncDialogProps) 
   const duration = audio.duration || currentProject?.settings.audioDuration || 0;
   const currentLine = syncableLyrics[position] ?? null;
   const nextLine = syncableLyrics[position + 1] ?? null;
+  const actuallyPlaying = Boolean(audio.audioEl && !audio.audioEl.paused && !audio.audioEl.ended);
 
-  const startSync = useCallback(() => {
-    if (syncableLyrics.length === 0 || duration <= 0) return;
+  const playDirectly = useCallback(async (): Promise<boolean> => {
+    const element = audio.audioEl;
+    if (!element) {
+      setPlaybackError('No se encuentra el reproductor de audio. Cierra esta ventana y vuelve a abrir el proyecto.');
+      return false;
+    }
+
+    try {
+      await element.play();
+      setPlaybackError('');
+      return true;
+    } catch (error) {
+      console.error('Lyric sync playback failed:', error);
+      setPlaybackError('El móvil ha bloqueado la reproducción. Toca de nuevo «Continuar» para iniciar la canción.');
+      return false;
+    }
+  }, [audio.audioEl]);
+
+  const startSync = useCallback(async () => {
+    if (syncableLyrics.length === 0 || duration <= 0 || !audio.audioEl) return;
+
+    // Call play() directly from the user's tap before React state updates. This is
+    // important on mobile browsers, where playback can otherwise be rejected as
+    // an autoplay attempt.
+    audio.seek(0);
+    const playPromise = audio.audioEl.play();
 
     clearTimestamps();
     setPosition(0);
     setCompleted(false);
     setRunning(true);
+    setPlaybackError('');
     setSyncProgress({
       inProgress: true,
       currentIndex: 0,
       syncedCount: 0,
       totalCount: syncableLyrics.length,
     });
-    audio.seek(0);
-    audio.play();
+
+    try {
+      await playPromise;
+    } catch (error) {
+      console.error('Lyric sync start playback failed:', error);
+      setPlaybackError('No se pudo iniciar la canción. Toca «Continuar» para volver a intentarlo.');
+    }
   }, [audio, clearTimestamps, duration, setSyncProgress, syncableLyrics.length]);
 
   const stopSync = useCallback(() => {
     setRunning(false);
     audio.pause();
+    setPlaybackError('');
     setSyncProgress({ inProgress: false });
   }, [audio, setSyncProgress]);
 
   const registerCurrentLine = useCallback(() => {
-    if (!running || !audio.isPlaying || !currentLine) return;
+    const element = audio.audioEl;
+    if (!running || !element || element.paused || element.ended || !currentLine) return;
 
-    const t = audio.audioEl?.currentTime ?? audio.currentTime;
+    const t = element.currentTime;
 
-    // The previous line ends exactly when the new one begins. This avoids
-    // overlaps and makes the lyric follow the vocal line naturally.
     if (position > 0) {
       const previousLine = syncableLyrics[position - 1];
       if (previousLine) {
@@ -84,11 +116,6 @@ export function LyricsSyncDialog({ open, onOpenChange }: LyricsSyncDialogProps) 
 
     const nextPosition = position + 1;
     const finished = nextPosition >= syncableLyrics.length;
-
-    // A non-final line gets a short provisional end. The next tap replaces it
-    // with the exact start of the following line. Previously every tapped line
-    // was provisionally extended to the end of the song, so interrupting sync
-    // could leave one sentence covering and hiding all later lyrics.
     const provisionalEnd = finished
       ? Math.max(t + 0.05, duration)
       : Math.min(duration, Math.max(t + 0.05, t + 4));
@@ -108,13 +135,12 @@ export function LyricsSyncDialog({ open, onOpenChange }: LyricsSyncDialogProps) 
     if (finished) {
       setRunning(false);
       setCompleted(true);
+      audio.pause();
     } else {
       setPosition(nextPosition);
     }
   }, [
-    audio.audioEl,
-    audio.currentTime,
-    audio.isPlaying,
+    audio,
     currentLine,
     duration,
     position,
@@ -138,6 +164,15 @@ export function LyricsSyncDialog({ open, onOpenChange }: LyricsSyncDialogProps) 
     return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [open, registerCurrentLine, running]);
 
+  useEffect(() => {
+    if (!open) {
+      setPlaybackError('');
+      setRunning(false);
+      setCompleted(false);
+      setPosition(0);
+    }
+  }, [open]);
+
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen && running) stopSync();
     onOpenChange(nextOpen);
@@ -145,29 +180,34 @@ export function LyricsSyncDialog({ open, onOpenChange }: LyricsSyncDialogProps) 
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl max-h-[92dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Sincronizar letra con la música</DialogTitle>
           <DialogDescription>
-            Reproduce la canción y pulsa ESPACIO justo cuando empiece cada línea cantada.
-            El final de cada línea se ajustará automáticamente al inicio de la siguiente.
+            Reproduce la canción y toca «MARCAR ESTA LÍNEA» justo cuando empiece cada frase. En PC también puedes pulsar ESPACIO.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="flex items-center justify-between rounded-lg border border-border bg-card/40 px-4 py-3">
-            <div className="space-y-1">
-              <div className="text-sm font-medium">
+          <div className="flex items-center justify-between rounded-lg border border-border bg-card/40 px-4 py-3 gap-3">
+            <div className="min-w-0 space-y-1">
+              <div className="truncate text-sm font-medium">
                 {currentProject?.settings.audioName || 'Sin archivo de audio'}
               </div>
               <div className="text-xs text-muted-foreground">
                 {syncableLyrics.length} líneas para sincronizar
               </div>
             </div>
-            <div className="font-mono text-sm tabular-nums">
+            <div className="shrink-0 font-mono text-sm tabular-nums">
               {formatTime(audio.currentTime)} / {formatTime(duration)}
             </div>
           </div>
+
+          {playbackError && (
+            <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              {playbackError}
+            </div>
+          )}
 
           {completed ? (
             <div className="rounded-xl border border-primary/40 bg-primary/10 p-6 text-center space-y-2">
@@ -178,16 +218,16 @@ export function LyricsSyncDialog({ open, onOpenChange }: LyricsSyncDialogProps) 
             </div>
           ) : running && currentLine ? (
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-3">
                 <Badge variant="secondary">
                   Línea {position + 1} de {syncableLyrics.length}
                 </Badge>
                 <span className="text-xs text-muted-foreground">
-                  Pulsa al comenzar la frase
+                  Toca al comenzar la frase
                 </span>
               </div>
 
-              <div className="rounded-xl border-2 border-primary bg-primary/10 px-6 py-8 text-center">
+              <div className="rounded-xl border-2 border-primary bg-primary/10 px-5 py-7 text-center">
                 <div className="text-xl font-semibold leading-relaxed">
                   {currentLine.text}
                 </div>
@@ -201,9 +241,9 @@ export function LyricsSyncDialog({ open, onOpenChange }: LyricsSyncDialogProps) 
 
               <Button
                 size="lg"
-                className="w-full gap-2"
+                className="w-full min-h-14 gap-2 text-base"
                 onClick={registerCurrentLine}
-                disabled={!audio.isPlaying}
+                disabled={!actuallyPlaying}
               >
                 <Hand className="h-5 w-5" />
                 MARCAR ESTA LÍNEA (ESPACIO)
@@ -212,7 +252,7 @@ export function LyricsSyncDialog({ open, onOpenChange }: LyricsSyncDialogProps) 
           ) : (
             <div className="rounded-xl border border-border bg-card/30 p-6 space-y-3">
               <p className="text-sm text-muted-foreground">
-                El TXT no contiene tiempos musicales. Al iniciar la sincronización se eliminarán
+                El documento no contiene tiempos musicales. Al iniciar la sincronización se eliminarán
                 los tiempos aproximados y los marcarás escuchando la canción. Las líneas vacías
                 se omiten automáticamente.
               </p>
@@ -226,11 +266,11 @@ export function LyricsSyncDialog({ open, onOpenChange }: LyricsSyncDialogProps) 
         </div>
 
         <DialogFooter className="sm:justify-between gap-2">
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {!running && !completed && (
               <Button
                 onClick={startSync}
-                disabled={syncableLyrics.length === 0 || duration <= 0}
+                disabled={syncableLyrics.length === 0 || duration <= 0 || !audio.audioEl}
                 className="gap-2"
               >
                 <Play className="h-4 w-4" />
@@ -240,13 +280,13 @@ export function LyricsSyncDialog({ open, onOpenChange }: LyricsSyncDialogProps) 
 
             {running && (
               <>
-                {audio.isPlaying ? (
+                {actuallyPlaying ? (
                   <Button variant="outline" onClick={audio.pause} className="gap-2">
                     <Pause className="h-4 w-4" />
                     Pausar
                   </Button>
                 ) : (
-                  <Button variant="outline" onClick={audio.play} className="gap-2">
+                  <Button variant="default" onClick={playDirectly} className="gap-2">
                     <Play className="h-4 w-4" />
                     Continuar
                   </Button>
