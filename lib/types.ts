@@ -136,6 +136,7 @@ export interface ProjectSettings {
   effects: EffectsConfig;
   exportConfig: ExportConfig;
   visualStyle?: VisualStyleId;
+  showSonCeibeBranding?: boolean;
   createdAt: number;
   updatedAt: number;
 }
@@ -227,6 +228,7 @@ export function createDefaultProjectSettings(): ProjectSettings {
     effects: { ...defaultEffects },
     exportConfig: { ...defaultExport },
     visualStyle: 'default',
+    showSonCeibeBranding: false,
     createdAt: now,
     updatedAt: now,
   };
