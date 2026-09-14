@@ -6,6 +6,7 @@ const DB_NAME = 'sonceibe-studio-workspace-v1';
 const DB_VERSION = 1;
 const HANDLE_STORE = 'handles';
 const APP_FOLDER = 'SonCeibe Studio';
+const USERS_FOLDER = 'users';
 const PROJECTS_FOLDER = 'projects';
 
 type PermissionMode = 'read' | 'readwrite';
@@ -121,17 +122,36 @@ async function usableHandle(userId: string, requestPermission: boolean): Promise
   return permission === 'granted' ? handle : null;
 }
 
+function safeFolderName(value: string): string {
+  return (value || 'user')
+    .replace(/[\\/:*?"<>|]+/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 80) || 'user';
+}
+
 async function getAppRoot(handle: DirectoryHandleLike, create: boolean): Promise<DirectoryHandleLike> {
   return handle.getDirectoryHandle(APP_FOLDER, { create });
 }
 
-async function getProjectsDirectory(handle: DirectoryHandleLike, create: boolean): Promise<DirectoryHandleLike> {
+async function getUserRoot(handle: DirectoryHandleLike, userId: string, create: boolean): Promise<DirectoryHandleLike> {
   const root = await getAppRoot(handle, create);
-  return root.getDirectoryHandle(PROJECTS_FOLDER, { create });
+  const users = await root.getDirectoryHandle(USERS_FOLDER, { create });
+  return users.getDirectoryHandle(safeFolderName(userId), { create });
 }
 
-async function getProjectDirectory(handle: DirectoryHandleLike, projectId: string, create: boolean): Promise<DirectoryHandleLike> {
-  const projects = await getProjectsDirectory(handle, create);
+async function getProjectsDirectory(handle: DirectoryHandleLike, userId: string, create: boolean): Promise<DirectoryHandleLike> {
+  const userRoot = await getUserRoot(handle, userId, create);
+  return userRoot.getDirectoryHandle(PROJECTS_FOLDER, { create });
+}
+
+async function getProjectDirectory(
+  handle: DirectoryHandleLike,
+  userId: string,
+  projectId: string,
+  create: boolean
+): Promise<DirectoryHandleLike> {
+  const projects = await getProjectsDirectory(handle, userId, create);
   return projects.getDirectoryHandle(projectId, { create });
 }
 
@@ -167,7 +187,7 @@ export async function chooseWorkspaceFolder(userId: string): Promise<WorkspaceIn
 
   const handle = await picker({ mode: 'readwrite' });
   await saveHandle(userId, handle);
-  await getAppRoot(handle, true);
+  await getUserRoot(handle, userId, true);
   return {
     supported: true,
     configured: true,
@@ -203,7 +223,7 @@ export async function saveProjectSnapshotToWorkspace(userId: string, project: Pr
   const handle = await usableHandle(userId, false);
   if (!handle) return false;
 
-  const projectDir = await getProjectDirectory(handle, project.id, true);
+  const projectDir = await getProjectDirectory(handle, userId, project.id, true);
   const fileHandle = await projectDir.getFileHandle('project.json', { create: true });
   const payload = JSON.stringify({
     format: 'sonceibe-studio-project',
@@ -221,7 +241,7 @@ export async function saveProjectsToWorkspace(userId: string, projects: Project[
 
   let saved = 0;
   for (const project of projects) {
-    const projectDir = await getProjectDirectory(handle, project.id, true);
+    const projectDir = await getProjectDirectory(handle, userId, project.id, true);
     const fileHandle = await projectDir.getFileHandle('project.json', { create: true });
     const payload = JSON.stringify({
       format: 'sonceibe-studio-project',
@@ -240,7 +260,7 @@ export async function loadProjectsFromWorkspace(userId: string): Promise<Project
   if (!handle) return [];
 
   try {
-    const projectsDir = await getProjectsDirectory(handle, false);
+    const projectsDir = await getProjectsDirectory(handle, userId, false);
     if (!projectsDir.values) return [];
 
     const recovered: Project[] = [];
@@ -270,7 +290,7 @@ export async function saveProjectAudioToWorkspace(
   const handle = await usableHandle(userId, false);
   if (!handle) return false;
 
-  const projectDir = await getProjectDirectory(handle, projectId, true);
+  const projectDir = await getProjectDirectory(handle, userId, projectId, true);
   const audioDir = await projectDir.getDirectoryHandle('audio', { create: true });
   const fileHandle = await audioDir.getFileHandle(safeFileName(file.name), { create: true });
   await writeFile(fileHandle, file);
@@ -286,7 +306,7 @@ export async function getProjectAudioFromWorkspace(
   if (!handle || !audioName) return null;
 
   try {
-    const projectDir = await getProjectDirectory(handle, projectId, false);
+    const projectDir = await getProjectDirectory(handle, userId, projectId, false);
     const audioDir = await projectDir.getDirectoryHandle('audio', { create: false });
     const fileHandle = await audioDir.getFileHandle(safeFileName(audioName), { create: false });
     return await fileHandle.getFile();
