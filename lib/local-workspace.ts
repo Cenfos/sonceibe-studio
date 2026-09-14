@@ -23,11 +23,14 @@ interface FileHandleLike {
   createWritable(): Promise<WritableLike>;
 }
 
+type FileSystemHandleLike = FileHandleLike | DirectoryHandleLike;
+
 interface DirectoryHandleLike {
   kind: 'directory';
   name: string;
   getDirectoryHandle(name: string, options?: { create?: boolean }): Promise<DirectoryHandleLike>;
   getFileHandle(name: string, options?: { create?: boolean }): Promise<FileHandleLike>;
+  values?: () => AsyncIterableIterator<FileSystemHandleLike>;
   queryPermission?(options?: { mode?: PermissionMode }): Promise<HandlePermission>;
   requestPermission?(options?: { mode?: PermissionMode }): Promise<HandlePermission>;
 }
@@ -122,9 +125,13 @@ async function getAppRoot(handle: DirectoryHandleLike, create: boolean): Promise
   return handle.getDirectoryHandle(APP_FOLDER, { create });
 }
 
-async function getProjectDirectory(handle: DirectoryHandleLike, projectId: string, create: boolean): Promise<DirectoryHandleLike> {
+async function getProjectsDirectory(handle: DirectoryHandleLike, create: boolean): Promise<DirectoryHandleLike> {
   const root = await getAppRoot(handle, create);
-  const projects = await root.getDirectoryHandle(PROJECTS_FOLDER, { create });
+  return root.getDirectoryHandle(PROJECTS_FOLDER, { create });
+}
+
+async function getProjectDirectory(handle: DirectoryHandleLike, projectId: string, create: boolean): Promise<DirectoryHandleLike> {
+  const projects = await getProjectsDirectory(handle, create);
   return projects.getDirectoryHandle(projectId, { create });
 }
 
@@ -140,6 +147,14 @@ async function writeFile(handle: FileHandleLike, data: Blob | string): Promise<v
   const writable = await handle.createWritable();
   await writable.write(data);
   await writable.close();
+}
+
+function isValidProject(value: unknown): value is Project {
+  if (!value || typeof value !== 'object') return false;
+  const project = value as Partial<Project>;
+  return typeof project.id === 'string'
+    && Boolean(project.settings)
+    && typeof project.settings?.title === 'string';
 }
 
 export function isWorkspaceFolderSupported(): boolean {
@@ -218,6 +233,33 @@ export async function saveProjectsToWorkspace(userId: string, projects: Project[
     saved += 1;
   }
   return saved;
+}
+
+export async function loadProjectsFromWorkspace(userId: string): Promise<Project[]> {
+  const handle = await usableHandle(userId, false);
+  if (!handle) return [];
+
+  try {
+    const projectsDir = await getProjectsDirectory(handle, false);
+    if (!projectsDir.values) return [];
+
+    const recovered: Project[] = [];
+    for await (const entry of projectsDir.values()) {
+      if (entry.kind !== 'directory') continue;
+      try {
+        const projectFileHandle = await entry.getFileHandle('project.json', { create: false });
+        const file = await projectFileHandle.getFile();
+        const parsed = JSON.parse(await file.text()) as { project?: unknown } | Project;
+        const candidate = 'project' in parsed ? parsed.project : parsed;
+        if (isValidProject(candidate)) recovered.push(candidate);
+      } catch {
+        // Ignore damaged or incomplete project folders and continue with the rest.
+      }
+    }
+    return recovered;
+  } catch {
+    return [];
+  }
 }
 
 export async function saveProjectAudioToWorkspace(
