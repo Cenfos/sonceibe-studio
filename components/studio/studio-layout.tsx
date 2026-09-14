@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { TopBar } from './top-bar';
 import { SidebarRail } from './sidebar-rail';
 import { PreviewPanel } from './preview/preview-panel';
@@ -9,6 +9,7 @@ import { Timeline } from './timeline/timeline';
 import { useStore } from '@/lib/store';
 import { useAudioEngineContext } from '@/lib/audio-engine-context';
 import { LyricsEditor } from './lyrics/lyrics-editor';
+import { MobileOrientationGate } from './mobile-orientation-gate';
 
 export function StudioLayout() {
   const {
@@ -22,6 +23,7 @@ export function StudioLayout() {
     setTab,
   } = useStore();
   const audio = useAudioEngineContext();
+  const [mobilePropertiesOpen, setMobilePropertiesOpen] = useState(false);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -93,30 +95,42 @@ export function StudioLayout() {
     if (currentProject.settings.audioUrl) {
       audio.loadFromUrl(currentProject.settings.audioUrl, currentProject.settings.audioName);
     } else {
-      // A new project must always start without audio, even when another
-      // project was open a moment before in the same browser session.
       audio.clear();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentProject?.id]);
 
+  const handleTabSelected = (tab: 'text' | 'background' | 'animation' | 'effects' | 'lyrics') => {
+    if (tab === 'lyrics') {
+      setMobilePropertiesOpen(false);
+      return;
+    }
+    setMobilePropertiesOpen(true);
+  };
+
   return (
-    <div className="flex flex-col h-full">
-      <TopBar />
-      <div className="flex flex-1 min-h-0">
-        <SidebarRail />
-        <div className="flex flex-1 min-w-0">
-          <div className="flex-1 min-w-0 flex flex-col">
-            {activeTab === 'lyrics' ? (
-              <LyricsEditor />
-            ) : (
-              <PreviewPanel />
-            )}
+    <>
+      <MobileOrientationGate />
+      <div className="studio-editor-shell flex flex-col h-full">
+        <TopBar />
+        <div className="flex flex-1 min-h-0">
+          <SidebarRail onTabSelected={handleTabSelected} />
+          <div className="flex flex-1 min-w-0">
+            <div className="flex-1 min-w-0 flex flex-col">
+              {activeTab === 'lyrics' ? (
+                <LyricsEditor />
+              ) : (
+                <PreviewPanel />
+              )}
+            </div>
+            <PropertiesPanel
+              mobileOpen={mobilePropertiesOpen}
+              onMobileClose={() => setMobilePropertiesOpen(false)}
+            />
           </div>
-          <PropertiesPanel />
         </div>
+        <Timeline />
       </div>
-      <Timeline />
-    </div>
+    </>
   );
 }
