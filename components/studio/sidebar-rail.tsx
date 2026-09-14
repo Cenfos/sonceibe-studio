@@ -21,35 +21,45 @@ const tabs = [
   { id: 'lyrics', label: 'Letra', icon: FileText },
 ] as const;
 
-export function SidebarRail() {
+type StudioTabId = (typeof tabs)[number]['id'];
+
+interface SidebarRailProps {
+  onTabSelected?: (tab: StudioTabId) => void;
+}
+
+export function SidebarRail({ onTabSelected }: SidebarRailProps) {
   const { activeTab, setTab } = useStore();
 
   return (
-    <aside className="w-16 shrink-0 flex flex-col items-center py-3 gap-1 border-r border-border bg-card/30">
+    <aside className="studio-sidebar w-16 shrink-0 flex flex-col items-center py-3 gap-1 border-r border-border bg-card/30">
       {tabs.map((tab) => {
         const Icon = tab.icon;
         const active = activeTab === tab.id;
         return (
           <button
             key={tab.id}
-            onClick={() => setTab(tab.id)}
+            onClick={() => {
+              setTab(tab.id);
+              onTabSelected?.(tab.id);
+            }}
             className={cn(
-              'group relative flex flex-col items-center justify-center gap-1 w-12 h-14 rounded-lg transition-all',
+              'studio-sidebar-tab group relative flex flex-col items-center justify-center gap-1 w-12 h-14 rounded-lg transition-all',
               active
                 ? 'bg-primary/15 text-primary'
                 : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
             )}
+            title={tab.label}
           >
             <Icon className="h-5 w-5" />
             <span className="text-[10px] font-medium">{tab.label}</span>
             {active && (
-              <span className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-0.5 rounded-r-full bg-primary" />
+              <span className="studio-active-indicator absolute left-0 top-1/2 -translate-y-1/2 h-6 w-0.5 rounded-r-full bg-primary" />
             )}
           </button>
         );
       })}
 
-      <div className="mt-auto flex flex-col items-center gap-3 text-muted-foreground/50">
+      <div className="studio-mobile-hide mt-auto flex flex-col items-center gap-3 text-muted-foreground/50">
         <Layers className="h-5 w-5" />
         <Music className="h-5 w-5" />
         <Film className="h-5 w-5" />
