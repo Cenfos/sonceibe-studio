@@ -75,25 +75,10 @@ function drawBrandSignature(
   const logo = getLogo();
   const minSide = Math.min(w, h);
   const safeBottom = inset + borderWidth * 1.5;
-
-  if (logo?.complete && logo.naturalWidth > 0 && logo.naturalHeight > 0) {
-    const maxLogoHeight = Math.max(92, minSide * 0.18);
-    const ratio = logo.naturalWidth / logo.naturalHeight;
-    const logoHeight = maxLogoHeight;
-    const logoWidth = logoHeight * ratio;
-    const x = w - inset - logoWidth - borderWidth * 1.5;
-    const y = h - safeBottom - logoHeight - Math.max(18, minSide * 0.032);
-
-    ctx.save();
-    ctx.globalAlpha = 0.96;
-    ctx.shadowColor = 'rgba(2, 8, 18, 0.86)';
-    ctx.shadowBlur = Math.max(10, minSide * 0.016);
-    ctx.drawImage(logo, x, y, logoWidth, logoHeight);
-    ctx.restore();
-  }
-
   const website = 'www.sonceibe.es';
   const fontSize = Math.max(15, minSide * 0.023);
+  const websiteBaseline = h - safeBottom;
+
   ctx.save();
   ctx.globalAlpha = 0.9;
   ctx.textAlign = 'center';
@@ -102,21 +87,38 @@ function drawBrandSignature(
   ctx.fillStyle = '#f1d6a7';
   ctx.shadowColor = 'rgba(0,0,0,0.92)';
   ctx.shadowBlur = Math.max(5, minSide * 0.009);
-  ctx.fillText(website, w / 2, h - safeBottom, w * 0.48);
+  ctx.fillText(website, w / 2, websiteBaseline, w * 0.48);
 
   const textWidth = ctx.measureText(website).width;
   const ornamentGap = Math.max(12, minSide * 0.018);
   const lineWidth = Math.max(24, minSide * 0.055);
-  const y = h - safeBottom - fontSize * 0.42;
+  const lineY = websiteBaseline - fontSize * 0.42;
   ctx.strokeStyle = 'rgba(217,154,69,0.72)';
   ctx.lineWidth = Math.max(1, minSide * 0.0016);
   ctx.beginPath();
-  ctx.moveTo(w / 2 - textWidth / 2 - ornamentGap - lineWidth, y);
-  ctx.lineTo(w / 2 - textWidth / 2 - ornamentGap, y);
-  ctx.moveTo(w / 2 + textWidth / 2 + ornamentGap, y);
-  ctx.lineTo(w / 2 + textWidth / 2 + ornamentGap + lineWidth, y);
+  ctx.moveTo(w / 2 - textWidth / 2 - ornamentGap - lineWidth, lineY);
+  ctx.lineTo(w / 2 - textWidth / 2 - ornamentGap, lineY);
+  ctx.moveTo(w / 2 + textWidth / 2 + ornamentGap, lineY);
+  ctx.lineTo(w / 2 + textWidth / 2 + ornamentGap + lineWidth, lineY);
   ctx.stroke();
   ctx.restore();
+
+  if (logo?.complete && logo.naturalWidth > 0 && logo.naturalHeight > 0) {
+    const logoHeight = Math.max(82, minSide * 0.145);
+    const ratio = logo.naturalWidth / logo.naturalHeight;
+    const logoWidth = logoHeight * ratio;
+    const gap = Math.max(12, minSide * 0.018);
+    const websiteTop = websiteBaseline - fontSize;
+    const x = (w - logoWidth) / 2;
+    const y = websiteTop - gap - logoHeight;
+
+    ctx.save();
+    ctx.globalAlpha = 0.97;
+    ctx.shadowColor = 'rgba(2, 8, 18, 0.88)';
+    ctx.shadowBlur = Math.max(10, minSide * 0.016);
+    ctx.drawImage(logo, x, y, logoWidth, logoHeight);
+    ctx.restore();
+  }
 }
 
 export function drawVisualBranding(
@@ -153,7 +155,7 @@ export function drawVisualBranding(
     drawSonCeibeCorners(ctx, w, h, inset + borderWidth, minSide * 0.11);
 
     const pulse = 0.04 + ((Math.sin(time * 0.8) + 1) / 2) * 0.035;
-    const glow = ctx.createRadialGradient(w * 0.78, h * 0.83, 0, w * 0.78, h * 0.83, minSide * 0.42);
+    const glow = ctx.createRadialGradient(w * 0.5, h * 0.84, 0, w * 0.5, h * 0.84, minSide * 0.42);
     glow.addColorStop(0, `rgba(37,91,145,${pulse})`);
     glow.addColorStop(0.45, `rgba(217,154,69,${pulse * 0.65})`);
     glow.addColorStop(1, 'rgba(217,154,69,0)');
