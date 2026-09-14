@@ -82,15 +82,21 @@ export function LyricsSyncDialog({ open, onOpenChange }: LyricsSyncDialogProps) 
       }
     }
 
-    // Keep the current line visible until the next tap. On the last line,
-    // the project duration becomes its final end time.
-    updateLyric(currentLine.id, {
-      start: t,
-      end: duration > t ? duration : t + 4,
-    });
-
     const nextPosition = position + 1;
     const finished = nextPosition >= syncableLyrics.length;
+
+    // A non-final line gets a short provisional end. The next tap replaces it
+    // with the exact start of the following line. Previously every tapped line
+    // was provisionally extended to the end of the song, so interrupting sync
+    // could leave one sentence covering and hiding all later lyrics.
+    const provisionalEnd = finished
+      ? Math.max(t + 0.05, duration)
+      : Math.min(duration, Math.max(t + 0.05, t + 4));
+
+    updateLyric(currentLine.id, {
+      start: t,
+      end: provisionalEnd,
+    });
 
     setSyncProgress({
       inProgress: !finished,
