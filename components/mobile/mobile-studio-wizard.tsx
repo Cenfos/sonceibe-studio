@@ -28,6 +28,7 @@ import { LOCAL_AUDIO_URL, getProjectAudio, saveProjectAudio } from '@/lib/local-
 import { getProjectAudioFromWorkspace, saveProjectAudioToWorkspace } from '@/lib/local-workspace';
 import { LyricsSyncDialog } from '@/components/studio/lyrics/lyrics-sync-dialog';
 import { MobileOrientationGate } from '@/components/studio/mobile-orientation-gate';
+import { MobileExportDialog } from '@/components/mobile/mobile-export-dialog';
 import { toast } from 'sonner';
 
 const steps = [
@@ -78,13 +79,13 @@ export function MobileStudioWizard() {
     updateBackground,
     updateExport,
     setLyrics,
-    setExportOpen,
     closeProject,
   } = useStore();
   const audio = useAudioEngineContext();
   const userId = useStudioUserId();
   const [step, setStep] = useState(0);
   const [syncOpen, setSyncOpen] = useState(false);
+  const [mobileExportOpen, setMobileExportOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const audioInputRef = useRef<HTMLInputElement>(null);
   const lyricsInputRef = useRef<HTMLInputElement>(null);
@@ -103,7 +104,6 @@ export function MobileStudioWizard() {
       fps: 30,
       includeAudio: true,
     });
-    // Set the mobile project to fill a 9:16 phone screen instead of letterboxing photos.
     updateBackground({ imageFit: 'cover' });
     // Only apply the mobile defaults when entering this project in mobile mode.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -242,7 +242,7 @@ export function MobileStudioWizard() {
   const prepareVideo = () => {
     updateExport({ orientation: 'portrait', resolution: '1080p', fps: 30, includeAudio: true });
     updateBackground({ imageFit: 'cover' });
-    setExportOpen(true);
+    setMobileExportOpen(true);
   };
 
   const StepIcon = steps[step].icon;
@@ -369,7 +369,7 @@ export function MobileStudioWizard() {
                 <div className="flex justify-between gap-3"><span className="text-muted-foreground">Fotos</span><span>{settings.background.images?.length ?? (settings.background.imageUrl ? 1 : 0)}</span></div>
                 <div className="flex justify-between gap-3"><span className="text-muted-foreground">Formato</span><span>1080×1920 · 30 FPS</span></div>
               </div>
-              <Button className="w-full h-13 gap-2" onClick={prepareVideo} disabled={!hasAudio}>
+              <Button className="w-full h-12 gap-2" onClick={prepareVideo} disabled={!hasAudio}>
                 <Film className="h-5 w-5" />
                 Crear MP4 para móvil
               </Button>
@@ -402,6 +402,7 @@ export function MobileStudioWizard() {
       </div>
 
       <LyricsSyncDialog open={syncOpen} onOpenChange={setSyncOpen} />
+      <MobileExportDialog open={mobileExportOpen} onClose={() => setMobileExportOpen(false)} />
     </>
   );
 }
