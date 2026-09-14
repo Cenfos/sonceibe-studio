@@ -1,19 +1,38 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useStore } from '@/lib/store';
 import { useStudioUserId } from '@/lib/studio-user-context';
-import { saveProjectsToWorkspace } from '@/lib/local-workspace';
+import { getProjectAudio } from '@/lib/local-media-storage';
+import { saveProjectAudioToWorkspace, saveProjectsToWorkspace } from '@/lib/local-workspace';
 
 export function WorkspaceSync() {
   const { projects } = useStore();
   const userId = useStudioUserId();
+  const copiedAudio = useRef(new Set<string>());
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      saveProjectsToWorkspace(userId, projects).catch((error) => {
+    const timer = window.setTimeout(async () => {
+      try {
+        const savedCount = await saveProjectsToWorkspace(userId, projects);
+        if (savedCount === 0) return;
+
+        for (const project of projects) {
+          const audioName = project.settings.audioName;
+          if (!audioName) continue;
+
+          const signature = `${project.id}:${audioName}`;
+          if (copiedAudio.current.has(signature)) continue;
+
+          const file = await getProjectAudio(userId, project.id);
+          if (!file) continue;
+
+          const copied = await saveProjectAudioToWorkspace(userId, project.id, file);
+          if (copied) copiedAudio.current.add(signature);
+        }
+      } catch (error) {
         console.warn('Workspace autosave skipped:', error);
-      });
+      }
     }, 1200);
 
     return () => window.clearTimeout(timer);
