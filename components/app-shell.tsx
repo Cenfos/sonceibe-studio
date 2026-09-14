@@ -6,6 +6,7 @@ import { HomePage } from '@/components/home/home-page';
 import { WorkspaceControl } from '@/components/home/workspace-control';
 import { StudioLayout } from '@/components/studio/studio-layout';
 import { MobileStudioWizard } from '@/components/mobile/mobile-studio-wizard';
+import { MobilePreviewLauncher } from '@/components/mobile/mobile-preview-launcher';
 import { ExportDialog } from '@/components/studio/export-dialog';
 import { SettingsDialog } from '@/components/studio/settings-dialog';
 
@@ -43,7 +44,10 @@ export function AppShell() {
       ) : isPhone === null ? (
         <div className="h-full w-full bg-background" />
       ) : isPhone ? (
-        <MobileStudioWizard />
+        <>
+          <MobileStudioWizard />
+          <MobilePreviewLauncher />
+        </>
       ) : (
         <StudioLayout />
       )}
