@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { Check, Download, Film, Loader2, RefreshCw, Share2, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Check, Download, Film, FolderOpen, Loader2, RefreshCw, Share2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { useStore } from '@/lib/store';
@@ -87,6 +87,7 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
   const [blob, setBlob] = useState<Blob | null>(null);
   const [filename, setFilename] = useState('');
   const [loadingSaved, setLoadingSaved] = useState(false);
+  const existingVideoInputRef = useRef<HTMLInputElement>(null);
 
   const duration = audio.duration || currentProject?.settings.audioDuration || 0;
   const videoBitrate = useMemo(() => mobileVideoBitrate(duration), [duration]);
@@ -123,6 +124,28 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
   }, [open, currentProject?.id, userId]);
 
   if (!open || !currentProject) return null;
+
+  const attachExistingVideo = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    const isMp4 = file.name.toLowerCase().endsWith('.mp4') || file.type === 'video/mp4';
+    if (!isMp4) {
+      toast.error('Selecciona el MP4 de este proyecto');
+      return;
+    }
+
+    try {
+      await saveProjectVideo(userId, currentProject.id, file, currentProject.settings.updatedAt);
+      setBlob(file);
+      setFilename(file.name);
+      toast.success('MP4 asociado al proyecto. Ya puedes compartirlo o descargarlo sin volver a crearlo.');
+    } catch (error) {
+      console.error('Failed to attach existing mobile video:', error);
+      toast.error('No se pudo guardar este MP4 dentro del proyecto');
+    }
+  };
 
   const exportVideo = async () => {
     if (exporting) return;
@@ -259,8 +282,6 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
     } finally {
       cancelAnimationFrame(frameId);
       if (recorder?.state !== 'inactive') recorder?.stop();
-      // Stop only the canvas track. Stopping audio capture tracks can make some
-      // mobile browsers unable to export the same project a second time.
       outputStream?.getVideoTracks().forEach((track) => track.stop());
       audioEl.pause();
       audioEl.currentTime = Math.min(previousTime, duration);
@@ -351,6 +372,25 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
                 <Film className="h-5 w-5" />
                 Crear MP4
               </Button>
+              <input
+                ref={existingVideoInputRef}
+                type="file"
+                accept="video/mp4,.mp4"
+                className="hidden"
+                onChange={attachExistingVideo}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full gap-2"
+                onClick={() => existingVideoInputRef.current?.click()}
+              >
+                <FolderOpen className="h-4 w-4" />
+                Usar MP4 ya creado
+              </Button>
+              <p className="text-[11px] leading-4 text-muted-foreground">
+                Úsalo para asociar una exportación antigua que ya tengas en Descargas. Solo tendrás que seleccionarla una vez.
+              </p>
             </div>
           )}
         </Card>
