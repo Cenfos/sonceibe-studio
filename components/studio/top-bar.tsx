@@ -143,11 +143,11 @@ export function TopBar() {
 
   return (
     <>
-      <header className="h-14 shrink-0 flex items-center justify-between px-4 border-b border-border bg-card/50 backdrop-blur-sm">
-        <div className="flex items-center gap-4">
+      <header className="studio-topbar h-14 shrink-0 flex items-center justify-between px-4 border-b border-border bg-card/50 backdrop-blur-sm">
+        <div className="flex items-center gap-4 min-w-0">
           <button
             onClick={closeProject}
-            className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+            className="flex items-center gap-2 hover:opacity-80 transition-opacity shrink-0"
             title="Volver al inicio de SonCeibe Studio"
           >
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/20 ring-1 ring-primary/30">
@@ -155,9 +155,9 @@ export function TopBar() {
             </div>
           </button>
 
-          <Separator orientation="vertical" className="h-6" />
+          <Separator orientation="vertical" className="studio-mobile-hide h-6" />
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 min-w-0">
             {editingTitle ? (
               <input
                 autoFocus
@@ -172,20 +172,20 @@ export function TopBar() {
                     setEditingTitle(false);
                   }
                 }}
-                className="bg-background border border-border rounded-md px-2 py-1 text-sm outline-none focus:border-primary"
+                className="bg-background border border-border rounded-md px-2 py-1 text-sm outline-none focus:border-primary max-w-40"
               />
             ) : (
               <button
                 onClick={() => setEditingTitle(true)}
-                className="text-sm font-medium hover:text-primary transition-colors"
+                className="studio-project-title text-sm font-medium hover:text-primary transition-colors truncate"
               >
                 {currentProject?.settings.title || 'Sin título'}
               </button>
             )}
             {currentProject?.settings.artist && (
               <>
-                <span className="text-muted-foreground">·</span>
-                <span className="text-sm text-muted-foreground">
+                <span className="studio-mobile-hide text-muted-foreground">·</span>
+                <span className="studio-mobile-hide text-sm text-muted-foreground">
                   {currentProject.settings.artist}
                 </span>
               </>
@@ -200,7 +200,7 @@ export function TopBar() {
           </div>
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="studio-mobile-hide flex items-center gap-1">
           <TooltipProvider delayDuration={300}>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -221,30 +221,31 @@ export function TopBar() {
           </TooltipProvider>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <TooltipProvider delayDuration={300}>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant="default"
                   size="sm"
-                  className="gap-1.5"
+                  className="studio-mobile-icon-only gap-1.5"
                   onClick={handleExport}
                   disabled={!currentProject}
+                  aria-label="Exportar"
                 >
                   <Download className="h-4 w-4" />
-                  Exportar
+                  <span className="studio-action-label">Exportar</span>
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Crear MP4 o exportar la letra (Ctrl+S)</TooltipContent>
             </Tooltip>
           </TooltipProvider>
 
-          <Separator orientation="vertical" className="h-6" />
+          <Separator orientation="vertical" className="studio-mobile-hide h-6" />
 
-          <Button variant="ghost" size="sm" onClick={closeProject} className="gap-1.5">
+          <Button variant="ghost" size="sm" onClick={closeProject} className="studio-mobile-icon-only gap-1.5" aria-label="Inicio">
             <Home className="h-4 w-4" />
-            Inicio
+            <span className="studio-action-label">Inicio</span>
           </Button>
 
           <input
@@ -258,10 +259,11 @@ export function TopBar() {
             variant="outline"
             size="sm"
             onClick={() => audioInputRef.current?.click()}
-            className="gap-1.5"
+            className="studio-mobile-icon-only gap-1.5"
+            aria-label="Cargar MP3"
           >
             <Upload className="h-4 w-4" />
-            Cargar MP3
+            <span className="studio-action-label">Cargar MP3</span>
           </Button>
 
           <input
@@ -275,44 +277,48 @@ export function TopBar() {
             variant="outline"
             size="sm"
             onClick={() => lyricsInputRef.current?.click()}
-            className="gap-1.5"
+            className="studio-mobile-icon-only gap-1.5"
             title="TXT, LRC, ODT, DOCX, RTF, HTML o Markdown"
+            aria-label="Cargar letra"
           >
             <FileText className="h-4 w-4" />
-            Cargar letra
+            <span className="studio-action-label">Cargar letra</span>
           </Button>
 
           <Button
             variant="outline"
             size="sm"
             onClick={() => setLyricsSyncOpen(true)}
-            className="gap-1.5"
+            className="studio-mobile-icon-only gap-1.5"
             disabled={!hasLyrics || !hasAudio}
             title={!hasLyrics ? 'Primero carga una letra' : !hasAudio ? 'Primero carga un MP3' : 'Sincronizar letra con el MP3'}
+            aria-label="Sincronizar letra"
           >
             <Hand className="h-4 w-4" />
-            Sincronizar
+            <span className="studio-action-label">Sincronizar</span>
           </Button>
 
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setSettingsOpen(true)}
-            className="gap-1.5"
+            className="studio-mobile-icon-only gap-1.5"
+            aria-label="Ajustes"
           >
             <Settings className="h-4 w-4" />
-            Ajustes
+            <span className="studio-action-label">Ajustes</span>
           </Button>
 
           <Button
             variant="ghost"
             size="sm"
             onClick={handleLogout}
-            className="gap-1.5 text-muted-foreground"
+            className="studio-mobile-icon-only gap-1.5 text-muted-foreground"
             title="Cerrar acceso privado"
+            aria-label="Salir"
           >
             <LogOut className="h-4 w-4" />
-            Salir
+            <span className="studio-action-label">Salir</span>
           </Button>
         </div>
       </header>
