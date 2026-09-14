@@ -8,8 +8,11 @@ import { PropertiesPanel } from './properties/properties-panel';
 import { Timeline } from './timeline/timeline';
 import { useStore } from '@/lib/store';
 import { useAudioEngineContext } from '@/lib/audio-engine-context';
+import { useStudioUserId } from '@/lib/studio-user-context';
+import { getProjectAudio, LOCAL_AUDIO_URL, saveProjectAudio } from '@/lib/local-media-storage';
 import { LyricsEditor } from './lyrics/lyrics-editor';
 import { MobileOrientationGate } from './mobile-orientation-gate';
+import { toast } from 'sonner';
 
 export function StudioLayout() {
   const {
@@ -22,6 +25,7 @@ export function StudioLayout() {
     setSettingsOpen,
     setTab,
   } = useStore();
+  const userId = useStudioUserId();
   const audio = useAudioEngineContext();
   const [mobilePropertiesOpen, setMobilePropertiesOpen] = useState(false);
 
@@ -92,13 +96,66 @@ export function StudioLayout() {
   useEffect(() => {
     if (!currentProject || !audio.audioEl) return;
 
-    if (currentProject.settings.audioUrl) {
-      audio.loadFromUrl(currentProject.settings.audioUrl, currentProject.settings.audioName);
-    } else {
-      audio.clear();
-    }
+    let cancelled = false;
+    const projectId = currentProject.id;
+    const { audioUrl, audioName } = currentProject.settings;
+
+    const restoreAudio = async () => {
+      try {
+        if (audioName || audioUrl === LOCAL_AUDIO_URL) {
+          const storedFile = await getProjectAudio(userId, projectId);
+          if (cancelled) return;
+
+          if (storedFile) {
+            await audio.loadFile(storedFile);
+            if (audioUrl !== LOCAL_AUDIO_URL || audioName !== storedFile.name) {
+              updateSettings({ audioUrl: LOCAL_AUDIO_URL, audioName: storedFile.name });
+            }
+            return;
+          }
+        }
+
+        // Migrate a still-valid legacy blob URL from older Studio versions.
+        if (audioUrl?.startsWith('blob:') && audioName) {
+          try {
+            const response = await fetch(audioUrl);
+            if (!response.ok) throw new Error('Legacy blob unavailable');
+            const blob = await response.blob();
+            const file = new File([blob], audioName, { type: blob.type || 'audio/mpeg' });
+            await saveProjectAudio(userId, projectId, file);
+            if (cancelled) return;
+            await audio.loadFile(file);
+            updateSettings({ audioUrl: LOCAL_AUDIO_URL, audioName: file.name });
+            return;
+          } catch {
+            // The blob URL normally expires after closing/reloading the browser.
+          }
+        }
+
+        if (audioUrl && audioUrl !== LOCAL_AUDIO_URL && !audioUrl.startsWith('blob:')) {
+          await audio.loadFromUrl(audioUrl, audioName);
+          return;
+        }
+
+        audio.clear();
+        if (audioName) {
+          toast.warning(`No encuentro el audio guardado de este proyecto (${audioName}). Cárgalo una vez más y quedará guardado localmente.`);
+        }
+      } catch (error) {
+        if (cancelled) return;
+        console.error('Failed to restore project audio:', error);
+        audio.clear();
+        toast.error('No se pudo recuperar el audio local de este proyecto');
+      }
+    };
+
+    restoreAudio();
+    return () => {
+      cancelled = true;
+    };
+    // Only restore when switching projects; audio state changes continuously during playback.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentProject?.id]);
+  }, [currentProject?.id, userId]);
 
   const handleTabSelected = (tab: 'text' | 'background' | 'animation' | 'effects' | 'lyrics') => {
     if (tab === 'lyrics') {
