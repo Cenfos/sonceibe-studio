@@ -19,108 +19,64 @@ import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import {
-  Download,
-  Film,
-  Loader2,
   Check,
+  Download,
+  FileText,
+  Film,
+  Gauge,
+  Instagram,
+  Loader2,
+  MessageCircle,
   Monitor,
   Smartphone,
-  Tv,
-  FileText,
-  MessageCircle,
-  Instagram,
-  Gauge,
-  Sparkles,
 } from 'lucide-react';
-import type { ExportResolution, ExportFps, VideoOrientation } from '@/lib/types';
+import type { ExportFps, ExportResolution, VideoOrientation } from '@/lib/types';
 
-const resolutions: { v: ExportResolution; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { v: '720p', label: '720p HD', icon: Smartphone },
-  { v: '1080p', label: '1080p Full HD', icon: Monitor },
-  { v: '4k', label: '4K Ultra HD', icon: Tv },
-];
+type ExportType = 'video' | 'txt' | 'lrc';
+type PresetId = 'whatsapp' | 'instagram' | 'pc' | 'custom';
 
-const fpsOptions: { v: ExportFps; label: string }[] = [
-  { v: 30, label: '30 FPS' },
-  { v: 60, label: '60 FPS' },
-];
-
-type ExportPresetId = 'whatsapp' | 'instagram' | 'balanced' | 'quality' | 'custom';
-
-type ExportPreset = {
-  id: Exclude<ExportPresetId, 'custom'>;
-  label: string;
-  description: string;
-  resolution: ExportResolution;
-  fps: ExportFps;
-  orientation: VideoOrientation;
-  videoBitrate: number;
-  audioBitrate: number;
-  icon: React.ComponentType<{ className?: string }>;
+type CapturableAudioElement = HTMLAudioElement & {
+  captureStream?: () => MediaStream;
+  mozCaptureStream?: () => MediaStream;
 };
 
-const exportPresets: ExportPreset[] = [
+const PRESETS = [
   {
-    id: 'whatsapp',
+    id: 'whatsapp' as const,
     label: 'WhatsApp móvil',
-    description: '720×1280 · 9:16 · poco peso',
-    resolution: '720p',
-    fps: 30,
-    orientation: 'portrait',
+    description: '720×1280 · 9:16 · ligero',
+    resolution: '720p' as ExportResolution,
+    orientation: 'portrait' as VideoOrientation,
+    fps: 30 as ExportFps,
     videoBitrate: 1_500_000,
     audioBitrate: 96_000,
     icon: MessageCircle,
   },
   {
-    id: 'instagram',
+    id: 'instagram' as const,
     label: 'Instagram / Reels',
-    description: '1080×1920 · 9:16 · 30 FPS',
-    resolution: '1080p',
-    fps: 30,
-    orientation: 'portrait',
+    description: '1080×1920 · 9:16',
+    resolution: '1080p' as ExportResolution,
+    orientation: 'portrait' as VideoOrientation,
+    fps: 30 as ExportFps,
     videoBitrate: 4_000_000,
     audioBitrate: 128_000,
     icon: Instagram,
   },
   {
-    id: 'balanced',
-    label: 'PC / TV equilibrado',
-    description: '1920×1080 · 16:9 · 30 FPS',
-    resolution: '1080p',
-    fps: 30,
-    orientation: 'landscape',
+    id: 'pc' as const,
+    label: 'PC / TV',
+    description: '1920×1080 · 16:9',
+    resolution: '1080p' as ExportResolution,
+    orientation: 'landscape' as VideoOrientation,
+    fps: 30 as ExportFps,
     videoBitrate: 5_500_000,
     audioBitrate: 160_000,
     icon: Gauge,
   },
-  {
-    id: 'quality',
-    label: 'PC / TV alta calidad',
-    description: '1920×1080 · 16:9 · 60 FPS',
-    resolution: '1080p',
-    fps: 60,
-    orientation: 'landscape',
-    videoBitrate: 9_000_000,
-    audioBitrate: 192_000,
-    icon: Sparkles,
-  },
 ];
 
-function getResolutionDescription(resolution: ExportResolution, orientation: VideoOrientation): string {
-  const landscape = {
-    '720p': '1280×720',
-    '1080p': '1920×1080',
-    '4k': '3840×2160',
-  } as const;
-  const portrait = {
-    '720p': '720×1280',
-    '1080p': '1080×1920',
-    '4k': '2160×3840',
-  } as const;
-  return orientation === 'portrait' ? portrait[resolution] : landscape[resolution];
-}
-
-function getDimensions(resolution: ExportResolution, orientation: VideoOrientation) {
+function dimensionsFor(resolution: ExportResolution, orientation: VideoOrientation) {
   const landscape = {
     '720p': { width: 1280, height: 720 },
     '1080p': { width: 1920, height: 1080 },
@@ -132,7 +88,12 @@ function getDimensions(resolution: ExportResolution, orientation: VideoOrientati
     : base;
 }
 
-function safeFilename(value: string): string {
+function dimensionLabel(resolution: ExportResolution, orientation: VideoOrientation) {
+  const { width, height } = dimensionsFor(resolution, orientation);
+  return `${width}×${height}`;
+}
+
+function safeFilename(value: string) {
   return (value || 'sonceibe-video')
     .replace(/[\\/:*?"<>|]+/g, '-')
     .replace(/\s+/g, ' ')
@@ -140,14 +101,22 @@ function safeFilename(value: string): string {
     .slice(0, 120) || 'sonceibe-video';
 }
 
-function getSupportedMp4MimeType(): string | null {
-  if (typeof MediaRecorder === 'undefined') return null;
+function formatMb(bytes: number) {
+  const mb = bytes / 1_000_000;
+  return mb < 10 ? `${mb.toFixed(1)} MB` : `${Math.round(mb)} MB`;
+}
 
-  // Level 3.0 was previously requested here. That profile is too restrictive
-  // for a real 1080×1920 mobile frame and some players could display the video
-  // as a reduced image surrounded by black. Prefer H.264 levels suitable for
-  // Full HD portrait, matching the mobile exporter.
+function estimateBytes(duration: number, videoBitrate: number, audioBitrate: number, includeAudio: boolean) {
+  if (duration <= 0) return 0;
+  return duration * (videoBitrate + (includeAudio ? audioBitrate : 0)) / 8 * 1.03;
+}
+
+function supportedMp4MimeType(): string | null {
+  if (typeof MediaRecorder === 'undefined') return null;
   const candidates = [
+    // Level 4.x is required for reliable Full-HD portrait playback. The old
+    // desktop exporter asked for Level 3.0, which can produce a nominally
+    // vertical MP4 that mobile players render reduced inside black borders.
     'video/mp4;codecs=avc1.42E02A,mp4a.40.2',
     'video/mp4;codecs=avc1.42E028,mp4a.40.2',
     'video/mp4;codecs=avc1.4D4028,mp4a.40.2',
@@ -155,13 +124,10 @@ function getSupportedMp4MimeType(): string | null {
     'video/mp4;codecs=avc1.42E028',
     'video/mp4',
   ];
-
   for (const candidate of candidates) {
     try {
       if (MediaRecorder.isTypeSupported(candidate)) return candidate;
-    } catch {
-      // Try the next MIME type.
-    }
+    } catch {}
   }
   return null;
 }
@@ -177,23 +143,6 @@ function downloadBlob(filename: string, blob: Blob) {
   window.setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
-function formatMegabytes(bytes: number): string {
-  const mb = bytes / 1_000_000;
-  if (mb < 1) return `${Math.max(1, Math.round(mb * 1000))} KB`;
-  return `${mb < 10 ? mb.toFixed(1) : Math.round(mb)} MB`;
-}
-
-function estimatedVideoSizeBytes(
-  durationSeconds: number,
-  videoBitrate: number,
-  audioBitrate: number,
-  includeAudio: boolean
-): number {
-  if (!durationSeconds || durationSeconds <= 0) return 0;
-  const totalBitrate = videoBitrate + (includeAudio ? audioBitrate : 0);
-  return (durationSeconds * totalBitrate / 8) * 1.03;
-}
-
 function readVideoDimensions(blob: Blob): Promise<{ width: number; height: number }> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(blob);
@@ -201,165 +150,124 @@ function readVideoDimensions(blob: Blob): Promise<{ width: number; height: numbe
     video.preload = 'metadata';
     video.muted = true;
     video.playsInline = true;
-
     const cleanup = () => {
       video.removeAttribute('src');
       video.load();
       URL.revokeObjectURL(url);
     };
-
     video.onloadedmetadata = () => {
-      const width = video.videoWidth;
-      const height = video.videoHeight;
+      const result = { width: video.videoWidth, height: video.videoHeight };
       cleanup();
-      resolve({ width, height });
+      resolve(result);
     };
     video.onerror = () => {
       cleanup();
-      reject(new Error('No se pudo comprobar la resolución del MP4 generado'));
+      reject(new Error('No se pudo comprobar la resolución del MP4'));
     };
     video.src = url;
   });
 }
 
-function dimensionsMatch(
-  actual: { width: number; height: number },
-  expected: { width: number; height: number }
-): boolean {
-  return actual.width === expected.width && actual.height === expected.height;
-}
-
-type CapturableAudioElement = HTMLAudioElement & {
-  captureStream?: () => MediaStream;
-  mozCaptureStream?: () => MediaStream;
-};
-
 export function ExportDialog() {
-  const {
-    isExportOpen,
-    setExportOpen,
-    currentProject,
-    updateExport,
-    markSaved,
-  } = useStore();
+  const { isExportOpen, setExportOpen, currentProject, updateExport, markSaved } = useStore();
   const audio = useAudioEngineContext();
+  const [exportType, setExportType] = useState<ExportType>('video');
+  const [presetId, setPresetId] = useState<PresetId>('custom');
+  const [videoBitrate, setVideoBitrate] = useState(5_500_000);
+  const [audioBitrate, setAudioBitrate] = useState(160_000);
   const [exporting, setExporting] = useState(false);
   const [progress, setProgress] = useState(0);
   const [done, setDone] = useState(false);
-  const [doneFileName, setDoneFileName] = useState('');
-  const [doneFileSize, setDoneFileSize] = useState(0);
-  const [doneDimensions, setDoneDimensions] = useState('');
-  const [exportType, setExportType] = useState<'video' | 'txt' | 'lrc'>('video');
-  const [presetId, setPresetId] = useState<ExportPresetId>('custom');
-  const [videoBitrate, setVideoBitrate] = useState(5_500_000);
-  const [audioBitrate, setAudioBitrate] = useState(160_000);
+  const [doneText, setDoneText] = useState('');
 
   if (!currentProject) return null;
 
   const cfg = currentProject.settings.exportConfig;
   const orientation: VideoOrientation = cfg.orientation ?? 'landscape';
-  const lyrics = currentProject.settings.lyrics;
+  const duration = audio.duration || currentProject.settings.audioDuration || 0;
   const title = currentProject.settings.title || 'SonCeibe';
-  const durationForEstimate = audio.duration || currentProject.settings.audioDuration || 0;
   const estimatedBytes = useMemo(
-    () => estimatedVideoSizeBytes(durationForEstimate, videoBitrate, audioBitrate, cfg.includeAudio),
-    [durationForEstimate, videoBitrate, audioBitrate, cfg.includeAudio]
+    () => estimateBytes(duration, videoBitrate, audioBitrate, cfg.includeAudio),
+    [duration, videoBitrate, audioBitrate, cfg.includeAudio]
   );
 
-  const applyPreset = (preset: ExportPreset) => {
+  const applyPreset = (preset: (typeof PRESETS)[number]) => {
     setPresetId(preset.id);
     setVideoBitrate(preset.videoBitrate);
     setAudioBitrate(preset.audioBitrate);
     updateExport({
       resolution: preset.resolution,
-      fps: preset.fps,
       orientation: preset.orientation,
+      fps: preset.fps,
     });
   };
 
-  const setCustomResolution = (resolution: ExportResolution) => {
+  const setOrientation = (next: VideoOrientation) => {
     setPresetId('custom');
-    updateExport({ resolution });
-    const minimumUsefulBitrate = resolution === '4k'
-      ? 12_000_000
-      : resolution === '1080p'
-        ? 4_000_000
-        : 1_500_000;
-    setVideoBitrate((current) => Math.max(current, minimumUsefulBitrate));
-  };
-
-  const setOrientation = (nextOrientation: VideoOrientation) => {
-    setPresetId('custom');
-    if (nextOrientation === 'portrait') {
+    if (next === 'portrait') {
       updateExport({ orientation: 'portrait', resolution: '1080p', fps: 30 });
-      setVideoBitrate((current) => Math.max(current, 4_000_000));
+      setVideoBitrate((value) => Math.max(value, 4_000_000));
     } else {
       updateExport({ orientation: 'landscape' });
     }
   };
 
-  const handleExportTxt = () => {
-    const filename = `${safeFilename(title)}.txt`;
-    downloadTextFile(filename, exportToTxt(lyrics));
+  const exportText = (kind: 'txt' | 'lrc') => {
+    if (kind === 'txt') {
+      downloadTextFile(`${safeFilename(title)}.txt`, exportToTxt(currentProject.settings.lyrics));
+    } else {
+      downloadTextFile(
+        `${safeFilename(title)}.lrc`,
+        exportToLrc(currentProject.settings.lyrics, title, currentProject.settings.artist),
+        'application/octet-stream'
+      );
+    }
     markSaved();
-    toast.success(`Guardado: ${filename}`);
+    toast.success(`Letra ${kind.toUpperCase()} guardada`);
   };
 
-  const handleExportLrc = () => {
-    const filename = `${safeFilename(title)}.lrc`;
-    const text = exportToLrc(lyrics, title, currentProject.settings.artist);
-    downloadTextFile(filename, text, 'application/octet-stream');
-    markSaved();
-    toast.success(`Guardado: ${filename}`);
-  };
-
-  const startVideoExport = async () => {
+  const exportVideo = async () => {
     if (exporting) return;
 
     const audioEl = audio.audioEl as CapturableAudioElement | null;
-    const duration = audio.duration || currentProject.settings.audioDuration || 0;
-    const mimeType = getSupportedMp4MimeType();
-
+    const mimeType = supportedMp4MimeType();
     if (!audioEl || duration <= 0) {
-      toast.error('Carga primero el MP3 antes de crear el vídeo');
+      toast.error('Carga primero el MP3');
       return;
     }
     if (!mimeType) {
-      toast.error('Este navegador no puede crear MP4 directamente. Prueba con Chrome o Edge actualizado.');
+      toast.error('Este navegador no puede crear MP4 directamente');
       return;
     }
 
     const captureAudio = audioEl.captureStream ?? audioEl.mozCaptureStream;
     if (cfg.includeAudio && !captureAudio) {
-      toast.error('Este navegador no permite capturar el audio del MP3 para el vídeo.');
+      toast.error('Este navegador no permite capturar el audio para el MP4');
       return;
     }
+
+    const previousTime = audioEl.currentTime;
+    const wasPlaying = !audioEl.paused;
+    let frameId = 0;
+    let recorder: MediaRecorder | null = null;
+    let outputStream: MediaStream | null = null;
 
     setExporting(true);
     setProgress(0);
     setDone(false);
-    setDoneFileName('');
-    setDoneFileSize(0);
-    setDoneDimensions('');
-
-    const previousTime = audioEl.currentTime;
-    const wasPlaying = !audioEl.paused;
-    let recorder: MediaRecorder | null = null;
-    let frameId = 0;
-    let outputStream: MediaStream | null = null;
-    let capturedAudioStream: MediaStream | null = null;
+    setDoneText('');
 
     try {
       audioEl.pause();
       audioEl.currentTime = 0;
 
-      const exportSettings = orientation === 'portrait'
+      const renderSettings = orientation === 'portrait'
         ? {
             ...currentProject.settings,
             background: {
               ...currentProject.settings.background,
-              // A vertical mobile export must fill the complete 9:16 frame.
-              // Photos are cropped when necessary instead of introducing bars.
+              // A mobile export always fills the full 9:16 frame. Landscape
+              // photos are cropped rather than surrounded by black bars.
               imageFit: 'cover' as const,
             },
             exportConfig: {
@@ -369,129 +277,108 @@ export function ExportDialog() {
           }
         : currentProject.settings;
 
-      const sources = new Set<string>();
-      const bg = exportSettings.background;
-      if (bg.imageUrl) sources.add(bg.imageUrl);
-      for (const src of bg.images ?? []) if (src) sources.add(src);
-      for (const clip of bg.imageClips ?? []) if (clip.url) sources.add(clip.url);
-      await Promise.all(Array.from(sources).map((src) => preloadBackgroundImage(src)));
-      await preloadVisualBranding(exportSettings.visualStyle, exportSettings.showSonCeibeBranding);
+      const backgroundSources = new Set<string>();
+      const bg = renderSettings.background;
+      if (bg.imageUrl) backgroundSources.add(bg.imageUrl);
+      for (const src of bg.images ?? []) if (src) backgroundSources.add(src);
+      for (const clip of bg.imageClips ?? []) if (clip.url) backgroundSources.add(clip.url);
+      await Promise.all(Array.from(backgroundSources).map(preloadBackgroundImage));
+      await preloadVisualBranding(renderSettings.visualStyle, renderSettings.showSonCeibeBranding);
 
-      const expectedDimensions = getDimensions(cfg.resolution, orientation);
-      const { width, height } = expectedDimensions;
+      const expected = dimensionsFor(cfg.resolution, orientation);
       const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
+      canvas.width = expected.width;
+      canvas.height = expected.height;
       const ctx = canvas.getContext('2d', { alpha: false });
-      if (!ctx) throw new Error('No se pudo preparar el lienzo de exportación');
+      if (!ctx) throw new Error('No se pudo preparar el vídeo');
 
-      renderFrame(ctx, width, height, exportSettings, 0);
+      renderFrame(ctx, expected.width, expected.height, renderSettings, 0);
       outputStream = canvas.captureStream(cfg.fps);
       const videoTrack = outputStream.getVideoTracks()[0];
       if (!videoTrack) throw new Error('No se pudo crear la pista de vídeo');
       videoTrack.contentHint = 'detail';
 
       if (cfg.includeAudio && captureAudio) {
-        capturedAudioStream = captureAudio.call(audioEl);
-        const audioTracks = capturedAudioStream.getAudioTracks();
-        if (audioTracks.length === 0) {
-          throw new Error('El navegador no ha proporcionado una pista de audio');
-        }
+        const captured = captureAudio.call(audioEl);
+        const audioTracks = captured.getAudioTracks();
+        if (!audioTracks.length) throw new Error('No se pudo capturar la música');
         audioTracks.forEach((track) => outputStream?.addTrack(track));
       }
 
       const chunks: BlobPart[] = [];
-      recorder = new MediaRecorder(outputStream, {
+      const activeRecorder = new MediaRecorder(outputStream, {
         mimeType,
         videoBitsPerSecond: videoBitrate,
         ...(cfg.includeAudio ? { audioBitsPerSecond: audioBitrate } : {}),
       });
+      recorder = activeRecorder;
 
-      const recordingFinished = new Promise<Blob>((resolve, reject) => {
-        if (!recorder) return reject(new Error('No se pudo iniciar el grabador'));
-        recorder.ondataavailable = (event) => {
-          if (event.data && event.data.size > 0) chunks.push(event.data);
+      const finished = new Promise<Blob>((resolve, reject) => {
+        activeRecorder.ondataavailable = (event) => {
+          if (event.data?.size) chunks.push(event.data);
         };
-        recorder.onerror = () => reject(new Error('Error durante la creación del MP4'));
-        recorder.onstop = () => resolve(new Blob(chunks, { type: mimeType }));
+        activeRecorder.onerror = () => reject(new Error('Error durante la creación del MP4'));
+        activeRecorder.onstop = () => resolve(new Blob(chunks, { type: mimeType }));
       });
 
-      const frameInterval = 1 / cfg.fps;
-      let lastRenderedTime = -frameInterval;
+      const interval = 1 / cfg.fps;
+      let lastRendered = -interval;
       let lastProgress = -1;
-
       const renderLoop = () => {
-        try {
-          const t = Math.min(duration, Number.isFinite(audioEl.currentTime) ? audioEl.currentTime : 0);
-          if (t - lastRenderedTime >= frameInterval * 0.9 || t >= duration) {
-            renderFrame(ctx, width, height, exportSettings, t);
-            lastRenderedTime = t;
-          }
-          const nextProgress = Math.min(99, Math.round((t / duration) * 100));
-          if (nextProgress !== lastProgress) {
-            lastProgress = nextProgress;
-            setProgress(nextProgress);
-          }
-        } finally {
-          frameId = requestAnimationFrame(renderLoop);
+        const t = Math.min(duration, Number.isFinite(audioEl.currentTime) ? audioEl.currentTime : 0);
+        if (t - lastRendered >= interval * 0.9 || t >= duration) {
+          renderFrame(ctx, expected.width, expected.height, renderSettings, t);
+          lastRendered = t;
         }
+        const nextProgress = Math.min(99, Math.round((t / duration) * 100));
+        if (nextProgress !== lastProgress) {
+          lastProgress = nextProgress;
+          setProgress(nextProgress);
+        }
+        frameId = requestAnimationFrame(renderLoop);
       };
 
       const onEnded = () => {
         cancelAnimationFrame(frameId);
-        renderFrame(ctx, width, height, exportSettings, duration);
+        renderFrame(ctx, expected.width, expected.height, renderSettings, duration);
         setProgress(100);
-        if (recorder?.state !== 'inactive') recorder.stop();
+        if (activeRecorder.state !== 'inactive') activeRecorder.stop();
       };
 
       audioEl.addEventListener('ended', onEnded, { once: true });
-      recorder.start(1000);
+      activeRecorder.start(1000);
       frameId = requestAnimationFrame(renderLoop);
+      await audioEl.play();
 
-      try {
-        await audioEl.play();
-      } catch (error) {
-        audioEl.removeEventListener('ended', onEnded);
-        cancelAnimationFrame(frameId);
-        if (recorder.state !== 'inactive') recorder.stop();
-        throw error;
-      }
+      const blob = await finished;
+      if (!blob.size) throw new Error('El MP4 generado está vacío');
 
-      const blob = await recordingFinished;
-      if (blob.size === 0) throw new Error('El vídeo generado está vacío');
-
-      const actualDimensions = await readVideoDimensions(blob);
-      if (!dimensionsMatch(actualDimensions, expectedDimensions)) {
+      const actual = await readVideoDimensions(blob);
+      if (actual.width !== expected.width || actual.height !== expected.height) {
         throw new Error(
-          `El MP4 final quedó en ${actualDimensions.width}×${actualDimensions.height}, pero debía ser ${expectedDimensions.width}×${expectedDimensions.height}. No se ha descargado para evitar bordes negros en el móvil.`
+          `El MP4 quedó en ${actual.width}×${actual.height}; debía ser ${expected.width}×${expected.height}. No se ha descargado para evitar bordes negros.`
         );
       }
 
       const suffix = orientation === 'portrait'
-        ? presetId === 'instagram'
-          ? '-instagram-9x16'
-          : '-movil-9x16'
-        : presetId === 'whatsapp'
-          ? '-whatsapp'
-          : '';
+        ? presetId === 'instagram' ? '-instagram-9x16' : '-movil-9x16'
+        : '';
       const filename = `${safeFilename(title)}${suffix}.mp4`;
       downloadBlob(filename, blob);
       markSaved();
-      setDoneFileName(filename);
-      setDoneFileSize(blob.size);
-      setDoneDimensions(`${actualDimensions.width}×${actualDimensions.height}`);
+      setDoneText(`${filename} · ${actual.width}×${actual.height} · ${formatMb(blob.size)}`);
       setDone(true);
       toast.success(
         orientation === 'portrait'
-          ? `MP4 móvil 9:16 comprobado · ${actualDimensions.width}×${actualDimensions.height} · ${formatMegabytes(blob.size)}`
-          : `Vídeo MP4 guardado · ${actualDimensions.width}×${actualDimensions.height} · ${formatMegabytes(blob.size)}`
+          ? `MP4 9:16 comprobado · ${actual.width}×${actual.height}`
+          : `MP4 comprobado · ${actual.width}×${actual.height}`
       );
     } catch (error) {
       console.error('Video export failed:', error);
-      toast.error(error instanceof Error ? error.message : 'No se pudo crear el vídeo MP4');
+      toast.error(error instanceof Error ? error.message : 'No se pudo crear el MP4');
     } finally {
       cancelAnimationFrame(frameId);
-      if (recorder?.state !== 'inactive') recorder.stop();
+      if (recorder && recorder.state !== 'inactive') recorder.stop();
       outputStream?.getVideoTracks().forEach((track) => track.stop());
       audioEl.pause();
       audioEl.currentTime = Math.min(previousTime, duration);
@@ -500,196 +387,153 @@ export function ExportDialog() {
     }
   };
 
-  const reset = () => {
+  const closeDialog = () => {
+    if (exporting) return;
     setDone(false);
-    setDoneFileName('');
-    setDoneFileSize(0);
-    setDoneDimensions('');
+    setDoneText('');
     setProgress(0);
     setExportOpen(false);
   };
 
   return (
-    <Dialog
-      open={isExportOpen}
-      onOpenChange={(open) => {
-        if (!open && exporting) return;
-        if (!open) reset();
-        else setExportOpen(true);
-      }}
-    >
+    <Dialog open={isExportOpen} onOpenChange={(open) => open ? setExportOpen(true) : closeDialog()}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Download className="h-5 w-5" />
-            Guardar / Exportar
-          </DialogTitle>
+          <DialogTitle className="flex items-center gap-2"><Download className="h-5 w-5" /> Guardar / Exportar</DialogTitle>
           <DialogDescription>
-            Para móvil usa Móvil 9:16, WhatsApp móvil o Instagram / Reels. Studio comprobará la resolución final antes de descargar el MP4.
+            Para teléfono elige Móvil 9:16, WhatsApp móvil o Instagram / Reels. Studio comprueba la resolución real antes de guardar.
           </DialogDescription>
         </DialogHeader>
 
         {done ? (
-          <div className="flex flex-col items-center justify-center py-8 text-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-500/20 mb-4">
-              <Check className="h-8 w-8 text-green-500" />
-            </div>
-            <h3 className="font-semibold text-lg mb-1">Vídeo guardado</h3>
-            <p className="text-sm text-muted-foreground mb-1">{doneFileName}</p>
-            {doneDimensions && <p className="text-sm font-medium">{doneDimensions} · {orientation === 'portrait' ? '9:16' : '16:9'}</p>}
-            {doneFileSize > 0 && <p className="text-sm text-muted-foreground mb-4">{formatMegabytes(doneFileSize)}</p>}
-            <Button onClick={reset}>Cerrar</Button>
+          <div className="py-8 text-center space-y-3">
+            <Check className="mx-auto h-10 w-10 text-green-500" />
+            <div className="font-semibold">Vídeo guardado correctamente</div>
+            <div className="text-sm text-muted-foreground">{doneText}</div>
+            <Button onClick={closeDialog}>Cerrar</Button>
           </div>
         ) : exporting ? (
           <div className="py-8 space-y-4">
-            <div className="flex items-center justify-center mb-4">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
+            <div className="text-center text-sm">Creando MP4… {progress}%</div>
+            <div className="h-2 overflow-hidden rounded-full bg-secondary">
+              <div className="h-full bg-primary transition-all" style={{ width: `${progress}%` }} />
             </div>
-            <div className="text-center text-sm text-muted-foreground">Creando MP4... {progress}%</div>
-            <div className="w-full h-2 rounded-full bg-secondary overflow-hidden">
-              <div className="h-full bg-primary transition-all duration-150" style={{ width: `${progress}%` }} />
-            </div>
-            <div className="text-xs text-center text-muted-foreground">
-              {getResolutionDescription(cfg.resolution, orientation)} · {cfg.fps} FPS · {orientation === 'portrait' ? '9:16 pantalla completa' : '16:9'} · {(videoBitrate / 1_000_000).toFixed(1)} Mbps
+            <div className="text-center text-xs text-muted-foreground">
+              {dimensionLabel(cfg.resolution, orientation)} · {orientation === 'portrait' ? '9:16 pantalla completa' : '16:9'} · {cfg.fps} FPS
             </div>
           </div>
         ) : (
           <div className="space-y-5">
-            <div className="space-y-2">
-              <Label>Formato de salida</Label>
-              <div className="grid grid-cols-3 gap-2">
-                <button onClick={() => setExportType('video')} className={cn('flex flex-col items-center gap-1.5 p-3 rounded-lg border transition-all', exportType === 'video' ? 'border-primary bg-primary/10 text-primary' : 'border-border hover:border-primary/40')}>
-                  <Film className="h-5 w-5" />
-                  <span className="text-xs font-medium">Vídeo MP4</span>
-                  <span className="text-[9px] text-muted-foreground">Recomendado</span>
+            <div className="grid grid-cols-3 gap-2">
+              {(['video', 'txt', 'lrc'] as ExportType[]).map((kind) => (
+                <button
+                  key={kind}
+                  onClick={() => setExportType(kind)}
+                  className={cn('rounded-lg border p-3 text-center text-sm', exportType === kind ? 'border-primary bg-primary/10 text-primary' : 'border-border')}
+                >
+                  {kind === 'video' ? <Film className="mx-auto mb-1 h-5 w-5" /> : <FileText className="mx-auto mb-1 h-5 w-5" />}
+                  {kind === 'video' ? 'Vídeo MP4' : `Letra ${kind.toUpperCase()}`}
                 </button>
-                <button onClick={() => setExportType('txt')} className={cn('flex flex-col items-center gap-1.5 p-3 rounded-lg border transition-all', exportType === 'txt' ? 'border-primary bg-primary/10 text-primary' : 'border-border hover:border-primary/40')}>
-                  <FileText className="h-5 w-5" />
-                  <span className="text-xs font-medium">Letra TXT</span>
-                </button>
-                <button onClick={() => setExportType('lrc')} className={cn('flex flex-col items-center gap-1.5 p-3 rounded-lg border transition-all', exportType === 'lrc' ? 'border-primary bg-primary/10 text-primary' : 'border-border hover:border-primary/40')}>
-                  <FileText className="h-5 w-5" />
-                  <span className="text-xs font-medium">Letra LRC</span>
-                </button>
-              </div>
+              ))}
             </div>
 
             {exportType === 'video' ? (
               <>
                 <div className="space-y-2">
-                  <Label>Perfil rápido</Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {exportPresets.map((preset) => {
+                  <Label>Perfiles preparados</Label>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    {PRESETS.map((preset) => {
                       const Icon = preset.icon;
-                      const active = presetId === preset.id;
                       return (
-                        <button key={preset.id} onClick={() => applyPreset(preset)} className={cn('flex items-center gap-2 rounded-lg border p-3 text-left transition-all', active ? 'border-primary bg-primary/10 text-primary' : 'border-border hover:border-primary/40')}>
-                          <Icon className="h-5 w-5 shrink-0" />
-                          <div className="min-w-0">
-                            <div className="text-sm font-medium">{preset.label}</div>
-                            <div className="text-[10px] text-muted-foreground">{preset.description}</div>
-                          </div>
+                        <button
+                          key={preset.id}
+                          onClick={() => applyPreset(preset)}
+                          className={cn('rounded-lg border p-3 text-left', presetId === preset.id ? 'border-primary bg-primary/10 text-primary' : 'border-border')}
+                        >
+                          <Icon className="mb-1 h-5 w-5" />
+                          <div className="text-sm font-medium">{preset.label}</div>
+                          <div className="text-[10px] text-muted-foreground">{preset.description}</div>
                         </button>
                       );
                     })}
                   </div>
-                </div>
-
-                <div className={cn('rounded-lg border p-3', orientation === 'portrait' ? 'border-primary/50 bg-primary/5' : 'border-border bg-card/40')}>
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <div className="text-sm font-medium">Salida actual</div>
-                      <div className="text-[11px] text-muted-foreground">
-                        {getResolutionDescription(cfg.resolution, orientation)} · {orientation === 'portrait' ? '9:16 móvil' : '16:9 PC/TV'} · {cfg.fps} FPS
-                      </div>
-                    </div>
-                    <div className="text-lg font-semibold tabular-nums">{estimatedBytes > 0 ? `~${formatMegabytes(estimatedBytes)}` : '—'}</div>
-                  </div>
-                  {orientation === 'portrait' && (
-                    <div className="mt-2 text-[11px] font-medium text-primary">
-                      Pantalla completa móvil: las fotos se recortarán automáticamente para rellenar todo el 9:16 sin bandas negras.
-                    </div>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label>Compresión / peso</Label>
-                    <span className="text-xs font-mono text-muted-foreground">{(videoBitrate / 1_000_000).toFixed(1)} Mbps</span>
-                  </div>
-                  <input type="range" min="1" max="20" step="0.5" value={videoBitrate / 1_000_000} onChange={(e) => { setPresetId('custom'); setVideoBitrate(Number(e.target.value) * 1_000_000); }} className="w-full accent-primary" />
-                  <div className="flex justify-between text-[10px] text-muted-foreground"><span>Más ligero</span><span>Más calidad</span></div>
                 </div>
 
                 <div className="space-y-2">
                   <Label>Pantalla</Label>
                   <div className="grid grid-cols-2 gap-2">
-                    <button onClick={() => setOrientation('landscape')} className={cn('flex items-center justify-center gap-2 p-3 rounded-lg border transition-all', orientation === 'landscape' ? 'border-primary bg-primary/10 text-primary' : 'border-border hover:border-primary/40')}>
-                      <Monitor className="h-5 w-5" />
-                      <div className="text-left"><div className="text-sm font-medium">PC / TV</div><div className="text-[10px] text-muted-foreground">Horizontal 16:9</div></div>
+                    <button onClick={() => setOrientation('landscape')} className={cn('rounded-lg border p-3 text-left', orientation === 'landscape' ? 'border-primary bg-primary/10 text-primary' : 'border-border')}>
+                      <Monitor className="mb-1 h-5 w-5" />
+                      <div className="text-sm font-medium">PC / TV</div>
+                      <div className="text-[10px] text-muted-foreground">Horizontal 16:9</div>
                     </button>
-                    <button onClick={() => setOrientation('portrait')} className={cn('flex items-center justify-center gap-2 p-3 rounded-lg border transition-all', orientation === 'portrait' ? 'border-primary bg-primary/10 text-primary' : 'border-border hover:border-primary/40')}>
-                      <Smartphone className="h-5 w-5" />
-                      <div className="text-left"><div className="text-sm font-medium">Móvil 9:16</div><div className="text-[10px] text-muted-foreground">1080×1920 pantalla completa</div></div>
+                    <button onClick={() => setOrientation('portrait')} className={cn('rounded-lg border p-3 text-left', orientation === 'portrait' ? 'border-primary bg-primary/10 text-primary' : 'border-border')}>
+                      <Smartphone className="mb-1 h-5 w-5" />
+                      <div className="text-sm font-medium">Móvil 9:16</div>
+                      <div className="text-[10px] text-muted-foreground">1080×1920 pantalla completa</div>
                     </button>
                   </div>
+                  {orientation === 'portrait' && (
+                    <div className="rounded-md border border-primary/30 bg-primary/5 p-2 text-[11px] text-primary">
+                      Las fotos rellenarán todo el fotograma vertical. Studio recortará los laterales cuando haga falta, sin bandas negras.
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-2">
                   <Label>Resolución</Label>
                   <div className="grid grid-cols-3 gap-2">
-                    {resolutions.map((resolution) => {
-                      const Icon = resolution.icon;
-                      const active = cfg.resolution === resolution.v;
-                      return (
-                        <button key={resolution.v} onClick={() => setCustomResolution(resolution.v)} className={cn('flex flex-col items-center gap-1.5 p-3 rounded-lg border transition-all', active ? 'border-primary bg-primary/10 text-primary' : 'border-border hover:border-primary/40')}>
-                          <Icon className="h-5 w-5" />
-                          <span className="text-xs font-medium">{resolution.label}</span>
-                          <span className="text-[10px] text-muted-foreground">{getResolutionDescription(resolution.v, orientation)}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Fotogramas por segundo</Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {fpsOptions.map((fps) => (
-                      <button key={fps.v} onClick={() => { setPresetId('custom'); updateExport({ fps: fps.v }); }} className={cn('p-3 rounded-lg border text-sm font-medium transition-all', cfg.fps === fps.v ? 'border-primary bg-primary/10 text-primary' : 'border-border hover:border-primary/40')}>
-                        {fps.label}
+                    {(['720p', '1080p', '4k'] as ExportResolution[]).map((resolution) => (
+                      <button
+                        key={resolution}
+                        onClick={() => { setPresetId('custom'); updateExport({ resolution }); }}
+                        className={cn('rounded-lg border p-2 text-xs', cfg.resolution === resolution ? 'border-primary bg-primary/10 text-primary' : 'border-border')}
+                      >
+                        <div className="font-medium">{resolution === '4k' ? '4K' : resolution}</div>
+                        <div className="text-[9px] text-muted-foreground">{dimensionLabel(resolution, orientation)}</div>
                       </button>
                     ))}
                   </div>
                 </div>
 
-                <label className="flex items-center justify-between cursor-pointer">
-                  <span className="text-sm">Incluir música</span>
+                <div className="space-y-2">
+                  <Label>FPS</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {([30, 60] as ExportFps[]).map((fps) => (
+                      <button key={fps} onClick={() => { setPresetId('custom'); updateExport({ fps }); }} className={cn('rounded-lg border p-2 text-sm', cfg.fps === fps ? 'border-primary bg-primary/10 text-primary' : 'border-border')}>{fps} FPS</button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm"><Label>Compresión</Label><span>{(videoBitrate / 1_000_000).toFixed(1)} Mbps</span></div>
+                  <input type="range" min="1" max="20" step="0.5" value={videoBitrate / 1_000_000} onChange={(e) => { setPresetId('custom'); setVideoBitrate(Number(e.target.value) * 1_000_000); }} className="w-full accent-primary" />
+                </div>
+
+                <label className="flex items-center justify-between text-sm">
+                  <span>Incluir música</span>
                   <input type="checkbox" checked={cfg.includeAudio} onChange={(e) => updateExport({ includeAudio: e.target.checked })} className="h-4 w-4 accent-primary" />
                 </label>
+
+                <div className="rounded-lg bg-secondary/40 p-3 text-sm">
+                  <div className="flex justify-between"><span>Salida</span><strong>{dimensionLabel(cfg.resolution, orientation)} · {orientation === 'portrait' ? '9:16' : '16:9'}</strong></div>
+                  <div className="mt-1 flex justify-between"><span>Tamaño estimado</span><strong>{estimatedBytes ? `~${formatMb(estimatedBytes)}` : '—'}</strong></div>
+                </div>
               </>
             ) : (
-              <div className="space-y-3 py-4">
-                <p className="text-sm text-muted-foreground">{exportType === 'txt' ? 'Guarda la letra como texto plano.' : 'Guarda la letra con sus marcas de tiempo para reproductores compatibles.'}</p>
-                <div className="text-xs text-muted-foreground">{lyrics.length} líneas · {lyrics.filter((line) => line.start > 0).length} sincronizadas</div>
-              </div>
+              <div className="py-4 text-sm text-muted-foreground">Se guardará la letra actual del proyecto en formato {exportType.toUpperCase()}.</div>
             )}
           </div>
         )}
 
         {!exporting && !done && (
           <DialogFooter>
-            <Button variant="outline" onClick={() => setExportOpen(false)}>Cancelar</Button>
+            <Button variant="outline" onClick={closeDialog}>Cancelar</Button>
             {exportType === 'video' ? (
-              <Button onClick={startVideoExport} className="gap-2">
-                <Download className="h-4 w-4" />
-                Crear MP4 {orientation === 'portrait' ? '9:16' : '16:9'} {estimatedBytes > 0 ? `(~${formatMegabytes(estimatedBytes)})` : ''}
-              </Button>
+              <Button onClick={exportVideo} className="gap-2"><Download className="h-4 w-4" /> Crear MP4 {orientation === 'portrait' ? '9:16' : '16:9'}</Button>
             ) : (
-              <Button onClick={exportType === 'txt' ? handleExportTxt : handleExportLrc} className="gap-2">
-                <Download className="h-4 w-4" />
-                Guardar {exportType.toUpperCase()}
-              </Button>
+              <Button onClick={() => exportText(exportType)} className="gap-2"><Download className="h-4 w-4" /> Guardar {exportType.toUpperCase()}</Button>
             )}
           </DialogFooter>
         )}
