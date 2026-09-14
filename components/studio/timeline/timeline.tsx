@@ -7,7 +7,17 @@ import { formatTime } from '@/lib/format';
 import { generateWaveformPeaks } from '@/lib/waveform';
 import { WaveformDisplay } from './waveform-display';
 import { cn } from '@/lib/utils';
-import { Music, FileText, Image, Wand2, Plus, ZoomIn, ZoomOut } from 'lucide-react';
+import {
+  Music,
+  FileText,
+  Image,
+  Wand2,
+  Plus,
+  ZoomIn,
+  ZoomOut,
+  Copy,
+  Trash2,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { BackgroundImageClip } from '@/lib/types';
 import {
@@ -21,7 +31,7 @@ import {
 const TRACK_LABEL_W = 120;
 const TRACK_H = 44;
 const RULER_H = 28;
-const SNAP_INTERVAL = 0.5; // seconds
+const SNAP_INTERVAL = 0.5;
 const IMAGE_DRAG_TYPE = 'application/x-sonceibe-image-index';
 
 function snapTime(t: number): number {
@@ -43,6 +53,7 @@ export function Timeline() {
   } = useStore();
   const audio = useAudioEngineContext();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const dragMovedRef = useRef(false);
   const [pxPerSec, setPxPerSec] = useState(20);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedBackgroundId, setSelectedBackgroundId] = useState<string | null>(null);
@@ -58,9 +69,7 @@ export function Timeline() {
   const imageClips = settings?.background.imageClips ?? [];
 
   const waveformPeaks = useMemo(() => {
-    if (audio.audioBuffer) {
-      return generateWaveformPeaks(audio.audioBuffer, 2000);
-    }
+    if (audio.audioBuffer) return generateWaveformPeaks(audio.audioBuffer, 2000);
     return [];
   }, [audio.audioBuffer]);
 
@@ -75,33 +84,6 @@ export function Timeline() {
     return ticks;
   }, [duration, pxPerSec]);
 
-  // Playhead drag
-  const onRulerMouseDown = (e: React.MouseEvent) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const update = (clientX: number) => {
-      const x = clientX - rect.left + (scrollRef.current?.scrollLeft || 0);
-      const t = Math.max(0, Math.min(duration, x / pxPerSec));
-      audio.seek(t);
-    };
-    update(e.clientX);
-    const move = (ev: MouseEvent) => update(ev.clientX);
-    const up = () => {
-      window.removeEventListener('mousemove', move);
-      window.removeEventListener('mouseup', up);
-    };
-    window.addEventListener('mousemove', move);
-    window.addEventListener('mouseup', up);
-  };
-
-  const onClipClick = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setSelectedId(id);
-    setSelectedBackgroundId(null);
-    const line = lyrics.find((l) => l.id === id);
-    if (line) audio.seek(line.start);
-  };
-
-  // Mouse wheel zoom
   const onWheel = (e: React.WheelEvent) => {
     if (e.ctrlKey || e.metaKey) {
       e.preventDefault();
@@ -109,54 +91,48 @@ export function Timeline() {
     }
   };
 
-  // Lyric clip drag with snapping
-  const onClipMouseDown = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setSelectedId(id);
-    setSelectedBackgroundId(null);
-    const line = lyrics.find((l) => l.id === id);
-    if (!line) return;
-    const startX = e.clientX;
-    const origStart = line.start;
-    const origEnd = line.end;
-    const mode = (e.target as HTMLElement).dataset.handle;
+  const onRulerPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (duration <= 0) return;
+    e.preventDefault();
 
-    const move = (ev: MouseEvent) => {
-      const dx = (ev.clientX - startX) / pxPerSec;
-      if (mode === 'left') {
-        let newStart = Math.max(0, Math.min(origEnd - 0.2, origStart + dx));
-        if (snapEnabled) newStart = snapTime(newStart);
-        updateLyric(id, { start: newStart });
-      } else if (mode === 'right') {
-        let newEnd = Math.max(origStart + 0.2, Math.min(duration, origEnd + dx));
-        if (snapEnabled) newEnd = snapTime(newEnd);
-        updateLyric(id, { end: newEnd });
-      } else {
-        const len = origEnd - origStart;
-        let newStart = Math.max(0, Math.min(Math.max(0, duration - len), origStart + dx));
-        if (snapEnabled) newStart = snapTime(newStart);
-        updateLyric(id, { start: newStart, end: newStart + len });
-      }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const pointerId = e.pointerId;
+    const target = e.currentTarget;
+    target.setPointerCapture?.(pointerId);
+
+    const update = (clientX: number) => {
+      const x = clientX - rect.left + (scrollRef.current?.scrollLeft || 0);
+      const t = Math.max(0, Math.min(duration, x / pxPerSec));
+      audio.seek(t);
     };
-    const up = () => {
-      window.removeEventListener('mousemove', move);
-      window.removeEventListener('mouseup', up);
+
+    update(e.clientX);
+
+    const move = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return;
+      ev.preventDefault();
+      update(ev.clientX);
     };
-    window.addEventListener('mousemove', move);
-    window.addEventListener('mouseup', up);
+    const up = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return;
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+      try { target.releasePointerCapture?.(pointerId); } catch {}
+    };
+
+    window.addEventListener('pointermove', move, { passive: false });
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
   };
 
   const updateBackgroundClip = (id: string, patch: Partial<BackgroundImageClip>) => {
-    const clips = imageClips.map((clip) =>
-      clip.id === id ? { ...clip, ...patch } : clip
-    );
+    const clips = imageClips.map((clip) => clip.id === id ? { ...clip, ...patch } : clip);
     updateBackground({ imageClips: clips });
   };
 
   const deleteBackgroundClip = (id: string) => {
-    updateBackground({
-      imageClips: imageClips.filter((clip) => clip.id !== id),
-    });
+    updateBackground({ imageClips: imageClips.filter((clip) => clip.id !== id) });
     if (selectedBackgroundId === id) setSelectedBackgroundId(null);
   };
 
@@ -181,7 +157,116 @@ export function Timeline() {
     audio.seek(copy.start);
   };
 
-  // Keyboard editing for the selected lyric/photo clip.
+  const onLyricPointerDown = (id: string, e: React.PointerEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).tagName === 'INPUT') return;
+    e.preventDefault();
+    e.stopPropagation();
+    setSelectedId(id);
+    setSelectedBackgroundId(null);
+    dragMovedRef.current = false;
+
+    const line = lyrics.find((item) => item.id === id);
+    if (!line) return;
+
+    const pointerId = e.pointerId;
+    const target = e.currentTarget;
+    target.setPointerCapture?.(pointerId);
+    const startX = e.clientX;
+    const origStart = line.start;
+    const origEnd = line.end;
+    const mode = (e.target as HTMLElement).dataset.handle;
+
+    const move = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return;
+      ev.preventDefault();
+      const pixelDx = ev.clientX - startX;
+      if (Math.abs(pixelDx) > 3) dragMovedRef.current = true;
+      const dx = pixelDx / pxPerSec;
+
+      if (mode === 'left') {
+        let newStart = Math.max(0, Math.min(origEnd - 0.2, origStart + dx));
+        if (snapEnabled) newStart = snapTime(newStart);
+        updateLyric(id, { start: newStart });
+      } else if (mode === 'right') {
+        let newEnd = Math.max(origStart + 0.2, Math.min(duration, origEnd + dx));
+        if (snapEnabled) newEnd = snapTime(newEnd);
+        updateLyric(id, { end: newEnd });
+      } else {
+        const len = origEnd - origStart;
+        let newStart = Math.max(0, Math.min(Math.max(0, duration - len), origStart + dx));
+        if (snapEnabled) newStart = snapTime(newStart);
+        updateLyric(id, { start: newStart, end: newStart + len });
+      }
+    };
+
+    const up = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return;
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+      try { target.releasePointerCapture?.(pointerId); } catch {}
+      if (!dragMovedRef.current) audio.seek(origStart);
+    };
+
+    window.addEventListener('pointermove', move, { passive: false });
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+  };
+
+  const onBackgroundClipPointerDown = (clip: BackgroundImageClip, e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setSelectedBackgroundId(clip.id);
+    setSelectedId(null);
+    dragMovedRef.current = false;
+
+    const pointerId = e.pointerId;
+    const target = e.currentTarget;
+    target.setPointerCapture?.(pointerId);
+    const startX = e.clientX;
+    const origStart = clip.start;
+    const origEnd = clip.end;
+    const mode = (e.target as HTMLElement).dataset.handle;
+
+    const move = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return;
+      ev.preventDefault();
+      const pixelDx = ev.clientX - startX;
+      if (Math.abs(pixelDx) > 3) dragMovedRef.current = true;
+      const dx = pixelDx / pxPerSec;
+
+      if (mode === 'left') {
+        let newStart = Math.max(0, Math.min(origEnd - 0.2, origStart + dx));
+        if (snapEnabled) newStart = snapTime(newStart);
+        updateBackgroundClip(clip.id, { start: newStart });
+      } else if (mode === 'right') {
+        const maxEnd = duration > 0 ? duration : origEnd + Math.abs(dx) + 30;
+        let newEnd = Math.max(origStart + 0.2, Math.min(maxEnd, origEnd + dx));
+        if (snapEnabled) newEnd = snapTime(newEnd);
+        updateBackgroundClip(clip.id, { end: newEnd });
+      } else {
+        const len = origEnd - origStart;
+        const maxStart = duration > 0 ? Math.max(0, duration - len) : Number.POSITIVE_INFINITY;
+        let newStart = Math.max(0, Math.min(maxStart, origStart + dx));
+        if (snapEnabled) newStart = snapTime(newStart);
+        updateBackgroundClip(clip.id, { start: newStart, end: newStart + len });
+      }
+    };
+
+    const up = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return;
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+      try { target.releasePointerCapture?.(pointerId); } catch {}
+      if (!dragMovedRef.current) audio.seek(origStart);
+    };
+
+    window.addEventListener('pointermove', move, { passive: false });
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+  };
+
   useEffect(() => {
     if (!selectedId && !selectedBackgroundId) return;
 
@@ -195,20 +280,12 @@ export function Timeline() {
       const isDelete = event.key === 'Delete' || event.key === 'Backspace';
       const isDuplicate = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'd';
       const isNudge = event.key === 'ArrowLeft' || event.key === 'ArrowRight';
-
       if (!isDelete && !isDuplicate && !isNudge) return;
       event.preventDefault();
 
       if (isDelete) {
-        if (selectedBackgroundId) {
-          updateBackground({
-            imageClips: imageClips.filter((clip) => clip.id !== selectedBackgroundId),
-          });
-          setSelectedBackgroundId(null);
-          return;
-        }
-
-        if (selectedId) {
+        if (selectedBackgroundId) deleteBackgroundClip(selectedBackgroundId);
+        else if (selectedId) {
           deleteLyric(selectedId);
           setSelectedId(null);
         }
@@ -216,11 +293,8 @@ export function Timeline() {
       }
 
       if (isDuplicate) {
-        if (selectedBackgroundId) {
-          duplicateBackgroundClip(selectedBackgroundId);
-        } else if (selectedId) {
-          duplicateLyric(selectedId);
-        }
+        if (selectedBackgroundId) duplicateBackgroundClip(selectedBackgroundId);
+        else if (selectedId) duplicateLyric(selectedId);
         return;
       }
 
@@ -236,10 +310,7 @@ export function Timeline() {
         const start = Math.max(0, Math.min(maxStart, clip.start + offset));
         updateBackgroundClip(clip.id, { start, end: start + len });
         audio.seek(start);
-        return;
-      }
-
-      if (selectedId) {
+      } else if (selectedId) {
         const line = lyrics.find((item) => item.id === selectedId);
         if (!line) return;
         const len = Math.max(0.2, line.end - line.start);
@@ -265,44 +336,17 @@ export function Timeline() {
     updateLyric,
   ]);
 
-  const onBackgroundClipMouseDown = (clip: BackgroundImageClip, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setSelectedBackgroundId(clip.id);
-    setSelectedId(null);
+  const deleteSelection = () => {
+    if (selectedBackgroundId) deleteBackgroundClip(selectedBackgroundId);
+    else if (selectedId) {
+      deleteLyric(selectedId);
+      setSelectedId(null);
+    }
+  };
 
-    const startX = e.clientX;
-    const origStart = clip.start;
-    const origEnd = clip.end;
-    const mode = (e.target as HTMLElement).dataset.handle;
-
-    const move = (ev: MouseEvent) => {
-      const dx = (ev.clientX - startX) / pxPerSec;
-
-      if (mode === 'left') {
-        let newStart = Math.max(0, Math.min(origEnd - 0.2, origStart + dx));
-        if (snapEnabled) newStart = snapTime(newStart);
-        updateBackgroundClip(clip.id, { start: newStart });
-      } else if (mode === 'right') {
-        const maxEnd = duration > 0 ? duration : origEnd + Math.abs(dx) + 30;
-        let newEnd = Math.max(origStart + 0.2, Math.min(maxEnd, origEnd + dx));
-        if (snapEnabled) newEnd = snapTime(newEnd);
-        updateBackgroundClip(clip.id, { end: newEnd });
-      } else {
-        const len = origEnd - origStart;
-        const maxStart = duration > 0 ? Math.max(0, duration - len) : Number.POSITIVE_INFINITY;
-        let newStart = Math.max(0, Math.min(maxStart, origStart + dx));
-        if (snapEnabled) newStart = snapTime(newStart);
-        updateBackgroundClip(clip.id, { start: newStart, end: newStart + len });
-      }
-    };
-
-    const up = () => {
-      window.removeEventListener('mousemove', move);
-      window.removeEventListener('mouseup', up);
-    };
-
-    window.addEventListener('mousemove', move);
-    window.addEventListener('mouseup', up);
+  const duplicateSelection = () => {
+    if (selectedBackgroundId) duplicateBackgroundClip(selectedBackgroundId);
+    else if (selectedId) duplicateLyric(selectedId);
   };
 
   const onBackgroundDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -313,11 +357,10 @@ export function Timeline() {
 
   const onBackgroundDrop = (e: React.DragEvent<HTMLDivElement>) => {
     if (!settings || settings.background.type !== 'images') return;
-
     e.preventDefault();
+
     const rawIndex = e.dataTransfer.getData(IMAGE_DRAG_TYPE);
     if (rawIndex === '') return;
-
     const imageIndex = Number(rawIndex);
     if (!Number.isInteger(imageIndex)) return;
     const url = settings.background.images[imageIndex];
@@ -328,9 +371,7 @@ export function Timeline() {
     if (snapEnabled) start = snapTime(start);
 
     const clipLength = Math.max(1, imageDuration || 5);
-    if (duration > 0) {
-      start = Math.min(start, Math.max(0, duration - 0.2));
-    }
+    if (duration > 0) start = Math.min(start, Math.max(0, duration - 0.2));
 
     let end = start + clipLength;
     if (duration > 0) {
@@ -348,10 +389,7 @@ export function Timeline() {
       end: Math.max(start + 0.2, end),
     };
 
-    updateBackground({
-      imageMode: 'manual',
-      imageClips: [...imageClips, clip],
-    });
+    updateBackground({ imageMode: 'manual', imageClips: [...imageClips, clip] });
     setSelectedBackgroundId(clip.id);
     setSelectedId(null);
     audio.seek(start);
@@ -370,45 +408,64 @@ export function Timeline() {
           : 'Video';
 
   return (
-    <div className="h-64 shrink-0 flex flex-col border-t border-border bg-card/30">
-      {/* Header */}
-      <div className="h-9 flex items-center justify-between px-3 border-b border-border">
+    <div className="studio-timeline h-64 shrink-0 flex flex-col border-t border-border bg-card/30">
+      <div className="studio-timeline-header h-9 flex items-center justify-between px-3 border-b border-border">
         <div className="flex items-center gap-2 text-sm font-medium min-w-0">
           <Music className="h-4 w-4 text-primary shrink-0" />
           <span className="shrink-0">Línea de Tiempo</span>
-          <span className="hidden 2xl:inline text-[10px] font-normal text-muted-foreground truncate">
+          <span className="studio-timeline-help hidden 2xl:inline text-[10px] font-normal text-muted-foreground truncate">
             Supr elimina · ← → mueve 0,1 s · Shift + ← → 0,5 s · Ctrl+D duplica
           </span>
         </div>
         <div className="flex items-center gap-1">
-          <span className="text-xs text-muted-foreground mr-2 font-mono">
+          <span className="studio-timeline-time text-xs text-muted-foreground mr-2 font-mono">
             {formatTime(playheadTime)} / {formatTime(duration)}
           </span>
+          {(selectedId || selectedBackgroundId) && (
+            <>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={duplicateSelection}
+                title="Duplicar selección"
+              >
+                <Copy className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-destructive hover:text-destructive"
+                onClick={deleteSelection}
+                title="Eliminar selección"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </>
+          )}
           <Button
             variant="ghost"
             size="sm"
-            className="h-7 text-[10px] gap-1"
+            className="h-7 text-[10px] gap-1 px-2"
             onClick={() => setSnapEnabled(!snapEnabled)}
             title="Activar/desactivar ajuste"
           >
             <span className={snapEnabled ? 'text-primary' : 'text-muted-foreground'}>Snap</span>
           </Button>
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setPxPerSec((p) => Math.max(5, p - 5))}>
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setPxPerSec((p) => Math.max(5, p - 5))} title="Alejar timeline">
             <ZoomOut className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setPxPerSec((p) => Math.min(100, p + 5))}>
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setPxPerSec((p) => Math.min(100, p + 5))} title="Acercar timeline">
             <ZoomIn className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => addLyric()}>
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => addLyric()} title="Añadir línea de letra">
             <Plus className="h-4 w-4" />
           </Button>
         </div>
       </div>
 
-      {/* Tracks */}
       <div className="flex-1 flex min-h-0">
-        {/* Track labels */}
-        <div className="shrink-0 border-r border-border" style={{ width: TRACK_LABEL_W }}>
+        <div className="studio-timeline-labels shrink-0 border-r border-border" style={{ width: TRACK_LABEL_W }}>
           <div style={{ height: RULER_H }} className="border-b border-border bg-card/50" />
           <TrackLabel icon={Music} label="Audio" color="hsl(var(--track-audio))" />
           <TrackLabel icon={FileText} label="Letra" color="hsl(var(--track-lyrics))" />
@@ -416,27 +473,20 @@ export function Timeline() {
           <TrackLabel icon={Wand2} label="Efectos" color="hsl(var(--track-effect))" />
         </div>
 
-        {/* Scrollable track area */}
-        <div ref={scrollRef} className="flex-1 overflow-x-auto scrollbar-thin relative" onWheel={onWheel}>
+        <div
+          ref={scrollRef}
+          className="studio-timeline-scroll flex-1 overflow-x-auto scrollbar-thin relative touch-pan-x"
+          onWheel={onWheel}
+        >
           <div style={{ width: totalWidth, position: 'relative' }}>
-            {/* Ruler */}
             <div
-              className="relative border-b border-border bg-card/50 cursor-pointer select-none"
+              className="relative border-b border-border bg-card/50 cursor-pointer select-none touch-none"
               style={{ height: RULER_H }}
-              onMouseDown={onRulerMouseDown}
+              onPointerDown={onRulerPointerDown}
             >
               {rulerTicks().map((tick) => (
-                <div
-                  key={tick.time}
-                  className="absolute top-0 bottom-0"
-                  style={{ left: tick.time * pxPerSec }}
-                >
-                  <div
-                    className={cn(
-                      'w-px bg-border',
-                      tick.major ? 'h-full' : 'h-1/2'
-                    )}
-                  />
+                <div key={tick.time} className="absolute top-0 bottom-0 pointer-events-none" style={{ left: tick.time * pxPerSec }}>
+                  <div className={cn('w-px bg-border', tick.major ? 'h-full' : 'h-1/2')} />
                   {tick.major && (
                     <span className="absolute top-1 left-1 text-[10px] text-muted-foreground font-mono">
                       {formatTime(tick.time)}
@@ -446,7 +496,6 @@ export function Timeline() {
               ))}
             </div>
 
-            {/* Audio track */}
             <TrackRow height={TRACK_H} color="hsl(var(--track-audio) / 0.15)">
               <div
                 className="absolute rounded-md flex items-center px-2 overflow-hidden"
@@ -468,30 +517,26 @@ export function Timeline() {
                   />
                 ) : (
                   <div className="flex items-center justify-center w-full h-full text-xs text-muted-foreground">
-                    {duration === 0
-                      ? 'Importa un MP3 para ver la forma de onda'
-                      : 'Decodificando audio...'}
+                    {duration === 0 ? 'Importa un MP3 para ver la forma de onda' : 'Decodificando audio...'}
                   </div>
                 )}
               </div>
             </TrackRow>
 
-            {/* Lyrics track */}
             <TrackRow height={TRACK_H} color="hsl(var(--track-lyrics) / 0.1)">
               {lyrics.map((line) => {
                 const left = line.start * pxPerSec;
                 const width = (line.end - line.start) * pxPerSec;
                 const selected = selectedId === line.id;
                 const isPlaying = playheadTime >= line.start && playheadTime <= line.end && line.end > line.start;
+
                 return (
                   <ContextMenu key={line.id}>
                     <ContextMenuTrigger asChild>
                       <div
                         className={cn(
-                          'absolute rounded-md flex items-center px-2 cursor-grab active:cursor-grabbing overflow-hidden text-xs font-medium group',
-                          selected
-                            ? 'ring-2 ring-primary z-10'
-                            : 'hover:ring-1 hover:ring-primary/50',
+                          'studio-timeline-clip absolute rounded-md flex items-center px-2 cursor-grab active:cursor-grabbing overflow-hidden text-xs font-medium group touch-none select-none',
+                          selected ? 'ring-2 ring-primary z-10' : 'hover:ring-1 hover:ring-primary/50',
                           isPlaying && 'ring-2 ring-primary/70 z-10'
                         )}
                         style={{
@@ -504,42 +549,51 @@ export function Timeline() {
                             : 'hsl(var(--track-lyrics) / 0.25)',
                           border: '1px solid hsl(var(--track-lyrics) / 0.5)',
                         }}
-                        onMouseDown={(e) => onClipMouseDown(line.id, e)}
-                        onClick={(e) => onClipClick(line.id, e)}
-                        onDoubleClick={(e) => { e.stopPropagation(); setEditingClipId(line.id); setSelectedId(line.id); }}
+                        onPointerDown={(e) => onLyricPointerDown(line.id, e)}
+                        onDoubleClick={(e) => {
+                          e.stopPropagation();
+                          setEditingClipId(line.id);
+                          setSelectedId(line.id);
+                        }}
                       >
                         {editingClipId === line.id ? (
                           <input
                             autoFocus
                             type="text"
                             defaultValue={line.text}
-                            onBlur={(e) => { updateLyric(line.id, { text: e.target.value }); setEditingClipId(null); }}
+                            onBlur={(e) => {
+                              updateLyric(line.id, { text: e.target.value });
+                              setEditingClipId(null);
+                            }}
                             onKeyDown={(e) => {
-                              if (e.key === 'Enter') { updateLyric(line.id, { text: (e.target as HTMLInputElement).value }); setEditingClipId(null); }
+                              if (e.key === 'Enter') {
+                                updateLyric(line.id, { text: (e.target as HTMLInputElement).value });
+                                setEditingClipId(null);
+                              }
                               if (e.key === 'Escape') setEditingClipId(null);
                             }}
-                            onClick={(e) => e.stopPropagation()}
-                            onMouseDown={(e) => e.stopPropagation()}
+                            onPointerDown={(e) => e.stopPropagation()}
                             className="w-full bg-background border border-primary rounded px-1 text-xs outline-none"
                           />
                         ) : (
-                          <span className="truncate flex-1">{line.text || '...'}</span>
+                          <span className="truncate flex-1 pointer-events-none">{line.text || '...'}</span>
                         )}
                         <span
                           data-handle="left"
-                          className="absolute left-0 top-0 bottom-0 w-1.5 cursor-ew-resize bg-primary/0 group-hover:bg-primary/40"
+                          className="studio-timeline-handle absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize bg-primary/0 group-hover:bg-primary/40 touch-none"
                         />
                         <span
                           data-handle="right"
-                          className="absolute right-0 top-0 bottom-0 w-1.5 cursor-ew-resize bg-primary/0 group-hover:bg-primary/40"
+                          className="studio-timeline-handle absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize bg-primary/0 group-hover:bg-primary/40 touch-none"
                         />
                       </div>
                     </ContextMenuTrigger>
                     <ContextMenuContent>
-                      <ContextMenuItem onClick={() => duplicateLyric(line.id)}>
-                        Duplicar
-                      </ContextMenuItem>
-                      <ContextMenuItem onClick={() => { const t = audio.currentTime; updateLyric(line.id, { start: t, end: t + 4 }); }}>
+                      <ContextMenuItem onClick={() => duplicateLyric(line.id)}>Duplicar</ContextMenuItem>
+                      <ContextMenuItem onClick={() => {
+                        const t = audio.currentTime;
+                        updateLyric(line.id, { start: t, end: t + 4 });
+                      }}>
                         Asignar tiempo actual
                       </ContextMenuItem>
                       <ContextMenuSeparator />
@@ -552,13 +606,8 @@ export function Timeline() {
               })}
             </TrackRow>
 
-            {/* Background track */}
             <TrackRow height={TRACK_H} color="hsl(var(--track-bg) / 0.1)">
-              <div
-                className="absolute inset-0"
-                onDragOver={onBackgroundDragOver}
-                onDrop={onBackgroundDrop}
-              >
+              <div className="absolute inset-0" onDragOver={onBackgroundDragOver} onDrop={onBackgroundDrop}>
                 {settings?.background.type === 'images' && imageMode === 'manual' ? (
                   imageClips.length > 0 ? (
                     imageClips.map((clip, index) => {
@@ -572,7 +621,7 @@ export function Timeline() {
                           <ContextMenuTrigger asChild>
                             <div
                               className={cn(
-                                'absolute rounded-md overflow-hidden cursor-grab active:cursor-grabbing group text-xs font-medium',
+                                'studio-timeline-clip absolute rounded-md overflow-hidden cursor-grab active:cursor-grabbing group text-xs font-medium touch-none select-none',
                                 selected ? 'ring-2 ring-primary z-10' : 'hover:ring-1 hover:ring-primary/50',
                                 active && 'ring-2 ring-primary/70 z-10'
                               )}
@@ -586,34 +635,24 @@ export function Timeline() {
                                 backgroundPosition: 'center',
                                 border: '1px solid hsl(var(--track-bg) / 0.6)',
                               }}
-                              onMouseDown={(e) => onBackgroundClipMouseDown(clip, e)}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedBackgroundId(clip.id);
-                                setSelectedId(null);
-                                audio.seek(clip.start);
-                              }}
+                              onPointerDown={(e) => onBackgroundClipPointerDown(clip, e)}
                             >
-                              <span className="absolute inset-0 flex items-center px-2 text-white drop-shadow truncate">
+                              <span className="absolute inset-0 flex items-center px-2 text-white drop-shadow truncate pointer-events-none">
                                 Foto {index + 1}
                               </span>
                               <span
                                 data-handle="left"
-                                className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize bg-white/0 group-hover:bg-white/50"
+                                className="studio-timeline-handle absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize bg-white/0 group-hover:bg-white/50 touch-none"
                               />
                               <span
                                 data-handle="right"
-                                className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize bg-white/0 group-hover:bg-white/50"
+                                className="studio-timeline-handle absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize bg-white/0 group-hover:bg-white/50 touch-none"
                               />
                             </div>
                           </ContextMenuTrigger>
                           <ContextMenuContent>
-                            <ContextMenuItem onClick={() => audio.seek(clip.start)}>
-                              Ir al inicio de la imagen
-                            </ContextMenuItem>
-                            <ContextMenuItem onClick={() => duplicateBackgroundClip(clip.id)}>
-                              Duplicar
-                            </ContextMenuItem>
+                            <ContextMenuItem onClick={() => audio.seek(clip.start)}>Ir al inicio de la imagen</ContextMenuItem>
+                            <ContextMenuItem onClick={() => duplicateBackgroundClip(clip.id)}>Duplicar</ContextMenuItem>
                             <ContextMenuSeparator />
                             <ContextMenuItem className="text-destructive" onClick={() => deleteBackgroundClip(clip.id)}>
                               Quitar de la línea de tiempo
@@ -654,7 +693,6 @@ export function Timeline() {
               </div>
             </TrackRow>
 
-            {/* Effects track */}
             <TrackRow height={TRACK_H} color="hsl(var(--track-effect) / 0.1)">
               {settings?.effects.vignette && (
                 <div
@@ -673,7 +711,6 @@ export function Timeline() {
               )}
             </TrackRow>
 
-            {/* Playhead */}
             <div
               className="absolute top-0 bottom-0 w-0.5 bg-primary pointer-events-none z-20"
               style={{ left: playheadTime * pxPerSec }}
@@ -697,10 +734,7 @@ function TrackLabel({
   color: string;
 }) {
   return (
-    <div
-      className="flex items-center gap-2 px-3 border-b border-border"
-      style={{ height: TRACK_H }}
-    >
+    <div className="studio-track-label flex items-center gap-2 px-3 border-b border-border" style={{ height: TRACK_H }}>
       <Icon className="h-4 w-4 shrink-0" style={{ color }} />
       <span className="text-xs font-medium truncate">{label}</span>
     </div>
@@ -717,10 +751,7 @@ function TrackRow({
   color: string;
 }) {
   return (
-    <div
-      className="relative border-b border-border"
-      style={{ height, background: color }}
-    >
+    <div className="relative border-b border-border" style={{ height, background: color }}>
       {children}
     </div>
   );
