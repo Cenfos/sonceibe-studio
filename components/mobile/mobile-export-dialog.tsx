@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Check, Download, Loader2, Share2, X } from 'lucide-react';
+import { Check, Download, Film, Loader2, Share2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { useStore } from '@/lib/store';
