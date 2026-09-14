@@ -1,5 +1,6 @@
 import type { AnimationType, ImageFitMode, LyricLine, ProjectSettings } from '@/lib/types';
 import { drawVisualBranding } from '@/lib/visual-branding';
+import { isDefaultProjectTitle } from '@/lib/project-title';
 
 const imageCache = new Map<string, HTMLImageElement>();
 
@@ -12,10 +13,6 @@ function getActiveLine(lyrics: LyricLine[], time: number): LyricLine | null {
 
   for (const line of lyrics) {
     if (!line.text || time < line.start || time > line.end) continue;
-
-    // If malformed/suspended synchronization left an older line extending far
-    // into the song, prefer the most recently started valid line. This prevents
-    // one accidental long end time from masking every lyric that follows it.
     if (!active || line.start >= active.start) active = line;
   }
 
@@ -173,8 +170,6 @@ function drawBackground(
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, w, h);
   } else if (bg.type === 'image' || bg.type === 'images') {
-    // Black is intentional in contain mode: the complete photograph is kept
-    // visible and any unused canvas area becomes letterbox/pillarbox space.
     ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, w, h);
 
@@ -202,13 +197,11 @@ function drawBackground(
 
   ctx.restore();
 
-  // Background-level darkening used by the Fondo tab.
   if (bg.overlay > 0) {
     ctx.fillStyle = hexToRgba('#000000', bg.overlay);
     ctx.fillRect(0, 0, w, h);
   }
 
-  // Extra color overlay from the Effects tab.
   if (fx.overlay > 0) {
     ctx.fillStyle = hexToRgba(fx.overlayColor || '#000000', fx.overlay);
     ctx.fillRect(0, 0, w, h);
@@ -386,6 +379,48 @@ function drawText(
   ctx.restore();
 }
 
+function drawProjectTitle(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  settings: ProjectSettings,
+  time: number
+) {
+  if (time < 0 || time > 5 || isDefaultProjectTitle(settings.title)) return;
+
+  const title = settings.title.trim().toLocaleUpperCase('gl-ES');
+  if (!title) return;
+
+  const renderScale = Math.min(w, h) / 1080;
+  const fadeIn = clamp01(time / 0.35);
+  const fadeOut = clamp01((5 - time) / 0.55);
+  const alpha = Math.min(fadeIn, fadeOut);
+  const maxWidth = w * 0.82;
+  let fontSize = 48 * renderScale;
+  const fontFamily = settings.text.fontFamily || 'Inter';
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = `800 ${fontSize}px ${fontFamily}, sans-serif`;
+  while (fontSize > 24 * renderScale && ctx.measureText(title).width > maxWidth) {
+    fontSize -= 2 * renderScale;
+    ctx.font = `800 ${fontSize}px ${fontFamily}, sans-serif`;
+  }
+
+  const y = h * 0.075;
+  ctx.shadowColor = 'rgba(0,0,0,0.9)';
+  ctx.shadowBlur = 14 * renderScale;
+  ctx.shadowOffsetY = 2 * renderScale;
+  ctx.lineWidth = Math.max(2, 3 * renderScale);
+  ctx.strokeStyle = 'rgba(0,0,0,0.82)';
+  ctx.fillStyle = settings.text.color || '#ffffff';
+  ctx.strokeText(title, w / 2, y, maxWidth);
+  ctx.fillText(title, w / 2, y, maxWidth);
+  ctx.restore();
+}
+
 function drawEffects(
   ctx: CanvasRenderingContext2D,
   w: number,
@@ -451,6 +486,7 @@ export function renderFrame(
   drawBackground(ctx, w, h, settings, time);
   drawText(ctx, w, h, settings, time);
   drawEffects(ctx, w, h, settings, time);
+  drawProjectTitle(ctx, w, h, settings, time);
   drawVisualBranding(ctx, w, h, settings.visualStyle, time);
   ctx.filter = 'none';
   ctx.globalAlpha = 1;
