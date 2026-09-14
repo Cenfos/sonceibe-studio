@@ -5,6 +5,7 @@ import { TextTab } from './text-tab';
 import { BackgroundTab } from './background-tab';
 import { AnimationTab } from './animation-tab';
 import { EffectsTab } from './effects-tab';
+import { VisualPresetPicker } from './visual-preset-picker';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Type, Image, Sparkles, Wand2, FileText, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -85,6 +86,7 @@ export function PropertiesPanel({ mobileOpen = false, onMobileClose }: Propertie
       </div>
       <ScrollArea className="flex-1">
         <div className="p-4">
+          <VisualPresetPicker />
           {activeTab === 'text' && <TextTab />}
           {activeTab === 'background' && <BackgroundTab />}
           {activeTab === 'animation' && <AnimationTab />}
