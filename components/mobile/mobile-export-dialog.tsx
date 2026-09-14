@@ -31,6 +31,10 @@ type CapturableAudioElement = HTMLAudioElement & {
   mozCaptureStream?: () => MediaStream;
 };
 
+type CanvasCaptureTrack = MediaStreamTrack & {
+  requestFrame?: () => void;
+};
+
 function safeFilename(value: string): string {
   return (value || 'sonceibe-video')
     .replace(/[\\/:*?"<>|]+/g, '-')
@@ -218,8 +222,10 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
     const previousTime = audioEl.currentTime;
     const wasPlaying = !audioEl.paused;
     let recorder: MediaRecorder | null = null;
-    let frameId = 0;
+    let frameTimer: ReturnType<typeof setInterval> | null = null;
     let outputStream: MediaStream | null = null;
+    let captureCanvas: HTMLCanvasElement | null = null;
+    let capturedVideoTrack: CanvasCaptureTrack | null = null;
     let renderErrors = 0;
 
     try {
@@ -247,7 +253,7 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
       for (const src of bg.images ?? []) if (src) sources.add(src);
       for (const clip of bg.imageClips ?? []) if (clip.url) sources.add(clip.url);
       await Promise.all(Array.from(sources).map((src) => preloadBackgroundImage(src)));
-      await preloadVisualBranding(settings.visualStyle);
+      await preloadVisualBranding(settings.visualStyle, settings.showSonCeibeBranding);
 
       const renderCanvas = document.createElement('canvas');
       renderCanvas.width = RENDER_WIDTH;
@@ -258,6 +264,15 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
       const outputCanvas = document.createElement('canvas');
       outputCanvas.width = OUTPUT_WIDTH;
       outputCanvas.height = OUTPUT_HEIGHT;
+      outputCanvas.style.position = 'fixed';
+      outputCanvas.style.left = '-10000px';
+      outputCanvas.style.top = '0';
+      outputCanvas.style.width = '1px';
+      outputCanvas.style.height = '1px';
+      outputCanvas.style.pointerEvents = 'none';
+      document.body.appendChild(outputCanvas);
+      captureCanvas = outputCanvas;
+
       const outputCtx = outputCanvas.getContext('2d', { alpha: false });
       if (!outputCtx) throw new Error('No se pudo preparar el vídeo');
       outputCtx.imageSmoothingEnabled = true;
@@ -270,6 +285,7 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
           outputCtx.globalAlpha = 1;
           outputCtx.filter = 'none';
           outputCtx.drawImage(renderCanvas, 0, 0, OUTPUT_WIDTH, OUTPUT_HEIGHT);
+          capturedVideoTrack?.requestFrame?.();
           return true;
         } catch (error) {
           renderErrors += 1;
@@ -281,9 +297,11 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
       if (!renderMobileFrame(0)) throw new Error('No se pudo crear el primer fotograma del vídeo');
       outputStream = outputCanvas.captureStream(FPS);
 
-      const videoTrack = outputStream.getVideoTracks()[0];
+      const videoTrack = outputStream.getVideoTracks()[0] as CanvasCaptureTrack | undefined;
       if (!videoTrack) throw new Error('No se pudo crear la pista de vídeo');
+      capturedVideoTrack = videoTrack;
       videoTrack.contentHint = 'detail';
+      videoTrack.requestFrame?.();
 
       const trackSettings = videoTrack.getSettings?.();
       const trackWidth = Number(trackSettings?.width || OUTPUT_WIDTH);
@@ -316,17 +334,16 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
       const frameInterval = 1 / FPS;
       let lastRendered = -frameInterval;
       let lastProgress = -1;
-      const renderLoop = () => {
-        // Schedule the next iteration before drawing. If a particular frame
-        // ever throws, the visual track cannot become permanently frozen while
-        // the audio continues playing.
-        frameId = requestAnimationFrame(renderLoop);
-
+      const renderTick = () => {
         try {
+          if (!capturedVideoTrack || capturedVideoTrack.readyState === 'ended') return;
           const rawTime = Number.isFinite(audioEl.currentTime) ? audioEl.currentTime : 0;
           const t = Math.min(duration, Math.max(0, rawTime));
-          if (t - lastRendered >= frameInterval * 0.9 || t >= duration) {
+          if (t - lastRendered >= frameInterval * 0.82 || t >= duration) {
             if (renderMobileFrame(t)) lastRendered = t;
+          } else {
+            // Keep the canvas capture track alive even on nearly static frames.
+            capturedVideoTrack.requestFrame?.();
           }
           const nextProgress = Math.min(99, Math.round((t / duration) * 100));
           if (nextProgress !== lastProgress) {
@@ -340,15 +357,20 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
       };
 
       const onEnded = () => {
-        cancelAnimationFrame(frameId);
+        if (frameTimer) {
+          clearInterval(frameTimer);
+          frameTimer = null;
+        }
         renderMobileFrame(duration);
+        capturedVideoTrack?.requestFrame?.();
         setProgress(100);
         if (recorder?.state !== 'inactive') recorder?.stop();
       };
 
       audioEl.addEventListener('ended', onEnded, { once: true });
       recorder.start(1000);
-      frameId = requestAnimationFrame(renderLoop);
+      frameTimer = setInterval(renderTick, Math.round(1000 / FPS));
+      renderTick();
       await audioEl.play();
 
       const result = await finished;
@@ -374,9 +396,10 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
       console.error('Mobile video export failed:', error);
       toast.error(error instanceof Error ? error.message : 'No se pudo crear el MP4');
     } finally {
-      cancelAnimationFrame(frameId);
+      if (frameTimer) clearInterval(frameTimer);
       if (recorder?.state !== 'inactive') recorder?.stop();
       outputStream?.getVideoTracks().forEach((track) => track.stop());
+      captureCanvas?.remove();
       audioEl.pause();
       audioEl.currentTime = Math.min(previousTime, duration);
       if (wasPlaying) audioEl.play().catch(() => {});
