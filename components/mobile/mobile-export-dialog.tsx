@@ -12,13 +12,16 @@ import { preloadBackgroundImage, renderFrame } from '@/components/studio/preview
 import { preloadVisualBranding } from '@/lib/visual-branding';
 import { toast } from 'sonner';
 
-const WIDTH = 720;
-const HEIGHT = 1280;
+// Social/mobile master: real 9:16 Full HD canvas. Keeping the encoder itself in
+// portrait avoids creating a small portrait picture inside a larger black frame
+// when WhatsApp or Instagram reads the MP4 display dimensions.
+const WIDTH = 1080;
+const HEIGHT = 1920;
 const FPS = 30;
 const AUDIO_BITRATE = 96_000;
 const TARGET_SIZE_BYTES = 34_000_000;
-const MIN_VIDEO_BITRATE = 600_000;
-const MAX_VIDEO_BITRATE = 1_400_000;
+const MIN_VIDEO_BITRATE = 650_000;
+const MAX_VIDEO_BITRATE = 1_800_000;
 
 type CapturableAudioElement = HTMLAudioElement & {
   captureStream?: () => MediaStream;
@@ -35,11 +38,18 @@ function safeFilename(value: string): string {
 
 function getMp4MimeType(): string | null {
   if (typeof MediaRecorder === 'undefined') return null;
+
+  // Level 4.0 is required for Full-HD/30fps sized frames. The previous Level
+  // 3.0 request was too restrictive for portrait HD and some Android encoders
+  // could expose an incorrect display size to apps such as WhatsApp.
   const candidates = [
-    'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
-    'video/mp4;codecs=avc1.42E01E',
+    'video/mp4;codecs=avc1.42E028,mp4a.40.2',
+    'video/mp4;codecs=avc1.4D4028,mp4a.40.2',
+    'video/mp4;codecs=avc1.640028,mp4a.40.2',
+    'video/mp4;codecs=avc1.42E028',
     'video/mp4',
   ];
+
   for (const candidate of candidates) {
     try {
       if (MediaRecorder.isTypeSupported(candidate)) return candidate;
@@ -67,7 +77,7 @@ function downloadBlob(filename: string, blob: Blob) {
 }
 
 function mobileVideoBitrate(duration: number): number {
-  if (duration <= 0) return 1_000_000;
+  if (duration <= 0) return 1_100_000;
   const desiredTotalBitrate = (TARGET_SIZE_BYTES * 8) / (duration * 1.03);
   const desiredVideoBitrate = desiredTotalBitrate - AUDIO_BITRATE;
   return Math.round(Math.min(MAX_VIDEO_BITRATE, Math.max(MIN_VIDEO_BITRATE, desiredVideoBitrate)));
@@ -76,6 +86,39 @@ function mobileVideoBitrate(duration: number): number {
 function estimatedSizeBytes(duration: number, videoBitrate: number): number {
   if (duration <= 0) return 0;
   return duration * (videoBitrate + AUDIO_BITRATE) / 8 * 1.03;
+}
+
+function isNineSixteen(width: number, height: number): boolean {
+  if (width <= 0 || height <= 0 || height <= width) return false;
+  return Math.abs(width / height - 9 / 16) <= 0.025;
+}
+
+function readVideoDimensions(blob: Blob): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(blob);
+    const video = document.createElement('video');
+    video.preload = 'metadata';
+    video.muted = true;
+    video.playsInline = true;
+
+    const cleanup = () => {
+      video.removeAttribute('src');
+      video.load();
+      URL.revokeObjectURL(url);
+    };
+
+    video.onloadedmetadata = () => {
+      const width = video.videoWidth;
+      const height = video.videoHeight;
+      cleanup();
+      resolve({ width, height });
+    };
+    video.onerror = () => {
+      cleanup();
+      reject(new Error('No se pudo comprobar el formato final del MP4'));
+    };
+    video.src = url;
+  });
 }
 
 export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -186,12 +229,14 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
         ...currentProject.settings,
         background: {
           ...currentProject.settings.background,
+          // Every photo/video frame must fill the 9:16 master. No contain mode
+          // is allowed in the social export because it creates black bands.
           imageFit: 'cover' as const,
         },
         exportConfig: {
           ...currentProject.settings.exportConfig,
           orientation: 'portrait' as const,
-          resolution: '720p' as const,
+          resolution: '1080p' as const,
           fps: 30 as const,
           includeAudio: true,
         },
@@ -208,8 +253,12 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
       const canvas = document.createElement('canvas');
       canvas.width = WIDTH;
       canvas.height = HEIGHT;
-      const ctx = canvas.getContext('2d');
+      canvas.style.width = `${WIDTH}px`;
+      canvas.style.height = `${HEIGHT}px`;
+      const ctx = canvas.getContext('2d', { alpha: false });
       if (!ctx) throw new Error('No se pudo preparar el vídeo');
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
 
       const renderMobileFrame = (time: number) => {
         renderFrame(ctx, WIDTH, HEIGHT, settings, time);
@@ -217,6 +266,18 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
 
       renderMobileFrame(0);
       outputStream = canvas.captureStream(FPS);
+
+      const videoTrack = outputStream.getVideoTracks()[0];
+      if (!videoTrack) throw new Error('No se pudo crear la pista de vídeo');
+      videoTrack.contentHint = 'detail';
+
+      const trackSettings = videoTrack.getSettings?.();
+      const trackWidth = Number(trackSettings?.width || WIDTH);
+      const trackHeight = Number(trackSettings?.height || HEIGHT);
+      if (!isNineSixteen(trackWidth, trackHeight)) {
+        throw new Error(`El navegador no ha creado una pista vertical 9:16 (${trackWidth}×${trackHeight})`);
+      }
+
       const capturedAudioStream = captureAudio.call(audioEl);
       const audioTracks = capturedAudioStream.getAudioTracks();
       if (audioTracks.length === 0) throw new Error('No se pudo capturar la música');
@@ -269,13 +330,25 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
 
       const result = await finished;
       if (result.size === 0) throw new Error('El vídeo generado está vacío');
-      const nextFilename = `${safeFilename(currentProject.settings.title)}-movil.mp4`;
+
+      // Verify the file that Android/WhatsApp will actually read, not only the
+      // source canvas. This catches incorrect MP4 display metadata immediately.
+      const dimensions = await readVideoDimensions(result);
+      if (!isNineSixteen(dimensions.width, dimensions.height)) {
+        throw new Error(
+          `El MP4 final no quedó en 9:16 (${dimensions.width}×${dimensions.height}). No se ha guardado para evitar un vídeo con bordes negros.`
+        );
+      }
+
+      const nextFilename = `${safeFilename(currentProject.settings.title)}-movil-9x16.mp4`;
       const resultFile = new File([result], nextFilename, { type: result.type || mimeType });
       setBlob(resultFile);
       setFilename(nextFilename);
       await saveProjectVideo(userId, currentProject.id, resultFile, currentProject.settings.updatedAt);
       markSaved();
-      toast.success(`MP4 creado y guardado en el proyecto · ${formatMb(result.size)}`);
+      toast.success(
+        `MP4 9:16 comprobado · ${dimensions.width}×${dimensions.height} · ${formatMb(result.size)}`
+      );
     } catch (error) {
       console.error('Mobile video export failed:', error);
       toast.error(error instanceof Error ? error.message : 'No se pudo crear el MP4');
@@ -313,7 +386,7 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
           <div className="mb-5 flex items-start justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold">Vídeo MP4 del proyecto</h2>
-              <p className="mt-1 text-xs text-muted-foreground">Vertical 9:16 · 720×1280 · pantalla completa · 30 FPS</p>
+              <p className="mt-1 text-xs text-muted-foreground">Vertical real 9:16 · 1080×1920 · pantalla completa · 30 FPS</p>
             </div>
             {!exporting && (
               <Button variant="ghost" size="icon" onClick={onClose} aria-label="Cerrar">
@@ -346,31 +419,32 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
               </Button>
               <Button variant="outline" className="w-full gap-2" onClick={exportVideo}>
                 <RefreshCw className="h-4 w-4" />
-                Volver a crear MP4
+                Volver a crear MP4 en 9:16
               </Button>
               <Button variant="ghost" className="w-full" onClick={onClose}>Cerrar</Button>
             </div>
           ) : exporting ? (
             <div className="space-y-4 py-6">
               <Loader2 className="mx-auto h-9 w-9 animate-spin text-primary" />
-              <div className="text-center text-sm">Creando vídeo… {progress}%</div>
+              <div className="text-center text-sm">Creando vídeo 9:16… {progress}%</div>
               <div className="h-2 overflow-hidden rounded-full bg-secondary">
                 <div className="h-full bg-primary transition-all" style={{ width: `${progress}%` }} />
               </div>
-              <p className="text-center text-xs text-muted-foreground">Deja SonCeibe Studio abierto hasta que termine la canción.</p>
+              <p className="text-center text-xs text-muted-foreground">Deja SonCeibe Studio abierto hasta que termine la canción. Al acabar se comprobará el formato 9:16 del archivo.</p>
             </div>
           ) : (
             <div className="space-y-4">
               <div className="rounded-lg bg-secondary/40 p-3 text-sm">
-                <div className="flex justify-between"><span className="text-muted-foreground">Duración</span><span>{Math.round(duration)} s</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Formato</span><span>1080×1920 · 9:16</span></div>
+                <div className="mt-1 flex justify-between"><span className="text-muted-foreground">Duración</span><span>{Math.round(duration)} s</span></div>
                 <div className="mt-1 flex justify-between"><span className="text-muted-foreground">Tamaño estimado</span><span>~{estimatedSize ? formatMb(estimatedSize) : '—'}</span></div>
               </div>
               <p className="text-xs leading-5 text-muted-foreground">
-                El MP4 quedará guardado localmente dentro de este navegador para poder compartirlo o descargarlo otra vez sin volver a renderizar.
+                Las fotos se recortan automáticamente para llenar el fotograma vertical completo. El MP4 final se comprueba antes de guardarlo para evitar bordes negros por una relación de aspecto incorrecta.
               </p>
               <Button className="w-full h-12 gap-2" onClick={exportVideo}>
                 <Film className="h-5 w-5" />
-                Crear MP4
+                Crear MP4 9:16
               </Button>
               <input
                 ref={existingVideoInputRef}
