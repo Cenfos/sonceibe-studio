@@ -386,15 +386,13 @@ function drawProjectTitle(
   settings: ProjectSettings,
   time: number
 ) {
-  if (time < 0 || time > 5 || isDefaultProjectTitle(settings.title)) return;
+  if (time < 0 || isDefaultProjectTitle(settings.title)) return;
 
   const title = settings.title.trim().toLocaleUpperCase('gl-ES');
   if (!title) return;
 
   const renderScale = Math.min(w, h) / 1080;
-  const fadeIn = clamp01(time / 0.35);
-  const fadeOut = clamp01((5 - time) / 0.55);
-  const alpha = Math.min(fadeIn, fadeOut);
+  const alpha = clamp01(time / 0.35);
   const maxWidth = w * 0.82;
   let fontSize = 48 * renderScale;
   const fontFamily = settings.text.fontFamily || 'Inter';
