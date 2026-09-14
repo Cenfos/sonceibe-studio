@@ -6,7 +6,7 @@ const MEDIA_STORE = 'media';
 
 export const LOCAL_AUDIO_URL = 'sonceibe-local://audio';
 
-type MediaKind = 'audio';
+export type MediaKind = 'audio' | 'video';
 
 interface MediaRecord {
   key: string;
@@ -17,6 +17,12 @@ interface MediaRecord {
   type: string;
   blob: Blob;
   updatedAt: number;
+  sourceUpdatedAt?: number;
+}
+
+export interface StoredProjectVideo {
+  file: File;
+  sourceUpdatedAt: number;
 }
 
 function mediaKey(userId: string, projectId: string, kind: MediaKind): string {
@@ -94,6 +100,53 @@ export async function getProjectAudio(userId: string, projectId: string): Promis
       type: record.type || record.blob.type || 'audio/mpeg',
       lastModified: record.updatedAt,
     });
+  } finally {
+    db.close();
+  }
+}
+
+export async function saveProjectVideo(
+  userId: string,
+  projectId: string,
+  file: File,
+  sourceUpdatedAt: number
+): Promise<void> {
+  const db = await openDb();
+  try {
+    const tx = db.transaction(MEDIA_STORE, 'readwrite');
+    const record: MediaRecord = {
+      key: mediaKey(userId, projectId, 'video'),
+      userId,
+      projectId,
+      kind: 'video',
+      name: file.name,
+      type: file.type || 'video/mp4',
+      blob: file,
+      updatedAt: Date.now(),
+      sourceUpdatedAt,
+    };
+    tx.objectStore(MEDIA_STORE).put(record);
+    await transactionDone(tx);
+  } finally {
+    db.close();
+  }
+}
+
+export async function getProjectVideo(userId: string, projectId: string): Promise<StoredProjectVideo | null> {
+  const db = await openDb();
+  try {
+    const tx = db.transaction(MEDIA_STORE, 'readonly');
+    const record = await requestToPromise(
+      tx.objectStore(MEDIA_STORE).get(mediaKey(userId, projectId, 'video')) as IDBRequest<MediaRecord | undefined>
+    );
+    if (!record?.blob) return null;
+    return {
+      file: new File([record.blob], record.name || 'sonceibe-video.mp4', {
+        type: record.type || record.blob.type || 'video/mp4',
+        lastModified: record.updatedAt,
+      }),
+      sourceUpdatedAt: record.sourceUpdatedAt ?? 0,
+    };
   } finally {
     db.close();
   }
