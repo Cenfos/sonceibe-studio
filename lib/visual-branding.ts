@@ -293,30 +293,35 @@ function drawBrandSignature(
   w: number,
   h: number,
   inset: number,
-  borderWidth: number
+  borderWidth: number,
+  hasCelticBorder = false
 ) {
   const logo = getLogo();
   const minSide = Math.min(w, h);
-  const safeBottom = inset + borderWidth * 1.5;
+  const celticBand = hasCelticBorder ? Math.max(24, minSide * 0.052) : 0;
+  const breathingRoom = hasCelticBorder
+    ? Math.max(20, minSide * 0.036)
+    : Math.max(8, minSide * 0.012);
+  const safeBottom = inset + borderWidth * 1.5 + celticBand + breathingRoom;
   const website = 'www.sonceibe.es';
   const fontSize = Math.max(15, minSide * 0.023);
   const websiteBaseline = h - safeBottom;
 
   ctx.save();
-  ctx.globalAlpha = 0.9;
+  ctx.globalAlpha = 0.96;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'bottom';
   ctx.font = `600 ${fontSize}px Georgia, serif`;
   ctx.fillStyle = '#f1d6a7';
-  ctx.shadowColor = 'rgba(0,0,0,0.92)';
-  ctx.shadowBlur = Math.max(5, minSide * 0.009);
+  ctx.shadowColor = 'rgba(0,0,0,0.96)';
+  ctx.shadowBlur = Math.max(6, minSide * 0.011);
   ctx.fillText(website, w / 2, websiteBaseline, w * 0.48);
 
   const textWidth = ctx.measureText(website).width;
   const ornamentGap = Math.max(12, minSide * 0.018);
   const lineWidth = Math.max(24, minSide * 0.055);
   const lineY = websiteBaseline - fontSize * 0.42;
-  ctx.strokeStyle = 'rgba(217,154,69,0.72)';
+  ctx.strokeStyle = 'rgba(217,154,69,0.78)';
   ctx.lineWidth = Math.max(1, minSide * 0.0016);
   ctx.beginPath();
   ctx.moveTo(w / 2 - textWidth / 2 - ornamentGap - lineWidth, lineY);
@@ -337,7 +342,7 @@ function drawBrandSignature(
 
     ctx.save();
     ctx.globalAlpha = 0.97;
-    ctx.shadowColor = 'rgba(2, 8, 18, 0.88)';
+    ctx.shadowColor = 'rgba(2, 8, 18, 0.9)';
     ctx.shadowBlur = Math.max(10, minSide * 0.016);
     ctx.drawImage(logo, x, y, logoWidth, logoHeight);
     ctx.restore();
@@ -371,5 +376,5 @@ export function drawVisualBranding(
     ctx.fillRect(0, 0, w, h);
   }
 
-  drawBrandSignature(ctx, w, h, inset, borderWidth);
+  drawBrandSignature(ctx, w, h, inset, borderWidth, isSonCeibeStyle);
 }
