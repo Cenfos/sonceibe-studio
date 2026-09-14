@@ -140,14 +140,14 @@ export function PreviewPanel() {
 
   return (
     <div className="flex flex-col h-full bg-background">
-      <div className="h-10 shrink-0 flex items-center justify-between px-3 border-b border-border bg-card/30">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span className="font-medium text-foreground">Vista Previa</span>
-          <span className="text-xs">
+      <div className="studio-preview-header h-10 shrink-0 flex items-center justify-between px-3 border-b border-border bg-card/30">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground min-w-0">
+          <span className="font-medium text-foreground shrink-0">Vista Previa</span>
+          <span className="studio-preview-meta text-xs truncate">
             {canvasWidth}×{canvasHeight} · {isPortrait ? '9:16 Móvil' : '16:9 PC'}
           </span>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 shrink-0">
           <Button
             variant={orientation === 'landscape' ? 'secondary' : 'ghost'}
             size="sm"
@@ -168,24 +168,26 @@ export function PreviewPanel() {
             <Smartphone className="h-3.5 w-3.5" />
             Móvil
           </Button>
-          <Separator orientation="vertical" className="h-5 mx-1" />
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom((z) => Math.max(0.25, z - 0.25))}>
-            <ZoomOut className="h-4 w-4" />
-          </Button>
-          <span className="text-xs text-muted-foreground w-10 text-center">
-            {Math.round(zoom * 100)}%
-          </span>
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom((z) => Math.min(2, z + 0.25))}>
-            <ZoomIn className="h-4 w-4" />
-          </Button>
-          <Separator orientation="vertical" className="h-5 mx-1" />
+          <div className="studio-preview-zoom flex items-center gap-1">
+            <Separator orientation="vertical" className="h-5 mx-1" />
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom((z) => Math.max(0.25, z - 0.25))}>
+              <ZoomOut className="h-4 w-4" />
+            </Button>
+            <span className="text-xs text-muted-foreground w-10 text-center">
+              {Math.round(zoom * 100)}%
+            </span>
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom((z) => Math.min(2, z + 0.25))}>
+              <ZoomIn className="h-4 w-4" />
+            </Button>
+            <Separator orientation="vertical" className="h-5 mx-1" />
+          </div>
           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={toggleFullscreen}>
             <Maximize2 className="h-4 w-4" />
           </Button>
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 flex items-center justify-center p-6 bg-[hsl(222_20%_5%)] overflow-hidden">
+      <div className="studio-preview-stage flex-1 min-h-0 flex items-center justify-center p-6 bg-[hsl(222_20%_5%)] overflow-hidden">
         <div
           ref={containerRef}
           className="relative shadow-2xl rounded-lg overflow-hidden bg-black"
@@ -204,8 +206,8 @@ export function PreviewPanel() {
         </div>
       </div>
 
-      <div className="h-16 shrink-0 flex items-center gap-4 px-4 border-t border-border bg-card/50 backdrop-blur-sm">
-        <div className="flex items-center gap-1">
+      <div className="studio-preview-controls h-16 shrink-0 flex items-center gap-4 px-4 border-t border-border bg-card/50 backdrop-blur-sm">
+        <div className="flex items-center gap-1 shrink-0">
           <Button variant="ghost" size="icon" className="h-9 w-9" onClick={skipBack}>
             <SkipBack className="h-4 w-4" />
           </Button>
@@ -220,11 +222,11 @@ export function PreviewPanel() {
           </Button>
         </div>
 
-        <div className="text-xs font-mono text-muted-foreground tabular-nums w-20">
+        <div className="text-xs font-mono text-muted-foreground tabular-nums w-20 shrink-0">
           {formatTimecode(audio.currentTime)}
         </div>
 
-        <div className="flex-1 flex items-center">
+        <div className="flex-1 flex items-center min-w-0">
           <Slider
             value={[audio.currentTime]}
             min={0}
@@ -235,16 +237,16 @@ export function PreviewPanel() {
           />
         </div>
 
-        <div className="text-xs font-mono text-muted-foreground tabular-nums w-20 text-right">
+        <div className="studio-time-end text-xs font-mono text-muted-foreground tabular-nums w-20 text-right shrink-0">
           {formatTimecode(duration)}
         </div>
 
-        <Separator orientation="vertical" className="h-8" />
+        <Separator orientation="vertical" className="studio-control-separator h-8" />
 
         <Button
           variant="ghost"
           size="icon"
-          className="h-9 w-9"
+          className="studio-volume-control h-9 w-9 shrink-0"
           onClick={() => audio.setMuted(!audio.muted)}
         >
           {audio.muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
