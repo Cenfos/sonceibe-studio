@@ -3,6 +3,7 @@
 import { StoreProvider } from '@/lib/store';
 import { AudioEngineProvider } from '@/lib/audio-engine-context';
 import { StudioUserProvider } from '@/lib/studio-user-context';
+import { WorkspaceSync } from '@/components/workspace-sync';
 import { AppShell } from '@/components/app-shell';
 
 export function StudioClient({ userId }: { userId: string }) {
@@ -11,6 +12,7 @@ export function StudioClient({ userId }: { userId: string }) {
   return (
     <StudioUserProvider userId={userId}>
       <StoreProvider key={userId} storageKey={storageKey} migrateLegacy={userId === 'owner'}>
+        <WorkspaceSync />
         <AudioEngineProvider>
           <AppShell />
         </AudioEngineProvider>
