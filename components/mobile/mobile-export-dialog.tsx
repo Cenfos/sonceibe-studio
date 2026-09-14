@@ -1,17 +1,17 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Check, Download, Film, Loader2, Share2, X } from 'lucide-react';
+import { Check, Download, Film, Loader2, RefreshCw, Share2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { useStore } from '@/lib/store';
 import { useAudioEngineContext } from '@/lib/audio-engine-context';
+import { useStudioUserId } from '@/lib/studio-user-context';
+import { getProjectVideo, saveProjectVideo } from '@/lib/local-media-storage';
 import { preloadBackgroundImage, renderFrame } from '@/components/studio/preview/canvas-renderer';
 import { preloadVisualBranding } from '@/lib/visual-branding';
 import { toast } from 'sonner';
 
-// 720×1280 keeps the same full-screen 9:16 format while allowing a much lower
-// bitrate than 1080×1920. WhatsApp/Instagram will recompress it again anyway.
 const WIDTH = 720;
 const HEIGHT = 1280;
 const FPS = 30;
@@ -81,10 +81,12 @@ function estimatedSizeBytes(duration: number, videoBitrate: number): number {
 export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { currentProject, markSaved } = useStore();
   const audio = useAudioEngineContext();
+  const userId = useStudioUserId();
   const [exporting, setExporting] = useState(false);
   const [progress, setProgress] = useState(0);
   const [blob, setBlob] = useState<Blob | null>(null);
   const [filename, setFilename] = useState('');
+  const [loadingSaved, setLoadingSaved] = useState(false);
 
   const duration = audio.duration || currentProject?.settings.audioDuration || 0;
   const videoBitrate = useMemo(() => mobileVideoBitrate(duration), [duration]);
@@ -94,12 +96,31 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
   );
 
   useEffect(() => {
-    if (!open) {
+    if (!open || !currentProject) {
       setProgress(0);
       setBlob(null);
       setFilename('');
+      setLoadingSaved(false);
+      return;
     }
-  }, [open]);
+
+    let cancelled = false;
+    setLoadingSaved(true);
+    getProjectVideo(userId, currentProject.id)
+      .then((stored) => {
+        if (cancelled || !stored) return;
+        setBlob(stored.file);
+        setFilename(stored.file.name);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setLoadingSaved(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, currentProject?.id, userId]);
 
   if (!open || !currentProject) return null;
 
@@ -133,7 +154,6 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
     let recorder: MediaRecorder | null = null;
     let frameId = 0;
     let outputStream: MediaStream | null = null;
-    let capturedAudioStream: MediaStream | null = null;
 
     try {
       audioEl.pause();
@@ -174,7 +194,7 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
 
       renderMobileFrame(0);
       outputStream = canvas.captureStream(FPS);
-      capturedAudioStream = captureAudio.call(audioEl);
+      const capturedAudioStream = captureAudio.call(audioEl);
       const audioTracks = capturedAudioStream.getAudioTracks();
       if (audioTracks.length === 0) throw new Error('No se pudo capturar la música');
       audioTracks.forEach((track) => outputStream?.addTrack(track));
@@ -227,18 +247,21 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
       const result = await finished;
       if (result.size === 0) throw new Error('El vídeo generado está vacío');
       const nextFilename = `${safeFilename(currentProject.settings.title)}-movil.mp4`;
-      setBlob(result);
+      const resultFile = new File([result], nextFilename, { type: result.type || mimeType });
+      setBlob(resultFile);
       setFilename(nextFilename);
+      await saveProjectVideo(userId, currentProject.id, resultFile, currentProject.settings.updatedAt);
       markSaved();
-      toast.success(`MP4 creado · ${formatMb(result.size)}`);
+      toast.success(`MP4 creado y guardado en el proyecto · ${formatMb(result.size)}`);
     } catch (error) {
       console.error('Mobile video export failed:', error);
       toast.error(error instanceof Error ? error.message : 'No se pudo crear el MP4');
     } finally {
       cancelAnimationFrame(frameId);
       if (recorder?.state !== 'inactive') recorder?.stop();
-      outputStream?.getTracks().forEach((track) => track.stop());
-      capturedAudioStream?.getTracks().forEach((track) => track.stop());
+      // Stop only the canvas track. Stopping audio capture tracks can make some
+      // mobile browsers unable to export the same project a second time.
+      outputStream?.getVideoTracks().forEach((track) => track.stop());
       audioEl.pause();
       audioEl.currentTime = Math.min(previousTime, duration);
       if (wasPlaying) audioEl.play().catch(() => {});
@@ -268,7 +291,7 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
         <Card className="w-full p-5">
           <div className="mb-5 flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-lg font-semibold">Crear MP4 para móvil</h2>
+              <h2 className="text-lg font-semibold">Vídeo MP4 del proyecto</h2>
               <p className="mt-1 text-xs text-muted-foreground">Vertical 9:16 · 720×1280 · pantalla completa · 30 FPS</p>
             </div>
             {!exporting && (
@@ -278,13 +301,18 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
             )}
           </div>
 
-          {blob ? (
+          {loadingSaved ? (
+            <div className="space-y-3 py-8 text-center">
+              <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
+              <p className="text-sm text-muted-foreground">Buscando el último MP4 guardado…</p>
+            </div>
+          ) : blob ? (
             <div className="space-y-4 text-center">
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-green-500/15">
                 <Check className="h-7 w-7 text-green-500" />
               </div>
               <div>
-                <div className="font-medium">Vídeo terminado</div>
+                <div className="font-medium">MP4 guardado en este proyecto</div>
                 <div className="mt-1 text-sm text-muted-foreground">{formatMb(blob.size)}</div>
               </div>
               <Button className="w-full h-12 gap-2" onClick={shareVideo}>
@@ -293,7 +321,11 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
               </Button>
               <Button variant="outline" className="w-full gap-2" onClick={() => downloadBlob(filename, blob)}>
                 <Download className="h-4 w-4" />
-                Guardar MP4
+                Descargar MP4 otra vez
+              </Button>
+              <Button variant="outline" className="w-full gap-2" onClick={exportVideo}>
+                <RefreshCw className="h-4 w-4" />
+                Volver a crear MP4
               </Button>
               <Button variant="ghost" className="w-full" onClick={onClose}>Cerrar</Button>
             </div>
@@ -313,7 +345,7 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
                 <div className="mt-1 flex justify-between"><span className="text-muted-foreground">Tamaño estimado</span><span>~{estimatedSize ? formatMb(estimatedSize) : '—'}</span></div>
               </div>
               <p className="text-xs leading-5 text-muted-foreground">
-                El bitrate se adapta a la duración para intentar mantener una canción normal alrededor de 30–40 MB. Sigue siendo 9:16 a pantalla completa y está pensado para WhatsApp e Instagram.
+                El MP4 quedará guardado localmente dentro de este navegador para poder compartirlo o descargarlo otra vez sin volver a renderizar.
               </p>
               <Button className="w-full h-12 gap-2" onClick={exportVideo}>
                 <Film className="h-5 w-5" />
