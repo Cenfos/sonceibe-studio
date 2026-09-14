@@ -3,6 +3,7 @@
 import { Palette } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { SONCEIBE_LOGO_URL, visualPresets } from '@/lib/visual-presets';
+import { preloadVisualBranding } from '@/lib/visual-branding';
 import type { VisualStyleId } from '@/lib/types';
 
 export function VisualPresetPicker() {
@@ -19,10 +20,11 @@ export function VisualPresetPicker() {
 
   const activeStyle = currentProject.settings.visualStyle ?? 'default';
 
-  const applyPreset = (presetId: Exclude<VisualStyleId, 'default'>) => {
+  const applyPreset = async (presetId: Exclude<VisualStyleId, 'default'>) => {
     const preset = visualPresets.find((item) => item.id === presetId);
     if (!preset) return;
 
+    await preloadVisualBranding(preset.id);
     updateSettings({ visualStyle: preset.id });
     updateBackground(preset.background);
     updateText(preset.text);
@@ -51,7 +53,7 @@ export function VisualPresetPicker() {
             <button
               key={preset.id}
               type="button"
-              onClick={() => applyPreset(preset.id)}
+              onClick={() => void applyPreset(preset.id)}
               className={`overflow-hidden rounded-lg border text-left transition-all ${
                 active ? 'border-primary ring-1 ring-primary/40' : 'border-border hover:border-primary/50'
               }`}
