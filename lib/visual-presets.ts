@@ -5,8 +5,9 @@ import type {
   TextStyle,
   VisualStyleId,
 } from './types';
+import { SONCEIBE_LOGO_DATA_URL } from './sonceibe-logo-data';
 
-export const SONCEIBE_LOGO_URL = 'https://raw.githubusercontent.com/Cenfos/son-ceibe-web/main/public/son-ceibe-logo.png';
+export const SONCEIBE_LOGO_URL = SONCEIBE_LOGO_DATA_URL;
 
 export interface VisualPreset {
   id: Exclude<VisualStyleId, 'default'>;
@@ -25,7 +26,7 @@ export const visualPresets: VisualPreset[] = [
   {
     id: 'sonceibe',
     label: 'SonCeibe',
-    description: 'Verde bosque, ámbar, borde iluminado y logo oficial',
+    description: 'Verde bosque, ámbar, borde iluminado y nueva marca Son Ceibe',
     previewFrom: '#102d25',
     previewTo: '#26190f',
     accent: '#d99a45',
@@ -38,7 +39,7 @@ export const visualPresets: VisualPreset[] = [
     },
     text: {
       fontFamily: 'Georgia',
-      fontSize: 68,
+      fontSize: 82,
       fontWeight: 700,
       color: '#f4ead7',
       outlineWidth: 2,
@@ -51,7 +52,7 @@ export const visualPresets: VisualPreset[] = [
       glowIntensity: 12,
       position: 'center',
       align: 'center',
-      lineHeight: 1.28,
+      lineHeight: 1.22,
     },
     animation: {
       in: 'fade',
@@ -85,7 +86,7 @@ export const visualPresets: VisualPreset[] = [
     },
     text: {
       fontFamily: 'Inter',
-      fontSize: 68,
+      fontSize: 80,
       fontWeight: 800,
       color: '#ffffff',
       outlineWidth: 1,
@@ -129,7 +130,7 @@ export const visualPresets: VisualPreset[] = [
     },
     text: {
       fontFamily: 'Inter',
-      fontSize: 66,
+      fontSize: 76,
       fontWeight: 700,
       color: '#f8fafc',
       outlineWidth: 0,
@@ -170,7 +171,7 @@ export const visualPresets: VisualPreset[] = [
     },
     text: {
       fontFamily: 'Inter',
-      fontSize: 68,
+      fontSize: 80,
       fontWeight: 800,
       color: '#e0f2fe',
       outlineWidth: 1,
@@ -214,7 +215,7 @@ export const visualPresets: VisualPreset[] = [
     },
     text: {
       fontFamily: 'Georgia',
-      fontSize: 66,
+      fontSize: 76,
       fontWeight: 700,
       color: '#f6ead3',
       outlineWidth: 1,
