@@ -221,9 +221,36 @@
     width: 88px !important;
   }
 
+  .studio-track-label {
+    padding-left: 8px !important;
+    padding-right: 6px !important;
+    gap: 6px !important;
+  }
+
   .studio-timeline-help,
   .studio-timeline-time {
     display: none !important;
+  }
+
+  .studio-timeline-scroll {
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .studio-timeline-clip {
+    min-width: 36px;
+  }
+
+  .studio-timeline-handle {
+    width: 18px !important;
+  }
+
+  .studio-timeline-handle[data-handle="left"] {
+    background: linear-gradient(to right, hsl(var(--primary) / 0.35), transparent);
+  }
+
+  .studio-timeline-handle[data-handle="right"] {
+    background: linear-gradient(to left, hsl(var(--primary) / 0.35), transparent);
   }
 }
 
