@@ -94,12 +94,14 @@ export function MobilePreviewLauncher() {
       {!open && (
         <Button
           type="button"
+          variant="ghost"
+          size="icon"
           onClick={() => setOpen(true)}
-          className="fixed bottom-5 right-4 z-[70] gap-2 rounded-full px-4 shadow-xl"
+          className="fixed right-3 top-2.5 z-[73] h-9 w-9 bg-background/85 shadow-sm backdrop-blur"
+          title="Ver proyecto"
           aria-label="Ver proyecto"
         >
           <Eye className="h-4 w-4" />
-          Ver proyecto
         </Button>
       )}
 
