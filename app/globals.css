@@ -196,6 +196,17 @@
     display: none !important;
   }
 
+  /* Timeline is the last direct child of the editor shell. */
+  .studio-editor-shell > div:last-child {
+    height: 168px !important;
+  }
+
+  .studio-editor-shell > div:last-child > div:first-child {
+    height: 32px !important;
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+
   .studio-timeline {
     height: 168px !important;
   }
