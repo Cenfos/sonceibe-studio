@@ -70,11 +70,6 @@ export function MobilePreviewLauncher() {
     return () => cancelAnimationFrame(frameId);
   }, [audio.audioEl, audio.currentTime, audio.isPlaying, draw, open]);
 
-  useEffect(() => {
-    if (open) return;
-    audio.pause();
-  }, [audio, open]);
-
   if (!currentProject || !settings) return null;
 
   const togglePlay = () => {
@@ -94,10 +89,10 @@ export function MobilePreviewLauncher() {
       {!open && (
         <Button
           type="button"
-          variant="ghost"
+          variant="destructive"
           size="icon"
           onClick={() => setOpen(true)}
-          className="fixed right-3 top-2.5 z-[73] h-9 w-9 bg-background/85 shadow-sm backdrop-blur"
+          className="fixed right-3 top-2.5 z-[73] h-9 w-9 rounded-full bg-red-600 text-white shadow-lg ring-2 ring-red-300/40 hover:bg-red-700"
           title="Ver proyecto"
           aria-label="Ver proyecto"
         >
