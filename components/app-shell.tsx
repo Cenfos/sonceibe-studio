@@ -7,8 +7,10 @@ import { WorkspaceControl } from '@/components/home/workspace-control';
 import { StudioLayout } from '@/components/studio/studio-layout';
 import { MobileStudioWizard } from '@/components/mobile/mobile-studio-wizard';
 import { MobilePreviewLauncher } from '@/components/mobile/mobile-preview-launcher';
+import { MobileProjectTransferButton } from '@/components/mobile/mobile-project-transfer';
 import { ExportDialog } from '@/components/studio/export-dialog';
 import { SettingsDialog } from '@/components/studio/settings-dialog';
+import { isDefaultProjectTitle, PENDING_PROJECT_TITLE_KEY, titleFromAudioFilename } from '@/lib/project-title';
 
 function usePhoneStudio(): boolean | null {
   const [isPhone, setIsPhone] = useState<boolean | null>(null);
@@ -30,9 +32,25 @@ function usePhoneStudio(): boolean | null {
 }
 
 export function AppShell() {
-  const { currentPage, currentProject } = useStore();
+  const { currentPage, currentProject, updateSettings } = useStore();
   const isPhone = usePhoneStudio();
   const onHome = currentPage === 'home' || !currentProject;
+
+  useEffect(() => {
+    if (!currentProject) return;
+
+    const pendingTitle = sessionStorage.getItem(PENDING_PROJECT_TITLE_KEY)?.trim();
+    if (pendingTitle) {
+      sessionStorage.removeItem(PENDING_PROJECT_TITLE_KEY);
+      if (currentProject.settings.title !== pendingTitle) updateSettings({ title: pendingTitle });
+      return;
+    }
+
+    if (currentProject.settings.audioName && isDefaultProjectTitle(currentProject.settings.title)) {
+      const derived = titleFromAudioFilename(currentProject.settings.audioName);
+      if (derived) updateSettings({ title: derived });
+    }
+  }, [currentProject?.id, currentProject?.settings.audioName, currentProject?.settings.title, updateSettings]);
 
   return (
     <div className="h-screen w-screen flex flex-col bg-background text-foreground">
@@ -46,6 +64,7 @@ export function AppShell() {
       ) : isPhone ? (
         <>
           <MobileStudioWizard />
+          <MobileProjectTransferButton />
           <MobilePreviewLauncher />
         </>
       ) : (
