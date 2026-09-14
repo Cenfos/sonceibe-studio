@@ -391,30 +391,47 @@ function drawProjectTitle(
   const title = settings.title.trim().toLocaleUpperCase('gl-ES');
   if (!title) return;
 
+  const t = settings.text;
   const renderScale = Math.min(w, h) / 1080;
   const alpha = clamp01(time / 0.35);
-  const maxWidth = w * 0.82;
-  let fontSize = 48 * renderScale;
-  const fontFamily = settings.text.fontFamily || 'Inter';
+  const maxWidth = w * 0.84;
+  const lyricFontSize = t.fontSize * renderScale;
+  let fontSize = lyricFontSize * 1.16;
+  const minTitleSize = lyricFontSize * 1.02;
+  const fontFamily = t.fontFamily || 'Inter';
 
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = `800 ${fontSize}px ${fontFamily}, sans-serif`;
-  while (fontSize > 24 * renderScale && ctx.measureText(title).width > maxWidth) {
-    fontSize -= 2 * renderScale;
-    ctx.font = `800 ${fontSize}px ${fontFamily}, sans-serif`;
+  ctx.font = `${t.fontWeight} ${fontSize}px ${fontFamily}, sans-serif`;
+
+  while (fontSize > minTitleSize && ctx.measureText(title).width > maxWidth) {
+    fontSize -= Math.max(1, 2 * renderScale);
+    ctx.font = `${t.fontWeight} ${fontSize}px ${fontFamily}, sans-serif`;
   }
 
-  const y = h * 0.075;
-  ctx.shadowColor = 'rgba(0,0,0,0.9)';
-  ctx.shadowBlur = 14 * renderScale;
-  ctx.shadowOffsetY = 2 * renderScale;
-  ctx.lineWidth = Math.max(2, 3 * renderScale);
-  ctx.strokeStyle = 'rgba(0,0,0,0.82)';
-  ctx.fillStyle = settings.text.color || '#ffffff';
-  ctx.strokeText(title, w / 2, y, maxWidth);
+  const y = h * 0.085;
+
+  if (t.shadow) {
+    ctx.shadowColor = t.shadowColor;
+    ctx.shadowBlur = t.shadowBlur * renderScale;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 2 * renderScale;
+  }
+
+  if (t.glow) {
+    ctx.shadowColor = t.glowColor;
+    ctx.shadowBlur = t.glowIntensity * renderScale;
+  }
+
+  if (t.outlineWidth > 0) {
+    ctx.strokeStyle = t.outlineColor;
+    ctx.lineWidth = t.outlineWidth * renderScale;
+    ctx.strokeText(title, w / 2, y, maxWidth);
+  }
+
+  ctx.fillStyle = t.color || '#ffffff';
   ctx.fillText(title, w / 2, y, maxWidth);
   ctx.restore();
 }
