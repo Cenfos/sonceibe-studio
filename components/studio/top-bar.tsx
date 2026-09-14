@@ -17,6 +17,7 @@ import { useStore } from '@/lib/store';
 import { useAudioEngineContext } from '@/lib/audio-engine-context';
 import { useStudioUserId } from '@/lib/studio-user-context';
 import { LOCAL_AUDIO_URL, saveProjectAudio } from '@/lib/local-media-storage';
+import { isDefaultProjectTitle, PENDING_PROJECT_TITLE_KEY, titleFromAudioFilename } from '@/lib/project-title';
 import {
   cleanLyricsText,
   cleanParsedLyrics,
@@ -28,7 +29,7 @@ import { LyricsSyncDialog } from './lyrics/lyrics-sync-dialog';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 export function TopBar() {
@@ -52,6 +53,14 @@ export function TopBar() {
   const audioInputRef = useRef<HTMLInputElement>(null);
   const lyricsInputRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    if (!currentProject) return;
+    const pendingTitle = sessionStorage.getItem(PENDING_PROJECT_TITLE_KEY)?.trim();
+    if (!pendingTitle) return;
+    sessionStorage.removeItem(PENDING_PROJECT_TITLE_KEY);
+    updateSettings({ title: pendingTitle });
+  }, [currentProject?.id, updateSettings]);
+
   const handleExport = () => {
     setExportOpen(true);
   };
@@ -71,9 +80,13 @@ export function TopBar() {
     try {
       await audio.loadFile(file);
       await saveProjectAudio(userId, currentProject.id, file);
+      const derivedTitle = isDefaultProjectTitle(currentProject.settings.title)
+        ? titleFromAudioFilename(file.name)
+        : undefined;
       updateSettings({
         audioName: file.name,
         audioUrl: LOCAL_AUDIO_URL,
+        ...(derivedTitle ? { title: derivedTitle } : {}),
       });
       toast.success(`MP3 cargado y guardado en este equipo: ${file.name}`);
     } catch (error) {
