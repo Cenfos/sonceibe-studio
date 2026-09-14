@@ -1,4 +1,5 @@
 import type { AnimationType, ImageFitMode, LyricLine, ProjectSettings } from '@/lib/types';
+import { drawVisualBranding } from '@/lib/visual-branding';
 
 const imageCache = new Map<string, HTMLImageElement>();
 
@@ -7,10 +8,18 @@ function clamp01(value: number): number {
 }
 
 function getActiveLine(lyrics: LyricLine[], time: number): LyricLine | null {
+  let active: LyricLine | null = null;
+
   for (const line of lyrics) {
-    if (time >= line.start && time <= line.end) return line;
+    if (!line.text || time < line.start || time > line.end) continue;
+
+    // If malformed/suspended synchronization left an older line extending far
+    // into the song, prefer the most recently started valid line. This prevents
+    // one accidental long end time from masking every lyric that follows it.
+    if (!active || line.start >= active.start) active = line;
   }
-  return null;
+
+  return active;
 }
 
 function hexToRgba(hex: string, alpha: number): string {
@@ -442,6 +451,7 @@ export function renderFrame(
   drawBackground(ctx, w, h, settings, time);
   drawText(ctx, w, h, settings, time);
   drawEffects(ctx, w, h, settings, time);
+  drawVisualBranding(ctx, w, h, settings.visualStyle, time);
   ctx.filter = 'none';
   ctx.globalAlpha = 1;
 }
