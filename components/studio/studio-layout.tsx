@@ -153,9 +153,9 @@ export function StudioLayout() {
     return () => {
       cancelled = true;
     };
-    // Only restore when switching projects; audio state changes continuously during playback.
+    // Restore when switching projects and once the audio element becomes available.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentProject?.id, userId]);
+  }, [currentProject?.id, userId, audio.audioEl]);
 
   const handleTabSelected = (tab: 'text' | 'background' | 'animation' | 'effects' | 'lyrics') => {
     if (tab === 'lyrics') {
