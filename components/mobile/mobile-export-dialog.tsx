@@ -12,11 +12,14 @@ import { preloadBackgroundImage, renderFrame } from '@/components/studio/preview
 import { preloadVisualBranding } from '@/lib/visual-branding';
 import { toast } from 'sonner';
 
-// Social/mobile master: real 9:16 Full HD canvas. Keeping the encoder itself in
-// portrait avoids creating a small portrait picture inside a larger black frame
-// when WhatsApp or Instagram reads the MP4 display dimensions.
-const WIDTH = 1080;
-const HEIGHT = 1920;
+// The final MP4 remains real Full HD 9:16 so WhatsApp/Instagram display it
+// full-screen. The scene itself is rendered on a lighter 720x1280 canvas and
+// then scaled into the 1080x1920 capture canvas. This greatly reduces the work
+// done for every lyric frame on mobile without changing the MP4 dimensions.
+const OUTPUT_WIDTH = 1080;
+const OUTPUT_HEIGHT = 1920;
+const RENDER_WIDTH = 720;
+const RENDER_HEIGHT = 1280;
 const FPS = 30;
 const AUDIO_BITRATE = 96_000;
 const TARGET_SIZE_BYTES = 34_000_000;
@@ -39,9 +42,6 @@ function safeFilename(value: string): string {
 function getMp4MimeType(): string | null {
   if (typeof MediaRecorder === 'undefined') return null;
 
-  // Level 4.0 is required for Full-HD/30fps sized frames. The previous Level
-  // 3.0 request was too restrictive for portrait HD and some Android encoders
-  // could expose an incorrect display size to apps such as WhatsApp.
   const candidates = [
     'video/mp4;codecs=avc1.42E028,mp4a.40.2',
     'video/mp4;codecs=avc1.4D4028,mp4a.40.2',
@@ -220,6 +220,7 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
     let recorder: MediaRecorder | null = null;
     let frameId = 0;
     let outputStream: MediaStream | null = null;
+    let renderErrors = 0;
 
     try {
       audioEl.pause();
@@ -229,8 +230,6 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
         ...currentProject.settings,
         background: {
           ...currentProject.settings.background,
-          // Every photo/video frame must fill the 9:16 master. No contain mode
-          // is allowed in the social export because it creates black bands.
           imageFit: 'cover' as const,
         },
         exportConfig: {
@@ -250,30 +249,45 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
       await Promise.all(Array.from(sources).map((src) => preloadBackgroundImage(src)));
       await preloadVisualBranding(settings.visualStyle);
 
-      const canvas = document.createElement('canvas');
-      canvas.width = WIDTH;
-      canvas.height = HEIGHT;
-      canvas.style.width = `${WIDTH}px`;
-      canvas.style.height = `${HEIGHT}px`;
-      const ctx = canvas.getContext('2d', { alpha: false });
-      if (!ctx) throw new Error('No se pudo preparar el vídeo');
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
+      const renderCanvas = document.createElement('canvas');
+      renderCanvas.width = RENDER_WIDTH;
+      renderCanvas.height = RENDER_HEIGHT;
+      const renderCtx = renderCanvas.getContext('2d', { alpha: false });
+      if (!renderCtx) throw new Error('No se pudo preparar el renderizado del vídeo');
 
-      const renderMobileFrame = (time: number) => {
-        renderFrame(ctx, WIDTH, HEIGHT, settings, time);
+      const outputCanvas = document.createElement('canvas');
+      outputCanvas.width = OUTPUT_WIDTH;
+      outputCanvas.height = OUTPUT_HEIGHT;
+      const outputCtx = outputCanvas.getContext('2d', { alpha: false });
+      if (!outputCtx) throw new Error('No se pudo preparar el vídeo');
+      outputCtx.imageSmoothingEnabled = true;
+      outputCtx.imageSmoothingQuality = 'high';
+
+      const renderMobileFrame = (time: number): boolean => {
+        try {
+          renderFrame(renderCtx, RENDER_WIDTH, RENDER_HEIGHT, settings, time);
+          outputCtx.setTransform(1, 0, 0, 1, 0, 0);
+          outputCtx.globalAlpha = 1;
+          outputCtx.filter = 'none';
+          outputCtx.drawImage(renderCanvas, 0, 0, OUTPUT_WIDTH, OUTPUT_HEIGHT);
+          return true;
+        } catch (error) {
+          renderErrors += 1;
+          if (renderErrors <= 3) console.error('Mobile frame render failed:', error);
+          return false;
+        }
       };
 
-      renderMobileFrame(0);
-      outputStream = canvas.captureStream(FPS);
+      if (!renderMobileFrame(0)) throw new Error('No se pudo crear el primer fotograma del vídeo');
+      outputStream = outputCanvas.captureStream(FPS);
 
       const videoTrack = outputStream.getVideoTracks()[0];
       if (!videoTrack) throw new Error('No se pudo crear la pista de vídeo');
       videoTrack.contentHint = 'detail';
 
       const trackSettings = videoTrack.getSettings?.();
-      const trackWidth = Number(trackSettings?.width || WIDTH);
-      const trackHeight = Number(trackSettings?.height || HEIGHT);
+      const trackWidth = Number(trackSettings?.width || OUTPUT_WIDTH);
+      const trackHeight = Number(trackSettings?.height || OUTPUT_HEIGHT);
       if (!isNineSixteen(trackWidth, trackHeight)) {
         throw new Error(`El navegador no ha creado una pista vertical 9:16 (${trackWidth}×${trackHeight})`);
       }
@@ -303,17 +317,26 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
       let lastRendered = -frameInterval;
       let lastProgress = -1;
       const renderLoop = () => {
-        const t = Math.min(duration, audioEl.currentTime || 0);
-        if (t - lastRendered >= frameInterval * 0.9 || t >= duration) {
-          renderMobileFrame(t);
-          lastRendered = t;
-        }
-        const nextProgress = Math.min(99, Math.round((t / duration) * 100));
-        if (nextProgress !== lastProgress) {
-          lastProgress = nextProgress;
-          setProgress(nextProgress);
-        }
+        // Schedule the next iteration before drawing. If a particular frame
+        // ever throws, the visual track cannot become permanently frozen while
+        // the audio continues playing.
         frameId = requestAnimationFrame(renderLoop);
+
+        try {
+          const rawTime = Number.isFinite(audioEl.currentTime) ? audioEl.currentTime : 0;
+          const t = Math.min(duration, Math.max(0, rawTime));
+          if (t - lastRendered >= frameInterval * 0.9 || t >= duration) {
+            if (renderMobileFrame(t)) lastRendered = t;
+          }
+          const nextProgress = Math.min(99, Math.round((t / duration) * 100));
+          if (nextProgress !== lastProgress) {
+            lastProgress = nextProgress;
+            setProgress(nextProgress);
+          }
+        } catch (error) {
+          renderErrors += 1;
+          if (renderErrors <= 3) console.error('Mobile render loop failed:', error);
+        }
       };
 
       const onEnded = () => {
@@ -331,8 +354,6 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
       const result = await finished;
       if (result.size === 0) throw new Error('El vídeo generado está vacío');
 
-      // Verify the file that Android/WhatsApp will actually read, not only the
-      // source canvas. This catches incorrect MP4 display metadata immediately.
       const dimensions = await readVideoDimensions(result);
       if (!isNineSixteen(dimensions.width, dimensions.height)) {
         throw new Error(
@@ -440,7 +461,7 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
                 <div className="mt-1 flex justify-between"><span className="text-muted-foreground">Tamaño estimado</span><span>~{estimatedSize ? formatMb(estimatedSize) : '—'}</span></div>
               </div>
               <p className="text-xs leading-5 text-muted-foreground">
-                Las fotos se recortan automáticamente para llenar el fotograma vertical completo. El MP4 final se comprueba antes de guardarlo para evitar bordes negros por una relación de aspecto incorrecta.
+                El archivo final sigue siendo Full HD 9:16, pero Studio renderiza internamente de forma optimizada para evitar que la imagen o la letra se congelen durante la exportación en móvil.
               </p>
               <Button className="w-full h-12 gap-2" onClick={exportVideo}>
                 <Film className="h-5 w-5" />
