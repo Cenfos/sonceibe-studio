@@ -10,7 +10,19 @@ export type BackgroundType =
 export type ImageSequenceMode = 'auto' | 'manual';
 export type ImageFitMode = 'contain' | 'cover';
 export type VideoOrientation = 'landscape' | 'portrait';
-export type VisualStyleId = 'default' | 'sonceibe' | 'karaoke-pop' | 'minimal' | 'neon' | 'cinema';
+export type VisualStyleId =
+  | 'default'
+  | 'sonceibe'
+  | 'rock-galego'
+  | 'folk-atlantico'
+  | 'ska-ceibe'
+  | 'galicia-gaita'
+  | 'taberna-galega'
+  // Legacy values kept so projects saved before the redesign still load.
+  | 'karaoke-pop'
+  | 'minimal'
+  | 'neon'
+  | 'cinema';
 
 export type AnimationType =
   | 'fade'
