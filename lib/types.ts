@@ -177,7 +177,7 @@ export const defaultBackground: BackgroundConfig = {
   imageMode: 'auto',
   imageDuration: 5,
   imageClips: [],
-  imageFit: 'contain',
+  imageFit: 'cover',
   videoUrl: '',
   blur: 0,
   overlay: 0.3,
@@ -204,12 +204,15 @@ export const defaultEffects: EffectsConfig = {
   vignetteIntensity: 0.5,
 };
 
+// Mobile-first by default: new projects created on PC are immediately prepared
+// for true full-screen 9:16 export. PC/TV 16:9 remains available as an explicit
+// export preset when a horizontal video is wanted.
 export const defaultExport: ExportConfig = {
   format: 'mp4',
   resolution: '1080p',
   fps: 30,
   includeAudio: true,
-  orientation: 'landscape',
+  orientation: 'portrait',
 };
 
 export function createDefaultProjectSettings(): ProjectSettings {
