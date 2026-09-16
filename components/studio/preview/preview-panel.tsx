@@ -33,10 +33,22 @@ export function PreviewPanel() {
 
   const duration = audio.duration || currentProject?.settings.audioDuration || 0;
   const settings = currentProject?.settings;
-  const safeSettings = useMemo(
-    () => (settings ? sanitizeRenderSettings(settings) : null),
-    [settings]
-  );
+  const safeSettings = useMemo(() => {
+    if (!settings) return null;
+    const sanitized = sanitizeRenderSettings(settings);
+    if ((sanitized.exportConfig.orientation ?? 'landscape') !== 'portrait') return sanitized;
+
+    // The desktop "Móvil" preview must be identical to the actual mobile
+    // export. In 9:16 we always fill the whole frame, cropping image edges
+    // when needed instead of leaving black side bars.
+    return {
+      ...sanitized,
+      background: {
+        ...sanitized.background,
+        imageFit: 'cover' as const,
+      },
+    };
+  }, [settings]);
   const orientation = safeSettings?.exportConfig.orientation ?? 'landscape';
   const isPortrait = orientation === 'portrait';
   const canvasWidth = isPortrait ? 1080 : 1920;
