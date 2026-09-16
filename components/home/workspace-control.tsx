@@ -14,6 +14,7 @@ import {
   saveProjectsToWorkspace,
   type WorkspaceInfo,
 } from '@/lib/local-workspace';
+import { filterDeletedProjects, purgeDeletedWorkspaceProjects } from '@/lib/project-deletion';
 import { toast } from 'sonner';
 
 const initialInfo: WorkspaceInfo = {
@@ -40,6 +41,7 @@ export function WorkspaceControl() {
     try {
       const next = await chooseWorkspaceFolder(userId);
       setInfo(next);
+      await purgeDeletedWorkspaceProjects(userId);
       const count = await saveProjectsToWorkspace(userId, projects);
       toast.success(`Carpeta de trabajo conectada · ${count} proyecto${count !== 1 ? 's' : ''} sincronizado${count !== 1 ? 's' : ''}`);
     } catch (error) {
@@ -61,6 +63,7 @@ export function WorkspaceControl() {
         toast.error('No se concedió permiso para usar la carpeta de trabajo');
         return;
       }
+      await purgeDeletedWorkspaceProjects(userId);
       const count = await saveProjectsToWorkspace(userId, projects);
       toast.success(`Carpeta reconectada · ${count} proyecto${count !== 1 ? 's' : ''} sincronizado${count !== 1 ? 's' : ''}`);
     } catch (error) {
@@ -74,7 +77,8 @@ export function WorkspaceControl() {
   const recover = async () => {
     setBusy(true);
     try {
-      const recovered = await loadProjectsFromWorkspace(userId);
+      await purgeDeletedWorkspaceProjects(userId);
+      const recovered = filterDeletedProjects(userId, await loadProjectsFromWorkspace(userId));
       if (recovered.length === 0) {
         toast.info('No hay proyectos recuperables en esta carpeta');
         return;
