@@ -86,6 +86,25 @@ export interface TextStyle {
   lineHeight: number;
 }
 
+export interface TitleStyle {
+  fontFamily: string;
+  fontSize: number;
+  fontWeight: number;
+  fontStyle: 'normal' | 'italic';
+  color: string;
+  outlineWidth: number;
+  outlineColor: string;
+  shadow: boolean;
+  shadowBlur: number;
+  shadowColor: string;
+  glow: boolean;
+  glowColor: string;
+  glowIntensity: number;
+  /** Distance from the top measured as a percentage of the short side. */
+  topOffset: number;
+  uppercase: boolean;
+}
+
 export interface AnimationConfig {
   in: AnimationType;
   out: AnimationType;
@@ -132,6 +151,8 @@ export interface ProjectSettings {
   syncProgress: SyncProgress;
   background: BackgroundConfig;
   text: TextStyle;
+  /** Independent appearance for the permanent song title. Optional for old projects. */
+  titleStyle?: TitleStyle;
   animation: AnimationConfig;
   effects: EffectsConfig;
   exportConfig: ExportConfig;
@@ -164,6 +185,26 @@ export const defaultTextStyle: TextStyle = {
   transform: 'none',
   letterSpacing: 0,
   lineHeight: 1.3,
+};
+
+export const defaultTitleStyle: TitleStyle = {
+  fontFamily: 'Georgia',
+  fontSize: 88,
+  fontWeight: 800,
+  fontStyle: 'normal',
+  color: '#ffffff',
+  outlineWidth: 2,
+  outlineColor: '#000000',
+  shadow: true,
+  shadowBlur: 14,
+  shadowColor: '#000000',
+  glow: false,
+  glowColor: '#d99a45',
+  glowIntensity: 14,
+  // Using the short side keeps the title at a similar physical height in
+  // 16:9 and 9:16. This is deliberately lower than the old h * 0.085 value.
+  topOffset: 18,
+  uppercase: true,
 };
 
 export const defaultBackground: BackgroundConfig = {
@@ -227,6 +268,7 @@ export function createDefaultProjectSettings(): ProjectSettings {
     syncProgress: { syncedCount: 0, totalCount: 0, currentIndex: 0, inProgress: false },
     background: { ...defaultBackground },
     text: { ...defaultTextStyle },
+    titleStyle: { ...defaultTitleStyle },
     animation: { ...defaultAnimation },
     effects: { ...defaultEffects },
     exportConfig: { ...defaultExport },
