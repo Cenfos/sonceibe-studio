@@ -3,6 +3,7 @@ import type {
   BackgroundConfig,
   EffectsConfig,
   TextStyle,
+  TitleStyle,
   VisualStyleId,
 } from './types';
 import { SONCEIBE_LOGO_DATA_URL } from './sonceibe-logo-data';
@@ -18,6 +19,7 @@ export interface VisualPreset {
   accent: string;
   background: Partial<BackgroundConfig>;
   text: Partial<TextStyle>;
+  title: Partial<TitleStyle>;
   animation: Partial<AnimationConfig>;
   effects: Partial<EffectsConfig>;
 }
@@ -26,7 +28,7 @@ export const visualPresets: VisualPreset[] = [
   {
     id: 'sonceibe',
     label: 'SonCeibe',
-    description: 'Verde bosque, ámbar, borde iluminado y nueva marca Son Ceibe',
+    description: 'Verde bosque, ámbar, borde celta y marca Son Ceibe',
     previewFrom: '#102d25',
     previewTo: '#26190f',
     accent: '#d99a45',
@@ -53,6 +55,25 @@ export const visualPresets: VisualPreset[] = [
       position: 'center',
       align: 'center',
       lineHeight: 1.22,
+    },
+    title: {
+      fontFamily: 'Georgia',
+      fontSize: 100,
+      fontWeight: 800,
+      fontStyle: 'normal',
+      color: '#f4ead7',
+      outlineWidth: 2.5,
+      outlineColor: '#17392f',
+      shadow: true,
+      shadowBlur: 20,
+      shadowColor: '#061712',
+      glow: true,
+      glowColor: '#d99a45',
+      glowIntensity: 14,
+      // Lower than before and measured from the short side, so the Celtic top
+      // band never covers it in either portrait or landscape exports.
+      topOffset: 18,
+      uppercase: true,
     },
     animation: {
       in: 'fade',
@@ -98,6 +119,23 @@ export const visualPresets: VisualPreset[] = [
       glowColor: '#f472b6',
       glowIntensity: 10,
     },
+    title: {
+      fontFamily: 'Impact',
+      fontSize: 98,
+      fontWeight: 800,
+      fontStyle: 'normal',
+      color: '#ffffff',
+      outlineWidth: 2,
+      outlineColor: '#4c1d95',
+      shadow: true,
+      shadowBlur: 16,
+      shadowColor: '#16072b',
+      glow: true,
+      glowColor: '#f472b6',
+      glowIntensity: 14,
+      topOffset: 16,
+      uppercase: true,
+    },
     animation: {
       in: 'karaoke',
       out: 'fade',
@@ -141,6 +179,20 @@ export const visualPresets: VisualPreset[] = [
       position: 'center',
       align: 'center',
     },
+    title: {
+      fontFamily: 'Inter',
+      fontSize: 90,
+      fontWeight: 800,
+      fontStyle: 'normal',
+      color: '#f8fafc',
+      outlineWidth: 0,
+      shadow: true,
+      shadowBlur: 10,
+      shadowColor: '#000000',
+      glow: false,
+      topOffset: 15,
+      uppercase: true,
+    },
     animation: {
       in: 'fade',
       out: 'fade',
@@ -183,6 +235,23 @@ export const visualPresets: VisualPreset[] = [
       glowColor: '#22d3ee',
       glowIntensity: 22,
     },
+    title: {
+      fontFamily: 'Inter',
+      fontSize: 98,
+      fontWeight: 900,
+      fontStyle: 'normal',
+      color: '#e0f2fe',
+      outlineWidth: 1.5,
+      outlineColor: '#082f49',
+      shadow: true,
+      shadowBlur: 18,
+      shadowColor: '#020617',
+      glow: true,
+      glowColor: '#22d3ee',
+      glowIntensity: 26,
+      topOffset: 16,
+      uppercase: true,
+    },
     animation: {
       in: 'zoom',
       out: 'fade',
@@ -224,6 +293,21 @@ export const visualPresets: VisualPreset[] = [
       shadowBlur: 18,
       shadowColor: '#000000',
       glow: false,
+    },
+    title: {
+      fontFamily: 'Georgia',
+      fontSize: 94,
+      fontWeight: 700,
+      fontStyle: 'italic',
+      color: '#f6ead3',
+      outlineWidth: 1,
+      outlineColor: '#2a170c',
+      shadow: true,
+      shadowBlur: 18,
+      shadowColor: '#000000',
+      glow: false,
+      topOffset: 16,
+      uppercase: false,
     },
     animation: {
       in: 'fade',
