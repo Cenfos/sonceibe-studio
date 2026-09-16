@@ -19,32 +19,49 @@ export function MobilePreviewLauncher() {
   const [open, setOpen] = useState(false);
 
   const settings = currentProject?.settings;
+  const mobileSettings = useMemo(() => {
+    if (!settings) return null;
+    return {
+      ...settings,
+      background: {
+        ...settings.background,
+        // Mobile preview must match the final 9:16 export: always fill the
+        // frame and crop the photo edges instead of showing black side bars.
+        imageFit: 'cover' as const,
+      },
+      exportConfig: {
+        ...settings.exportConfig,
+        orientation: 'portrait' as const,
+      },
+    };
+  }, [settings]);
+
   const duration = audio.duration || settings?.audioDuration || 0;
   const sources = useMemo(() => {
-    if (!settings) return [];
+    if (!mobileSettings) return [];
     const values = new Set<string>();
-    const bg = settings.background;
+    const bg = mobileSettings.background;
     if (bg.imageUrl) values.add(bg.imageUrl);
     for (const src of bg.images ?? []) if (src) values.add(src);
     for (const clip of bg.imageClips ?? []) if (clip.url) values.add(clip.url);
     return Array.from(values);
-  }, [settings]);
+  }, [mobileSettings]);
 
   const draw = useCallback((time: number) => {
     const canvas = canvasRef.current;
-    if (!canvas || !settings) return;
+    if (!canvas || !mobileSettings) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    renderFrame(ctx, WIDTH, HEIGHT, settings, time);
-  }, [settings]);
+    renderFrame(ctx, WIDTH, HEIGHT, mobileSettings, time);
+  }, [mobileSettings]);
 
   useEffect(() => {
-    if (!open || !settings) return;
+    if (!open || !mobileSettings) return;
     let cancelled = false;
 
     Promise.all([
       ...sources.map((src) => preloadBackgroundImage(src)),
-      preloadVisualBranding(settings.visualStyle),
+      preloadVisualBranding(mobileSettings.visualStyle, mobileSettings.showSonCeibeBranding),
     ]).then(() => {
       if (!cancelled) draw(audio.audioEl?.currentTime ?? audio.currentTime);
     });
@@ -52,7 +69,7 @@ export function MobilePreviewLauncher() {
     return () => {
       cancelled = true;
     };
-  }, [audio.audioEl, audio.currentTime, draw, open, settings, sources]);
+  }, [audio.audioEl, audio.currentTime, draw, mobileSettings, open, sources]);
 
   useEffect(() => {
     if (!open || !audio.isPlaying || !audio.audioEl) {
