@@ -349,6 +349,289 @@ function drawBrandSignature(
   }
 }
 
+function drawRockTheme(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  minSide: number,
+  time: number
+) {
+  const inset = Math.max(15, minSide * 0.022);
+  const frame = Math.max(5, minSide * 0.007);
+  const ember = 0.45 + ((Math.sin(time * 1.8) + 1) / 2) * 0.2;
+
+  ctx.save();
+  ctx.strokeStyle = 'rgba(14,14,15,0.98)';
+  ctx.lineWidth = frame * 3.2;
+  ctx.strokeRect(inset, inset, w - inset * 2, h - inset * 2);
+  ctx.strokeStyle = `rgba(189,82,43,${ember})`;
+  ctx.lineWidth = frame;
+  ctx.strokeRect(inset, inset, w - inset * 2, h - inset * 2);
+
+  const boltR = Math.max(3, minSide * 0.006);
+  const bolts = [
+    [inset, inset],
+    [w - inset, inset],
+    [inset, h - inset],
+    [w - inset, h - inset],
+  ];
+  for (const [x, y] of bolts) {
+    ctx.fillStyle = 'rgba(180,181,182,0.9)';
+    ctx.beginPath();
+    ctx.arc(x, y, boltR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(35,35,36,0.9)';
+    ctx.lineWidth = Math.max(1, boltR * 0.28);
+    ctx.beginPath();
+    ctx.moveTo(x - boltR * 0.6, y);
+    ctx.lineTo(x + boltR * 0.6, y);
+    ctx.stroke();
+  }
+
+  const slashLen = minSide * 0.11;
+  ctx.strokeStyle = 'rgba(214,107,60,0.75)';
+  ctx.lineWidth = Math.max(4, minSide * 0.008);
+  ctx.lineCap = 'square';
+  for (let i = 0; i < 3; i++) {
+    const gap = i * minSide * 0.025;
+    ctx.beginPath();
+    ctx.moveTo(inset + gap, inset + slashLen);
+    ctx.lineTo(inset + slashLen + gap, inset);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(w - inset - gap, h - inset - slashLen);
+    ctx.lineTo(w - inset - slashLen - gap, h - inset);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawLeaf(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  size: number,
+  angle: number,
+  color: string
+) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.fillStyle = color;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = Math.max(1, size * 0.05);
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.bezierCurveTo(size * 0.7, -size * 0.45, size * 0.95, size * 0.35, 0, size);
+  ctx.bezierCurveTo(-size * 0.8, size * 0.35, -size * 0.55, -size * 0.35, 0, 0);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(0, size * 0.08);
+  ctx.lineTo(0, size * 0.88);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawFolkTheme(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  minSide: number,
+  time: number
+) {
+  const inset = Math.max(18, minSide * 0.028);
+  const amplitude = minSide * 0.012;
+  const yTop = inset + minSide * 0.015;
+  const yBottom = h - inset - minSide * 0.015;
+
+  ctx.save();
+  ctx.strokeStyle = 'rgba(207,188,137,0.58)';
+  ctx.lineWidth = Math.max(1.5, minSide * 0.0025);
+  ctx.beginPath();
+  ctx.moveTo(inset, yTop);
+  for (let x = inset; x < w - inset; x += minSide * 0.08) {
+    const next = Math.min(w - inset, x + minSide * 0.08);
+    ctx.quadraticCurveTo((x + next) / 2, yTop + Math.sin(x * 0.02 + time * 0.25) * amplitude, next, yTop);
+  }
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(inset, yBottom);
+  for (let x = inset; x < w - inset; x += minSide * 0.08) {
+    const next = Math.min(w - inset, x + minSide * 0.08);
+    ctx.quadraticCurveTo((x + next) / 2, yBottom + Math.cos(x * 0.02 + time * 0.22) * amplitude, next, yBottom);
+  }
+  ctx.stroke();
+
+  drawLeaf(ctx, inset * 1.45, inset * 1.35, minSide * 0.055, -0.55, 'rgba(207,188,137,0.56)');
+  drawLeaf(ctx, w - inset * 1.45, h - inset * 1.35, minSide * 0.055, Math.PI - 0.55, 'rgba(207,188,137,0.5)');
+  drawLeaf(ctx, w - inset * 1.5, inset * 1.25, minSide * 0.04, 0.65, 'rgba(147,180,157,0.48)');
+  ctx.restore();
+}
+
+function drawSkaTheme(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  minSide: number
+) {
+  const cell = Math.max(14, minSide * 0.026);
+  const bandH = cell * 2;
+  const columns = Math.ceil(w / cell);
+
+  ctx.save();
+  for (let row = 0; row < 2; row++) {
+    for (let col = 0; col < columns; col++) {
+      const dark = (row + col) % 2 === 0;
+      ctx.fillStyle = dark ? 'rgba(12,14,12,0.86)' : 'rgba(242,210,77,0.82)';
+      ctx.fillRect(col * cell, row * cell, cell + 1, cell + 1);
+      ctx.fillRect(col * cell, h - bandH + row * cell, cell + 1, cell + 1);
+    }
+  }
+
+  const stripe = minSide * 0.025;
+  ctx.strokeStyle = 'rgba(108,146,54,0.88)';
+  ctx.lineWidth = stripe;
+  ctx.beginPath();
+  ctx.moveTo(0, bandH + stripe * 1.2);
+  ctx.lineTo(w * 0.18, bandH + stripe * 1.2);
+  ctx.moveTo(w * 0.82, h - bandH - stripe * 1.2);
+  ctx.lineTo(w, h - bandH - stripe * 1.2);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawScallop(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  radius: number,
+  color: string
+) {
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = Math.max(1.5, radius * 0.08);
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, Math.PI, Math.PI * 2);
+  ctx.stroke();
+  for (let i = -3; i <= 3; i++) {
+    ctx.beginPath();
+    ctx.moveTo(cx, cy + radius * 0.05);
+    ctx.lineTo(cx + (i / 3) * radius * 0.88, cy - radius * 0.72);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawBagpipeSilhouette(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  size: number
+) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.strokeStyle = 'rgba(220,235,246,0.26)';
+  ctx.fillStyle = 'rgba(220,235,246,0.18)';
+  ctx.lineWidth = Math.max(2, size * 0.035);
+  ctx.beginPath();
+  ctx.ellipse(0, size * 0.18, size * 0.34, size * 0.24, -0.25, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(size * 0.2, size * 0.02);
+  ctx.lineTo(size * 0.52, -size * 0.62);
+  ctx.moveTo(size * 0.08, -size * 0.02);
+  ctx.lineTo(size * 0.16, -size * 0.72);
+  ctx.moveTo(-size * 0.16, size * 0.08);
+  ctx.lineTo(-size * 0.55, size * 0.7);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawGaliciaTheme(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  minSide: number
+) {
+  const inset = Math.max(16, minSide * 0.024);
+  const border = Math.max(3, minSide * 0.005);
+
+  ctx.save();
+  ctx.strokeStyle = 'rgba(218,233,243,0.72)';
+  ctx.lineWidth = border * 2.2;
+  ctx.strokeRect(inset, inset, w - inset * 2, h - inset * 2);
+  ctx.strokeStyle = 'rgba(74,133,178,0.86)';
+  ctx.lineWidth = border;
+  ctx.strokeRect(inset * 1.45, inset * 1.45, w - inset * 2.9, h - inset * 2.9);
+  ctx.restore();
+
+  const shellR = minSide * 0.055;
+  drawScallop(ctx, inset + shellR * 1.15, h - inset - shellR * 0.3, shellR, 'rgba(225,238,247,0.58)');
+  drawScallop(ctx, w - inset - shellR * 1.15, inset + shellR * 0.9, shellR * 0.75, 'rgba(225,238,247,0.45)');
+  drawBagpipeSilhouette(ctx, w - inset - minSide * 0.09, h * 0.52, minSide * 0.14);
+}
+
+function drawTabernaTheme(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  minSide: number,
+  time: number
+) {
+  const inset = Math.max(14, minSide * 0.02);
+  const frame = Math.max(18, minSide * 0.035);
+
+  ctx.save();
+  ctx.strokeStyle = 'rgba(43,20,9,0.96)';
+  ctx.lineWidth = frame;
+  ctx.strokeRect(inset + frame / 2, inset + frame / 2, w - inset * 2 - frame, h - inset * 2 - frame);
+  ctx.strokeStyle = 'rgba(164,99,43,0.84)';
+  ctx.lineWidth = Math.max(2, frame * 0.16);
+  ctx.strokeRect(inset + frame / 2, inset + frame / 2, w - inset * 2 - frame, h - inset * 2 - frame);
+
+  ctx.strokeStyle = 'rgba(213,149,77,0.2)';
+  ctx.lineWidth = Math.max(1, minSide * 0.0015);
+  for (let i = 0; i < 4; i++) {
+    const off = (i + 1) * frame * 0.17;
+    ctx.beginPath();
+    ctx.moveTo(inset + off, inset + frame);
+    ctx.lineTo(inset + off, h - inset - frame);
+    ctx.moveTo(w - inset - off, inset + frame);
+    ctx.lineTo(w - inset - off, h - inset - frame);
+    ctx.stroke();
+  }
+
+  const bulbY = inset + frame * 0.55;
+  const bulbs = 7;
+  for (let i = 0; i < bulbs; i++) {
+    const x = inset + frame + ((w - (inset + frame) * 2) * i) / (bulbs - 1);
+    const pulse = 0.6 + 0.18 * Math.sin(time * 1.2 + i);
+    ctx.strokeStyle = 'rgba(50,25,10,0.8)';
+    ctx.lineWidth = Math.max(1, minSide * 0.002);
+    ctx.beginPath();
+    ctx.moveTo(x, inset);
+    ctx.lineTo(x, bulbY - minSide * 0.012);
+    ctx.stroke();
+    ctx.fillStyle = `rgba(240,177,84,${pulse})`;
+    ctx.shadowColor = 'rgba(229,139,48,0.72)';
+    ctx.shadowBlur = minSide * 0.02;
+    ctx.beginPath();
+    ctx.arc(x, bulbY, minSide * 0.0085, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+
+  const nailR = Math.max(3, minSide * 0.005);
+  for (const [x, y] of [[inset + frame * 0.5, inset + frame * 0.5], [w - inset - frame * 0.5, inset + frame * 0.5], [inset + frame * 0.5, h - inset - frame * 0.5], [w - inset - frame * 0.5, h - inset - frame * 0.5]]) {
+    ctx.fillStyle = 'rgba(95,71,52,0.92)';
+    ctx.beginPath();
+    ctx.arc(x, y, nailR, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
 export function drawVisualBranding(
   ctx: CanvasRenderingContext2D,
   w: number,
@@ -357,12 +640,19 @@ export function drawVisualBranding(
   time = 0,
   showBranding = false
 ): void {
-  const isSonCeibeStyle = style === 'sonceibe';
-  if (!isSonCeibeStyle && !showBranding) return;
+  const themed =
+    style === 'sonceibe' ||
+    style === 'rock-galego' ||
+    style === 'folk-atlantico' ||
+    style === 'ska-ceibe' ||
+    style === 'galicia-gaita' ||
+    style === 'taberna-galega';
+  if (!themed && !showBranding) return;
 
   const minSide = Math.min(w, h);
   const inset = Math.max(14, minSide * 0.022);
   const borderWidth = Math.max(3, minSide * 0.0045);
+  const isSonCeibeStyle = style === 'sonceibe';
 
   if (isSonCeibeStyle) {
     drawSonCeibeCelticBorder(ctx, w, h, inset, minSide);
@@ -374,7 +664,19 @@ export function drawVisualBranding(
     glow.addColorStop(1, 'rgba(217,154,69,0)');
     ctx.fillStyle = glow;
     ctx.fillRect(0, 0, w, h);
+  } else if (style === 'rock-galego') {
+    drawRockTheme(ctx, w, h, minSide, time);
+  } else if (style === 'folk-atlantico') {
+    drawFolkTheme(ctx, w, h, minSide, time);
+  } else if (style === 'ska-ceibe') {
+    drawSkaTheme(ctx, w, h, minSide);
+  } else if (style === 'galicia-gaita') {
+    drawGaliciaTheme(ctx, w, h, minSide);
+  } else if (style === 'taberna-galega') {
+    drawTabernaTheme(ctx, w, h, minSide, time);
   }
 
-  drawBrandSignature(ctx, w, h, inset, borderWidth, isSonCeibeStyle);
+  if (isSonCeibeStyle || showBranding) {
+    drawBrandSignature(ctx, w, h, inset, borderWidth, isSonCeibeStyle);
+  }
 }
