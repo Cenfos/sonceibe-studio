@@ -1,5 +1,6 @@
-import type { AnimationType, ImageFitMode, LyricLine, ProjectSettings } from '@/lib/types';
+import { defaultTitleStyle, type AnimationType, type ImageFitMode, type LyricLine, type ProjectSettings } from '@/lib/types';
 import { drawVisualBranding } from '@/lib/visual-branding';
+import { getVisualPreset } from '@/lib/visual-presets';
 import { isDefaultProjectTitle } from '@/lib/project-title';
 
 const imageCache = new Map<string, HTMLImageElement>();
@@ -388,50 +389,61 @@ function drawProjectTitle(
 ) {
   if (time < 0 || isDefaultProjectTitle(settings.title)) return;
 
-  const title = settings.title.trim().toLocaleUpperCase('gl-ES');
+  const presetTitle = getVisualPreset(settings.visualStyle)?.title ?? {};
+  const titleStyle = {
+    ...defaultTitleStyle,
+    ...presetTitle,
+    ...(settings.titleStyle ?? {}),
+  };
+  const rawTitle = settings.title.trim();
+  const title = titleStyle.uppercase ? rawTitle.toLocaleUpperCase('gl-ES') : rawTitle;
   if (!title) return;
 
-  const t = settings.text;
-  const renderScale = Math.min(w, h) / 1080;
+  const minSide = Math.min(w, h);
+  const renderScale = minSide / 1080;
   const alpha = clamp01(time / 0.35);
-  const maxWidth = w * 0.84;
-  const lyricFontSize = t.fontSize * renderScale;
-  let fontSize = lyricFontSize * 1.16;
-  const minTitleSize = lyricFontSize * 1.02;
-  const fontFamily = t.fontFamily || 'Inter';
+  const maxWidth = w * (settings.visualStyle === 'sonceibe' ? 0.78 : 0.84);
+  let fontSize = titleStyle.fontSize * renderScale;
+  const minTitleSize = Math.max(30 * renderScale, fontSize * 0.62);
+  const fontFamily = titleStyle.fontFamily || 'Inter';
+  const fontStyle = titleStyle.fontStyle === 'italic' ? 'italic' : 'normal';
 
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = `${t.fontWeight} ${fontSize}px ${fontFamily}, sans-serif`;
+  ctx.font = `${fontStyle} ${titleStyle.fontWeight} ${fontSize}px ${fontFamily}, sans-serif`;
 
   while (fontSize > minTitleSize && ctx.measureText(title).width > maxWidth) {
     fontSize -= Math.max(1, 2 * renderScale);
-    ctx.font = `${t.fontWeight} ${fontSize}px ${fontFamily}, sans-serif`;
+    ctx.font = `${fontStyle} ${titleStyle.fontWeight} ${fontSize}px ${fontFamily}, sans-serif`;
   }
 
-  const y = h * 0.085;
+  // Use the short side instead of frame height. This moves the title safely
+  // below the SonCeibe Celtic border in 16:9 while only lowering it slightly
+  // in 9:16, keeping both formats visually consistent.
+  const topOffset = Math.max(10, Math.min(35, titleStyle.topOffset));
+  const y = minSide * (topOffset / 100);
 
-  if (t.shadow) {
-    ctx.shadowColor = t.shadowColor;
-    ctx.shadowBlur = t.shadowBlur * renderScale;
+  if (titleStyle.shadow) {
+    ctx.shadowColor = titleStyle.shadowColor;
+    ctx.shadowBlur = titleStyle.shadowBlur * renderScale;
     ctx.shadowOffsetX = 0;
     ctx.shadowOffsetY = 2 * renderScale;
   }
 
-  if (t.glow) {
-    ctx.shadowColor = t.glowColor;
-    ctx.shadowBlur = t.glowIntensity * renderScale;
+  if (titleStyle.glow) {
+    ctx.shadowColor = titleStyle.glowColor;
+    ctx.shadowBlur = titleStyle.glowIntensity * renderScale;
   }
 
-  if (t.outlineWidth > 0) {
-    ctx.strokeStyle = t.outlineColor;
-    ctx.lineWidth = t.outlineWidth * renderScale;
+  if (titleStyle.outlineWidth > 0) {
+    ctx.strokeStyle = titleStyle.outlineColor;
+    ctx.lineWidth = titleStyle.outlineWidth * renderScale;
     ctx.strokeText(title, w / 2, y, maxWidth);
   }
 
-  ctx.fillStyle = t.color || '#ffffff';
+  ctx.fillStyle = titleStyle.color || '#ffffff';
   ctx.fillText(title, w / 2, y, maxWidth);
   ctx.restore();
 }
