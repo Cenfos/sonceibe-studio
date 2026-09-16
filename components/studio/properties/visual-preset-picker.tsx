@@ -4,7 +4,7 @@ import { Palette } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { SONCEIBE_LOGO_URL, visualPresets } from '@/lib/visual-presets';
 import { preloadVisualBranding } from '@/lib/visual-branding';
-import type { VisualStyleId } from '@/lib/types';
+import { defaultTitleStyle, type VisualStyleId } from '@/lib/types';
 
 export function VisualPresetPicker() {
   const {
@@ -25,7 +25,10 @@ export function VisualPresetPicker() {
     if (!preset) return;
 
     await preloadVisualBranding(preset.id);
-    updateSettings({ visualStyle: preset.id });
+    updateSettings({
+      visualStyle: preset.id,
+      titleStyle: { ...defaultTitleStyle, ...preset.title },
+    });
     updateBackground(preset.background);
     updateText(preset.text);
     updateAnimation(preset.animation);
@@ -41,7 +44,7 @@ export function VisualPresetPicker() {
         <div>
           <div className="text-xs font-semibold">Estilos preparados</div>
           <p className="mt-0.5 text-[10px] leading-4 text-muted-foreground">
-            Disponibles también en PC. Aplican fondo, letra, animación y efectos de una vez.
+            Disponibles también en PC. Aplican fondo, título, letra, animación y efectos de una vez.
           </p>
         </div>
       </div>
