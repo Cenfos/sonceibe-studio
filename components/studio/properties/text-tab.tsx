@@ -3,6 +3,8 @@
 import { useStore } from '@/lib/store';
 import { ControlRow, ColorInput, SliderRow, ToggleRow } from './controls';
 import { fontOptions } from '@/lib/mock-data';
+import { defaultTitleStyle } from '@/lib/types';
+import { visualPresets } from '@/lib/visual-presets';
 import {
   Select,
   SelectContent,
@@ -11,6 +13,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import {
   AlignLeft,
@@ -19,32 +22,190 @@ import {
   ArrowUp,
   ArrowDown,
   CaseSensitive,
+  Heading2,
+  RotateCcw,
 } from 'lucide-react';
 
 export function TextTab() {
-  const { currentProject, updateText } = useStore();
+  const { currentProject, updateText, updateSettings } = useStore();
   if (!currentProject) return null;
-  const t = currentProject.settings.text;
+  const settings = currentProject.settings;
+  const t = settings.text;
+  const activePreset = visualPresets.find((preset) => preset.id === settings.visualStyle);
+  const titleBase = { ...defaultTitleStyle, ...(activePreset?.title ?? {}) };
+  const titleStyle = { ...titleBase, ...(settings.titleStyle ?? {}) };
+
+  const updateTitleStyle = (patch: Partial<typeof titleStyle>) => {
+    updateSettings({ titleStyle: { ...titleStyle, ...patch } });
+  };
 
   return (
     <div className="space-y-5">
-      {/* Font */}
-      <ControlRow label="Fuente">
-        <Select value={t.fontFamily} onValueChange={(v) => updateText({ fontFamily: v })}>
-          <SelectTrigger className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {fontOptions.map((f) => (
-              <SelectItem key={f.value} value={f.value} style={{ fontFamily: f.value }}>
-                {f.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </ControlRow>
+      <section className="space-y-4 rounded-xl border border-primary/25 bg-primary/5 p-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex gap-2">
+            <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/15 text-primary">
+              <Heading2 className="h-4 w-4" />
+            </div>
+            <div>
+              <div className="text-xs font-semibold">Título de la canción</div>
+              <p className="mt-0.5 text-[10px] leading-4 text-muted-foreground">
+                Se edita aparte de la letra y permanece visible durante todo el vídeo.
+              </p>
+            </div>
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 gap-1 px-2 text-[10px]"
+            onClick={() => updateSettings({ titleStyle: { ...titleBase } })}
+            title="Restablecer el estilo de título recomendado"
+          >
+            <RotateCcw className="h-3 w-3" />
+            Restablecer
+          </Button>
+        </div>
 
-      {/* Size & Weight */}
+        <ControlRow label="Texto del título">
+          <Input
+            value={settings.title}
+            onChange={(e) => updateSettings({ title: e.target.value })}
+            placeholder="Título de la canción"
+            className="h-9"
+          />
+        </ControlRow>
+
+        <ControlRow label="Fuente del título">
+          <Select value={titleStyle.fontFamily} onValueChange={(v) => updateTitleStyle({ fontFamily: v })}>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {fontOptions.map((f) => (
+                <SelectItem key={f.value} value={f.value} style={{ fontFamily: f.value }}>
+                  {f.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </ControlRow>
+
+        <div className="grid grid-cols-2 gap-3">
+          <SliderRow
+            label="Tamaño título"
+            value={titleStyle.fontSize}
+            min={36}
+            max={180}
+            unit="px"
+            onChange={(v) => updateTitleStyle({ fontSize: v })}
+          />
+          <ControlRow label="Peso título">
+            <Select
+              value={String(titleStyle.fontWeight)}
+              onValueChange={(v) => updateTitleStyle({ fontWeight: Number(v) })}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {[400, 500, 600, 700, 800, 900].map((w) => (
+                  <SelectItem key={w} value={String(w)}>{w}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </ControlRow>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <ControlRow label="Forma">
+            <Select
+              value={titleStyle.fontStyle}
+              onValueChange={(v) => updateTitleStyle({ fontStyle: v as 'normal' | 'italic' })}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="normal">Normal</SelectItem>
+                <SelectItem value="italic">Cursiva</SelectItem>
+              </SelectContent>
+            </Select>
+          </ControlRow>
+          <ToggleRow
+            label="Título en MAYÚSCULAS"
+            checked={titleStyle.uppercase}
+            onChange={(v) => updateTitleStyle({ uppercase: v })}
+          />
+        </div>
+
+        <SliderRow
+          label="Bajar / subir título"
+          value={titleStyle.topOffset}
+          min={10}
+          max={35}
+          step={0.5}
+          unit="%"
+          onChange={(v) => updateTitleStyle({ topOffset: v })}
+        />
+        <p className="-mt-2 text-[10px] leading-4 text-muted-foreground">
+          La altura se calcula respecto al lado corto, para que quede parecida en móvil 9:16 y PC 16:9.
+        </p>
+
+        <ControlRow label="Color del título">
+          <ColorInput value={titleStyle.color} onChange={(v) => updateTitleStyle({ color: v })} />
+        </ControlRow>
+
+        <div className="space-y-3">
+          <SliderRow
+            label="Contorno título"
+            value={titleStyle.outlineWidth}
+            min={0}
+            max={10}
+            step={0.5}
+            unit="px"
+            onChange={(v) => updateTitleStyle({ outlineWidth: v })}
+          />
+          {titleStyle.outlineWidth > 0 && (
+            <ControlRow label="Color contorno título">
+              <ColorInput value={titleStyle.outlineColor} onChange={(v) => updateTitleStyle({ outlineColor: v })} />
+            </ControlRow>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <ToggleRow
+            label="Sombra título"
+            checked={titleStyle.shadow}
+            onChange={(v) => updateTitleStyle({ shadow: v })}
+          />
+          <ToggleRow
+            label="Brillo título"
+            checked={titleStyle.glow}
+            onChange={(v) => updateTitleStyle({ glow: v })}
+          />
+        </div>
+      </section>
+
+      <div className="border-t border-border pt-4">
+        <div className="mb-4 text-xs font-semibold">Letra de la canción</div>
+
+        <ControlRow label="Fuente">
+          <Select value={t.fontFamily} onValueChange={(v) => updateText({ fontFamily: v })}>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {fontOptions.map((f) => (
+                <SelectItem key={f.value} value={f.value} style={{ fontFamily: f.value }}>
+                  {f.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </ControlRow>
+      </div>
+
       <div className="grid grid-cols-2 gap-3">
         <SliderRow
           label="Tamaño"
@@ -73,12 +234,10 @@ export function TextTab() {
         </ControlRow>
       </div>
 
-      {/* Color */}
       <ControlRow label="Color de texto">
         <ColorInput value={t.color} onChange={(v) => updateText({ color: v })} />
       </ControlRow>
 
-      {/* Outline */}
       <div className="space-y-3">
         <SliderRow
           label="Contorno"
@@ -99,7 +258,6 @@ export function TextTab() {
         )}
       </div>
 
-      {/* Shadow */}
       <div className="space-y-3">
         <ToggleRow
           label="Sombra"
@@ -126,7 +284,6 @@ export function TextTab() {
         )}
       </div>
 
-      {/* Glow */}
       <div className="space-y-3">
         <ToggleRow
           label="Brillo (Glow)"
@@ -152,7 +309,6 @@ export function TextTab() {
         )}
       </div>
 
-      {/* Position */}
       <ControlRow label="Posición vertical">
         <div className="grid grid-cols-3 gap-2">
           {[
@@ -177,7 +333,6 @@ export function TextTab() {
         </div>
       </ControlRow>
 
-      {/* Alignment */}
       <ControlRow label="Alineación">
         <div className="grid grid-cols-3 gap-2">
           {[
@@ -201,7 +356,6 @@ export function TextTab() {
         </div>
       </ControlRow>
 
-      {/* Transform */}
       <ControlRow label="Mayúsculas / Minúsculas">
         <div className="grid grid-cols-3 gap-2">
           {[
@@ -223,7 +377,6 @@ export function TextTab() {
         </div>
       </ControlRow>
 
-      {/* Spacing */}
       <SliderRow
         label="Espaciado entre letras"
         value={t.letterSpacing}
