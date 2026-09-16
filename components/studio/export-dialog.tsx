@@ -40,6 +40,10 @@ type CapturableAudioElement = HTMLAudioElement & {
   mozCaptureStream?: () => MediaStream;
 };
 
+type CanvasCaptureTrack = MediaStreamTrack & {
+  requestFrame?: () => void;
+};
+
 const PRESETS = [
   {
     id: 'whatsapp' as const,
@@ -248,9 +252,12 @@ export function ExportDialog() {
 
     const previousTime = audioEl.currentTime;
     const wasPlaying = !audioEl.paused;
-    let frameId = 0;
+    let frameTimer: ReturnType<typeof setInterval> | null = null;
     let recorder: MediaRecorder | null = null;
     let outputStream: MediaStream | null = null;
+    let captureCanvas: HTMLCanvasElement | null = null;
+    let capturedVideoTrack: CanvasCaptureTrack | null = null;
+    let renderErrors = 0;
 
     setExporting(true);
     setProgress(0);
@@ -289,14 +296,37 @@ export function ExportDialog() {
       const canvas = document.createElement('canvas');
       canvas.width = expected.width;
       canvas.height = expected.height;
+      canvas.style.position = 'fixed';
+      canvas.style.left = '-10000px';
+      canvas.style.top = '0';
+      canvas.style.width = '1px';
+      canvas.style.height = '1px';
+      canvas.style.pointerEvents = 'none';
+      document.body.appendChild(canvas);
+      captureCanvas = canvas;
+
       const ctx = canvas.getContext('2d', { alpha: false });
       if (!ctx) throw new Error('No se pudo preparar el vídeo');
 
-      renderFrame(ctx, expected.width, expected.height, renderSettings, 0);
+      const renderExportFrame = (time: number): boolean => {
+        try {
+          renderFrame(ctx, expected.width, expected.height, renderSettings, time);
+          capturedVideoTrack?.requestFrame?.();
+          return true;
+        } catch (error) {
+          renderErrors += 1;
+          if (renderErrors <= 3) console.error('Desktop export frame render failed:', error);
+          return false;
+        }
+      };
+
+      if (!renderExportFrame(0)) throw new Error('No se pudo crear el primer fotograma del vídeo');
       outputStream = canvas.captureStream(cfg.fps);
-      const videoTrack = outputStream.getVideoTracks()[0];
+      const videoTrack = outputStream.getVideoTracks()[0] as CanvasCaptureTrack | undefined;
       if (!videoTrack) throw new Error('No se pudo crear la pista de vídeo');
+      capturedVideoTrack = videoTrack;
       videoTrack.contentHint = 'detail';
+      videoTrack.requestFrame?.();
 
       if (cfg.includeAudio && captureAudio) {
         const captured = captureAudio.call(audioEl);
@@ -324,30 +354,45 @@ export function ExportDialog() {
       const interval = 1 / cfg.fps;
       let lastRendered = -interval;
       let lastProgress = -1;
-      const renderLoop = () => {
-        const t = Math.min(duration, Number.isFinite(audioEl.currentTime) ? audioEl.currentTime : 0);
-        if (t - lastRendered >= interval * 0.9 || t >= duration) {
-          renderFrame(ctx, expected.width, expected.height, renderSettings, t);
-          lastRendered = t;
+      const renderTick = () => {
+        try {
+          if (!capturedVideoTrack || capturedVideoTrack.readyState === 'ended') return;
+          const rawTime = Number.isFinite(audioEl.currentTime) ? audioEl.currentTime : 0;
+          const t = Math.min(duration, Math.max(0, rawTime));
+          if (t - lastRendered >= interval * 0.82 || t >= duration) {
+            if (renderExportFrame(t)) lastRendered = t;
+          } else {
+            // Explicitly keep the capture track producing frames. On Chromium,
+            // a detached/high-resolution canvas can otherwise stop advancing
+            // while the captured audio continues normally.
+            capturedVideoTrack.requestFrame?.();
+          }
+          const nextProgress = Math.min(99, Math.round((t / duration) * 100));
+          if (nextProgress !== lastProgress) {
+            lastProgress = nextProgress;
+            setProgress(nextProgress);
+          }
+        } catch (error) {
+          renderErrors += 1;
+          if (renderErrors <= 3) console.error('Desktop export render loop failed:', error);
         }
-        const nextProgress = Math.min(99, Math.round((t / duration) * 100));
-        if (nextProgress !== lastProgress) {
-          lastProgress = nextProgress;
-          setProgress(nextProgress);
-        }
-        frameId = requestAnimationFrame(renderLoop);
       };
 
       const onEnded = () => {
-        cancelAnimationFrame(frameId);
-        renderFrame(ctx, expected.width, expected.height, renderSettings, duration);
+        if (frameTimer) {
+          clearInterval(frameTimer);
+          frameTimer = null;
+        }
+        renderExportFrame(duration);
+        capturedVideoTrack?.requestFrame?.();
         setProgress(100);
         if (activeRecorder.state !== 'inactive') activeRecorder.stop();
       };
 
       audioEl.addEventListener('ended', onEnded, { once: true });
       activeRecorder.start(1000);
-      frameId = requestAnimationFrame(renderLoop);
+      frameTimer = setInterval(renderTick, Math.max(10, Math.round(1000 / cfg.fps)));
+      renderTick();
       await audioEl.play();
 
       const blob = await finished;
@@ -377,9 +422,10 @@ export function ExportDialog() {
       console.error('Video export failed:', error);
       toast.error(error instanceof Error ? error.message : 'No se pudo crear el MP4');
     } finally {
-      cancelAnimationFrame(frameId);
+      if (frameTimer) clearInterval(frameTimer);
       if (recorder && recorder.state !== 'inactive') recorder.stop();
       outputStream?.getVideoTracks().forEach((track) => track.stop());
+      captureCanvas?.remove();
       audioEl.pause();
       audioEl.currentTime = Math.min(previousTime, duration);
       if (wasPlaying) audioEl.play().catch(() => {});
