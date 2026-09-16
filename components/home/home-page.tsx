@@ -17,14 +17,8 @@ import { useStudioUserId } from '@/lib/studio-user-context';
 import { LOCAL_AUDIO_URL, saveProjectAudio } from '@/lib/local-media-storage';
 import { readPortableProjectFile } from '@/lib/project/download-current-project';
 import { PENDING_PROJECT_TITLE_KEY } from '@/lib/project-title';
+import { visualPresets } from '@/lib/visual-presets';
 import { toast } from 'sonner';
-
-const templates = [
-  { name: 'SonCeibe', desc: 'Identidad propia con marco, logo e iluminación cálida', color: 'from-emerald-900 to-amber-900' },
-  { name: 'Karaoke Pop', desc: 'Animación palabra por palabra con fondo de gradiente', color: 'from-pink-500 to-rose-500' },
-  { name: 'Minimalista', desc: 'Texto limpio sobre color sólido', color: 'from-slate-600 to-slate-800' },
-  { name: 'Neón Nocturno', desc: 'Efectos de glow y partículas', color: 'from-blue-500 to-cyan-400' },
-];
 
 export function HomePage() {
   const { projects, openProject, createProject, deleteProject } = useStore();
@@ -274,24 +268,64 @@ export function HomePage() {
             <Sparkles className="h-5 w-5 text-primary" />
             <h2 className="text-xl font-semibold">Estilos preparados</h2>
           </div>
-          <p className="text-sm text-muted-foreground mb-6">Disponibles dentro del editor para aplicar fondo, letra, iluminación y efectos de una sola vez.</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {templates.map((t) => (
+          <p className="text-sm text-muted-foreground mb-6">
+            Los mismos estilos disponibles dentro del editor: fondo, título, letra, animación, efectos y ornamentación.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {visualPresets.map((preset) => (
               <Card
-                key={t.name}
-                className="overflow-hidden border-border bg-card opacity-90 cursor-default"
+                key={preset.id}
+                className="overflow-hidden border-border bg-card opacity-95 cursor-default"
               >
-                <div className={`aspect-video bg-gradient-to-br ${t.color} relative`}>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-white font-bold drop-shadow-lg">{t.name}</span>
+                <div
+                  className="aspect-video relative overflow-hidden"
+                  style={{
+                    background: `linear-gradient(145deg, ${preset.previewFrom}, ${preset.previewTo})`,
+                  }}
+                >
+                  <div
+                    className="absolute inset-3 rounded-lg border"
+                    style={{
+                      borderColor: `${preset.accent}99`,
+                      boxShadow: `inset 0 0 24px ${preset.accent}22, 0 0 18px ${preset.accent}18`,
+                    }}
+                  />
+                  {preset.id === 'ska-ceibe' && (
+                    <div className="absolute inset-x-0 bottom-0 h-6 opacity-70" style={{
+                      backgroundImage: 'linear-gradient(45deg,#111 25%,transparent 25%),linear-gradient(-45deg,#111 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#111 75%),linear-gradient(-45deg,transparent 75%,#111 75%)',
+                      backgroundSize: '18px 18px',
+                      backgroundPosition: '0 0,0 9px,9px -9px,-9px 0px',
+                    }} />
+                  )}
+                  {preset.id === 'folk-atlantico' && (
+                    <div className="absolute inset-x-8 bottom-5 h-px opacity-70" style={{ background: preset.accent }} />
+                  )}
+                  {preset.id === 'rock-galego' && (
+                    <div className="absolute inset-x-6 bottom-4 h-1 rotate-[-1deg] opacity-60" style={{ background: preset.accent }} />
+                  )}
+                  {preset.id === 'galicia-gaita' && (
+                    <div className="absolute right-5 top-4 text-2xl opacity-70">✦</div>
+                  )}
+                  {preset.id === 'taberna-galega' && (
+                    <div className="absolute inset-x-6 top-4 flex justify-between text-sm opacity-80">
+                      <span>●</span><span>●</span><span>●</span><span>●</span><span>●</span>
+                    </div>
+                  )}
+                  <div className="absolute inset-0 flex items-center justify-center px-4">
+                    <span
+                      className="text-white font-bold text-center drop-shadow-lg"
+                      style={{ fontFamily: preset.title.fontFamily || 'Inter' }}
+                    >
+                      {preset.label}
+                    </span>
                   </div>
                 </div>
                 <div className="p-4">
                   <div className="flex items-center justify-between gap-2">
-                    <h3 className="font-medium">{t.name}</h3>
+                    <h3 className="font-medium">{preset.label}</h3>
                     <Badge variant="outline" className="text-[10px]">Disponible</Badge>
                   </div>
-                  <p className="text-sm text-muted-foreground mt-1">{t.desc}</p>
+                  <p className="text-sm text-muted-foreground mt-1">{preset.description}</p>
                 </div>
               </Card>
             ))}
