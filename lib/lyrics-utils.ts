@@ -17,58 +17,38 @@ export interface LyricsCleanupResult {
   removedChordMarks: number;
 }
 
-const SECTION_LABEL_RE = /^(?:intro|introducci[oó]n|verso|verse|estrofa|stanza|estribillo|chorus|coro|refr[aá]n|refrao|refrão|pre[\s-]?(?:chorus|estribillo|coro)|ponte|bridge|puente|outro|final|fin|instrumental|interludio|interlude|solo|rap|spoken|hablado)(?:\s*(?:\d+|[ivx]+))?(?:\s*x\s*\d+)?$/i;
-const MUSIC_NOTE_RE = /^(?:[A-G](?:#|b)?(?:(?:m|min|maj|sus|dim|aug|add)\d*|\d+)?(?:\/[A-G](?:#|b)?)?)$/i;
-const SOLFEGE_CHORD_RE = /^(?:do|re|mi|fa|sol|la|si)(?:#|b)?(?:m|min|maj|sus|dim|aug|add)?\d*(?:\/(?:do|re|mi|fa|sol|la|si)(?:#|b)?)?$/i;
-const INLINE_CHORD_RE = /\[\s*(?:[A-G](?:#|b)?(?:(?:m|min|maj|sus|dim|aug|add)\d*|\d+)?(?:\/[A-G](?:#|b)?)?|(?:do|re|mi|fa|sol|la|si)(?:#|b)?(?:m|min|maj|sus|dim|aug|add)?\d*)\s*\]/gi;
-const CHORDPRO_DIRECTIVE_RE = /\{\s*(?:title|subtitle|artist|album|key|capo|tempo|comment|c|start_of_chorus|end_of_chorus|soc|eoc|start_of_verse|end_of_verse|sov|eov)\s*(?::[^}]*)?\}/gi;
+// Lyrics are deliberately preserved as written. We only remove annotations
+// enclosed in parentheses or square brackets, because those are commonly used
+// for comments, section labels such as [Estribillo], or chord marks such as [Am].
+// This avoids deleting real sung words that happen to look like chord names
+// (for example "La", "Mi", "Sol") or text that came from bold ODT spans.
+const INLINE_ANNOTATION_RE = /\([^()]*\)|\[[^\[\]]*\]/g;
 
-function normalizeSectionCandidate(line: string): string {
-  return line
-    .trim()
-    .replace(/^[\[({<]\s*/, '')
-    .replace(/\s*[\])}>]$/, '')
-    .replace(/[:.!]+$/, '')
-    .trim();
-}
+function stripInlineAnnotations(line: string): { text: string; removed: number } {
+  let text = line;
+  let removed = 0;
+  let previous = '';
 
-function isSectionLabel(line: string): boolean {
-  const candidate = normalizeSectionCandidate(line);
-  return candidate.length > 0 && SECTION_LABEL_RE.test(candidate);
-}
-
-function isMusicMetadata(line: string): boolean {
-  return /^(?:capo|cejilla|tono|tonalidad|key|tempo|bpm|acordes?|chords?)\s*(?::|=|\s)\s*.+$/i.test(line.trim());
-}
-
-function isChordOnlyLine(line: string): boolean {
-  const cleaned = line
-    .trim()
-    .replace(/[|]+/g, ' ')
-    .replace(/\s*\/\s*/g, ' / ')
-    .replace(/[(),]/g, ' ')
-    .replace(/\s+/g, ' ');
-
-  if (!cleaned) return false;
-
-  const parts = cleaned.split(' ').filter((part) => part && part !== '/');
-  if (parts.length === 0) return false;
-
-  const allChords = parts.every((part) => MUSIC_NOTE_RE.test(part) || SOLFEGE_CHORD_RE.test(part));
-  if (!allChords) return false;
-
-  if (parts.length === 1) {
-    const token = parts[0];
-    return /[#b/0-9]|m$|maj|min|sus|dim|aug|add/i.test(token);
+  // Repeat so simple nested annotations are also removed from the inside out.
+  while (text !== previous) {
+    previous = text;
+    text = text.replace(INLINE_ANNOTATION_RE, () => {
+      removed += 1;
+      return '';
+    });
   }
 
-  return true;
+  return {
+    text: text.replace(/[ \t]{2,}/g, ' ').trim(),
+    removed,
+  };
 }
 
 /**
- * Remove notation that clearly is not sung: section headings, chord-only rows,
- * chord annotations such as [Am], and music metadata such as "Capo 2".
- * Verse separation is preserved with a single blank line.
+ * Preserve every lyric line exactly as text, regardless of formatting such as
+ * bold/italic in ODT or DOCX. Only parenthesized and square-bracket annotations
+ * are stripped. If a line consists only of an annotation, the whole line is
+ * removed. Verse separation is preserved with a single blank line.
  */
 export function cleanLyricsText(text: string): LyricsCleanupResult {
   const inputLines = text.replace(/\r\n?/g, '\n').split('\n');
@@ -78,35 +58,23 @@ export function cleanLyricsText(text: string): LyricsCleanupResult {
   let previousBlank = true;
 
   for (const rawLine of inputLines) {
-    let line = rawLine.replace(/\u00a0/g, ' ').trim();
+    const normalized = rawLine.replace(/\u00a0/g, ' ').trim();
 
-    if (!line) {
+    if (!normalized) {
       if (!previousBlank && output.length > 0) output.push('');
       previousBlank = true;
       continue;
     }
 
-    if (isSectionLabel(line) || isMusicMetadata(line) || isChordOnlyLine(line)) {
+    const cleaned = stripInlineAnnotations(normalized);
+    removedChordMarks += cleaned.removed;
+
+    if (!cleaned.text) {
       removedLines += 1;
       continue;
     }
 
-    line = line.replace(CHORDPRO_DIRECTIVE_RE, () => {
-      removedChordMarks += 1;
-      return '';
-    });
-    line = line.replace(INLINE_CHORD_RE, () => {
-      removedChordMarks += 1;
-      return '';
-    });
-    line = line.replace(/[ \t]{2,}/g, ' ').trim();
-
-    if (!line) {
-      removedLines += 1;
-      continue;
-    }
-
-    output.push(line);
+    output.push(cleaned.text);
     previousBlank = false;
   }
 
@@ -235,6 +203,35 @@ async function extractZipText(buffer: ArrayBuffer, wantedPath: string): Promise<
   throw new Error(`No se encontró ${wantedPath} dentro del documento.`);
 }
 
+function xmlNodeToPlainText(node: Node): string {
+  if (node.nodeType === 3) return node.nodeValue ?? '';
+  if (node.nodeType !== 1) return '';
+
+  const element = node as Element;
+  const tag = element.tagName;
+
+  if (tag === 'text:line-break' || tag === 'w:br') return '\n';
+  if (tag === 'text:tab' || tag === 'w:tab') return ' ';
+  if (tag === 'text:s') {
+    const rawCount = element.getAttribute('text:c') ?? '1';
+    const count = Math.max(1, Math.min(32, Number.parseInt(rawCount, 10) || 1));
+    return ' '.repeat(count);
+  }
+
+  // text:span / w:r formatting (including bold and italic) is intentionally
+  // ignored as styling, but all of its textual content is kept.
+  return Array.from(node.childNodes).map(xmlNodeToPlainText).join('');
+}
+
+function normalizeOfficeParagraph(text: string): string {
+  return text
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map((line) => line.replace(/[ \t]+/g, ' ').trim())
+    .join('\n')
+    .trim();
+}
+
 function xmlParagraphsToText(xml: string, paragraphTags: string[]): string {
   if (typeof DOMParser === 'undefined') throw new Error('El navegador no puede procesar este documento.');
   const doc = new DOMParser().parseFromString(xml, 'application/xml');
@@ -243,7 +240,7 @@ function xmlParagraphsToText(xml: string, paragraphTags: string[]): string {
   const accepted = new Set(paragraphTags);
   const paragraphs = Array.from(doc.getElementsByTagName('*'))
     .filter((element) => accepted.has(element.tagName))
-    .map((element) => (element.textContent ?? '').replace(/\s+/g, ' ').trim());
+    .map((element) => normalizeOfficeParagraph(xmlNodeToPlainText(element)));
 
   return paragraphs.join('\n');
 }
@@ -321,9 +318,8 @@ export async function readLyricsFile(file: File): Promise<LyricsTextImport> {
 }
 
 /**
- * Parse plain text lyrics into LyricLine[]. Cleaning is intentionally done
- * here too, so every import path (top bar, lyrics editor or pasted text) gets
- * the same automatic removal of section labels and chord notation.
+ * Parse plain text lyrics into LyricLine[]. The same conservative cleanup is
+ * applied to every import path: preserve lyric text, strip only () and [] notes.
  */
 export function parseTxtLyrics(text: string, duration: number): LyricLine[] {
   const cleanedText = cleanLyricsText(text).text;
