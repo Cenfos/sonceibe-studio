@@ -52,7 +52,7 @@ export function StudioLayout() {
 
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
-        setExportOpen(true);
+        window.dispatchEvent(new Event('sonceibe:save-project'));
         return;
       }
 
