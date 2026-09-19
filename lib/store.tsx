@@ -1,6 +1,7 @@
 'use client';
 
-import React, { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useReducer, useCallback, useEffect, useMemo } from 'react';
+import { hasProjectContent } from './project-content';
 import type {
   Project,
   ProjectSettings,
@@ -15,6 +16,7 @@ import type {
 import { createDefaultProjectSettings } from './types';
 
 interface State {
+  draftProjectId: string | null;
   projects: Project[];
   currentProjectId: string | null;
   currentPage: 'home' | 'studio';
@@ -59,6 +61,7 @@ const LEGACY_STORAGE_KEY = 'sonceibe-projects-v1';
 const MAX_UNDO = 50;
 
 const initialState: State = {
+  draftProjectId: null,
   projects: [],
   currentProjectId: null,
   currentPage: 'home',
@@ -86,6 +89,8 @@ function applyToSettings(state: State, fn: (s: ProjectSettings) => ProjectSettin
   const undoStack = [...state.undoStack, { ...current.settings }].slice(-MAX_UNDO);
   return {
     ...state,
+    draftProjectId: state.draftProjectId === current.id && hasProjectContent(newSettings)
+      ? null : state.draftProjectId,
     undoStack,
     redoStack: [],
     isDirty: true,
@@ -104,7 +109,12 @@ function reducer(state: State, action: Action): State {
       return { ...state, currentProjectId: action.id, currentPage: 'studio', isDirty: false, undoStack: [], redoStack: [] };
 
     case 'CLOSE_PROJECT':
-      return { ...state, currentProjectId: null, currentPage: 'home', undoStack: [], redoStack: [], isDirty: false };
+      return {
+        ...state,
+        projects: state.projects.filter((p) => p.id !== state.draftProjectId || hasProjectContent(p.settings)),
+        draftProjectId: null,
+        currentProjectId: null, currentPage: 'home', undoStack: [], redoStack: [], isDirty: false,
+      };
 
     case 'CREATE_PROJECT': {
       const newProject: Project = {
@@ -114,6 +124,7 @@ function reducer(state: State, action: Action): State {
       return {
         ...state,
         projects: [newProject, ...state.projects],
+        draftProjectId: newProject.id,
         currentProjectId: newProject.id,
         currentPage: 'studio',
         isDirty: false,
@@ -391,14 +402,18 @@ export function StoreProvider({ children, storageKey, migrateLegacy = false }: S
     return init;
   });
 
+  const savedProjects = useMemo(() => state.projects.filter(
+    (project) => project.id !== state.draftProjectId || hasProjectContent(project.settings)
+  ), [state.projects, state.draftProjectId]);
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
-      localStorage.setItem(storageKey, JSON.stringify(state.projects));
+      localStorage.setItem(storageKey, JSON.stringify(savedProjects));
     } catch {
       // El guardado explícito sigue disponible si el navegador agota la cuota local.
     }
-  }, [state.projects, storageKey]);
+  }, [savedProjects, storageKey]);
 
   const currentProject =
     state.projects.find((p) => p.id === state.currentProjectId) ?? null;
@@ -500,6 +515,7 @@ export function StoreProvider({ children, storageKey, migrateLegacy = false }: S
 
   const value: StoreContextValue = {
     ...state,
+    projects: savedProjects,
     currentProject,
     dispatch,
     updateSettings,

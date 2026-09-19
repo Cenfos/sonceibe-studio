@@ -1,6 +1,8 @@
 'use client';
 
-import { Music, Plus, Clock, MoreVertical, Trash2, Film, Sparkles, LogOut, HardDrive, FolderOpen } from 'lucide-react';
+import { ExternalLink, Plus, Clock, MoreVertical, Trash2, Film, Sparkles, LogOut, HardDrive, FolderOpen } from 'lucide-react';
+import Image from 'next/image';
+import { SONCEIBE_LOGO_DATA_URL } from '@/lib/sonceibe-logo-data';
 import { useStore } from '@/lib/store';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -97,10 +99,10 @@ export function HomePage() {
           <LogOut className="h-4 w-4" />
           Salir
         </Button>
-        <div className="relative px-8 py-12 md:px-16 md:py-20">
+        <div className="relative px-8 pt-20 pb-12 md:px-16 md:py-20">
           <div className="flex items-center gap-3 mb-4">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/20 ring-1 ring-primary/30">
-              <Music className="h-6 w-6 text-primary" />
+              <Image src={SONCEIBE_LOGO_DATA_URL} alt="Son Ceibe" width={48} height={48} unoptimized className="rounded-xl object-contain" />
             </div>
             <div>
               <h1 className="text-3xl font-bold tracking-tight">SonCeibe Studio</h1>
@@ -115,6 +117,9 @@ export function HomePage() {
             Tus proyectos se guardan localmente en este navegador y no se suben a la nube.
           </p>
           <div className="flex flex-wrap gap-3">
+            <Button size="lg" variant="outline" className="gap-2" asChild>
+              <a href="https://www.sonceibe.es"><ExternalLink className="h-5 w-5" /> Volver a SonCeibe.es</a>
+            </Button>
             <Button size="lg" onClick={handleCreateProject} className="gap-2">
               <Plus className="h-5 w-5" />
               Nuevo Proyecto
