@@ -19,6 +19,7 @@ import {
   VolumeX,
   Monitor,
   Smartphone,
+  ShieldCheck,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
@@ -30,6 +31,7 @@ export function PreviewPanel() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(1);
+  const [showSafeZone, setShowSafeZone] = useState(false);
 
   const duration = audio.duration || currentProject?.settings.audioDuration || 0;
   const settings = currentProject?.settings;
@@ -180,6 +182,17 @@ export function PreviewPanel() {
             <Smartphone className="h-3.5 w-3.5" />
             Móvil
           </Button>
+          <Button
+            variant={showSafeZone ? 'secondary' : 'ghost'}
+            size="sm"
+            className="h-7 gap-1 px-2 text-xs"
+            onClick={() => setShowSafeZone((visible) => !visible)}
+            title="Mostrar zonas seguras para título, letra y redes sociales"
+            aria-pressed={showSafeZone}
+          >
+            <ShieldCheck className="h-3.5 w-3.5" />
+            Zona segura
+          </Button>
           <div className="studio-preview-zoom flex items-center gap-1">
             <Separator orientation="vertical" className="h-5 mx-1" />
             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom((z) => Math.max(0.25, z - 0.25))}>
@@ -215,6 +228,29 @@ export function PreviewPanel() {
             height={canvasHeight}
             className="w-full h-full block"
           />
+          {showSafeZone ? (
+            <div className="pointer-events-none absolute inset-0 z-20 text-[9px] font-medium text-white/90">
+              <div className="absolute inset-[5%] rounded border border-dashed border-cyan-300/80">
+                <span className="absolute left-1 top-1 rounded bg-black/60 px-1">Área visible segura</span>
+              </div>
+              <div className="absolute left-[10%] right-[10%] top-[8%] h-[20%] rounded border border-dashed border-amber-300/90">
+                <span className="absolute left-1 top-1 rounded bg-black/60 px-1">Título</span>
+              </div>
+              <div className="absolute bottom-[20%] left-[10%] right-[10%] h-[36%] rounded border border-dashed border-emerald-300/90">
+                <span className="absolute bottom-1 left-1 rounded bg-black/60 px-1">Letra</span>
+              </div>
+              {isPortrait ? (
+                <>
+                  <div className="absolute bottom-0 left-0 right-0 h-[17%] bg-fuchsia-500/10 border-t border-dashed border-fuchsia-300/70">
+                    <span className="absolute left-1 top-1 rounded bg-black/60 px-1">Controles inferiores de Reels</span>
+                  </div>
+                  <div className="absolute bottom-[17%] right-0 top-[18%] w-[13%] bg-fuchsia-500/10 border-l border-dashed border-fuchsia-300/70">
+                    <span className="absolute bottom-1 right-1 rounded bg-black/60 px-1 [writing-mode:vertical-rl]">Iconos</span>
+                  </div>
+                </>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       </div>
 
