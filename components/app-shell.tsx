@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStore } from '@/lib/store';
 import { HomePage } from '@/components/home/home-page';
 import { WorkspaceControl } from '@/components/home/workspace-control';
@@ -33,9 +33,30 @@ function usePhoneStudio(): boolean | null {
 }
 
 export function AppShell() {
-  const { currentPage, currentProject, updateSettings } = useStore();
+  const { currentPage, currentProject, closeProject, updateSettings } = useStore();
   const isPhone = usePhoneStudio();
   const onHome = currentPage === 'home' || !currentProject;
+  const previousProjectId = useRef<string | null>(null);
+
+  useEffect(() => {
+    const projectId = currentProject?.id ?? null;
+    if (projectId && previousProjectId.current !== projectId) {
+      window.history.pushState(
+        { ...window.history.state, sonCeibeView: 'project', projectId },
+        '',
+        window.location.href
+      );
+    }
+    previousProjectId.current = projectId;
+  }, [currentProject?.id]);
+
+  useEffect(() => {
+    const handleBack = () => {
+      if (currentProject) closeProject();
+    };
+    window.addEventListener('popstate', handleBack);
+    return () => window.removeEventListener('popstate', handleBack);
+  }, [currentProject, closeProject]);
 
   useEffect(() => {
     if (!currentProject) return;
