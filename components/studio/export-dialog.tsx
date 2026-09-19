@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useStore } from '@/lib/store';
 import { useAudioEngineContext } from '@/lib/audio-engine-context';
 import { exportToTxt, exportToLrc, downloadTextFile } from '@/lib/lyrics-utils';
@@ -27,8 +27,6 @@ import {
   Instagram,
   Loader2,
   MessageCircle,
-  Monitor,
-  Smartphone,
 } from 'lucide-react';
 import type { ExportFps, ExportResolution, VideoOrientation } from '@/lib/types';
 
@@ -184,6 +182,22 @@ export function ExportDialog() {
   const [done, setDone] = useState(false);
   const [doneText, setDoneText] = useState('');
 
+  // Every time Export is opened, start from the safe mobile profile.
+  // Previewing the project as PC/TV must never silently turn the final MP4
+  // into a horizontal video. Landscape remains available only by explicitly
+  // choosing the PC / TV preset inside this dialog.
+  useEffect(() => {
+    if (!isExportOpen || !currentProject) return;
+    setPresetId('instagram');
+    setVideoBitrate(4_000_000);
+    setAudioBitrate(128_000);
+    updateExport({
+      resolution: '1080p',
+      orientation: 'portrait',
+      fps: 30,
+    });
+  }, [isExportOpen, currentProject?.id, updateExport]);
+
   if (!currentProject) return null;
 
   const cfg = currentProject.settings.exportConfig;
@@ -204,16 +218,6 @@ export function ExportDialog() {
       orientation: preset.orientation,
       fps: preset.fps,
     });
-  };
-
-  const setOrientation = (next: VideoOrientation) => {
-    setPresetId('custom');
-    if (next === 'portrait') {
-      updateExport({ orientation: 'portrait', resolution: '1080p', fps: 30 });
-      setVideoBitrate((value) => Math.max(value, 4_000_000));
-    } else {
-      updateExport({ orientation: 'landscape' });
-    }
   };
 
   const exportText = (kind: 'txt' | 'lrc') => {
@@ -447,7 +451,7 @@ export function ExportDialog() {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2"><Download className="h-5 w-5" /> Guardar / Exportar</DialogTitle>
           <DialogDescription>
-            Para teléfono elige Móvil 9:16, WhatsApp móvil o Instagram / Reels. Studio comprueba la resolución real antes de guardar.
+            Por defecto, Studio crea un MP4 móvil 1080×1920 a pantalla completa. El formato horizontal solo se usa al elegir expresamente PC / TV.
           </DialogDescription>
         </DialogHeader>
 
@@ -504,27 +508,6 @@ export function ExportDialog() {
                       );
                     })}
                   </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Pantalla</Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button onClick={() => setOrientation('landscape')} className={cn('rounded-lg border p-3 text-left', orientation === 'landscape' ? 'border-primary bg-primary/10 text-primary' : 'border-border')}>
-                      <Monitor className="mb-1 h-5 w-5" />
-                      <div className="text-sm font-medium">PC / TV</div>
-                      <div className="text-[10px] text-muted-foreground">Horizontal 16:9</div>
-                    </button>
-                    <button onClick={() => setOrientation('portrait')} className={cn('rounded-lg border p-3 text-left', orientation === 'portrait' ? 'border-primary bg-primary/10 text-primary' : 'border-border')}>
-                      <Smartphone className="mb-1 h-5 w-5" />
-                      <div className="text-sm font-medium">Móvil 9:16</div>
-                      <div className="text-[10px] text-muted-foreground">1080×1920 pantalla completa</div>
-                    </button>
-                  </div>
-                  {orientation === 'portrait' && (
-                    <div className="rounded-md border border-primary/30 bg-primary/5 p-2 text-[11px] text-primary">
-                      Las fotos rellenarán todo el fotograma vertical. Studio recortará los laterales cuando haga falta, sin bandas negras.
-                    </div>
-                  )}
                 </div>
 
                 <div className="space-y-2">
