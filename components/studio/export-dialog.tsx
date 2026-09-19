@@ -449,7 +449,7 @@ export function ExportDialog() {
     <Dialog open={isExportOpen} onOpenChange={(open) => open ? setExportOpen(true) : closeDialog()}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2"><Download className="h-5 w-5" /> Guardar / Exportar</DialogTitle>
+          <DialogTitle className="flex items-center gap-2"><Download className="h-5 w-5" /> Exportar contenido</DialogTitle>
           <DialogDescription>
             Por defecto, Studio crea un MP4 móvil 1080×1920 a pantalla completa. El formato horizontal solo se usa al elegir expresamente PC / TV.
           </DialogDescription>
