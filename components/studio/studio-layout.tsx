@@ -187,7 +187,7 @@ export function StudioLayout() {
         <div className="flex flex-1 min-h-0">
           <SidebarRail onTabSelected={handleTabSelected} />
           <div className="flex flex-1 min-w-0">
-            <div className="flex-1 min-w-0 flex flex-col">
+            <div className="flex-1 min-w-0 min-h-0 flex flex-col">
               {activeTab === 'lyrics' ? (
                 <LyricsEditor />
               ) : (
