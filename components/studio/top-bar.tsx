@@ -1,8 +1,6 @@
 'use client';
 
 import {
-  Music,
-  Home,
   Settings,
   Download,
   Undo2,
@@ -14,6 +12,7 @@ import {
   HardDrive,
   MoreVertical,
   Save,
+  ExternalLink,
 } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { useAudioEngineContext } from '@/lib/audio-engine-context';
@@ -73,6 +72,14 @@ export function TopBar() {
 
   const handleExport = () => {
     setExportOpen(true);
+  };
+
+  const handleGoHome = () => {
+    if (window.history.state?.sonCeibeView === 'project') {
+      window.history.back();
+      return;
+    }
+    closeProject();
   };
 
   const handleSaveProject = useCallback(async () => {
@@ -190,12 +197,31 @@ export function TopBar() {
   return (
     <>
       <header className="studio-topbar h-14 shrink-0 flex items-center justify-between px-4 border-b border-border bg-card/50 backdrop-blur-sm">
-        <div className="flex items-center gap-4 min-w-0">
-          <div className="flex items-center gap-2 shrink-0" title="SonCeibe Studio">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/20 ring-1 ring-primary/30">
-              <Music className="h-4 w-4 text-primary" />
-            </div>
-          </div>
+        <div className="flex items-center gap-2 min-w-0">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-9 gap-2 px-2 shrink-0"
+            onClick={handleGoHome}
+            aria-label="Volver al inicio de SonCeibe Studio"
+            title="Inicio de SonCeibe Studio"
+          >
+            <span className="flex h-7 w-7 overflow-hidden items-center justify-center rounded-lg bg-primary/20 ring-1 ring-primary/40">
+              <img
+                src="https://www.sonceibe.es/son-ceibe-logo.png"
+                alt=""
+                className="h-full w-full object-cover"
+              />
+            </span>
+            <span className="hidden 2xl:inline">Inicio Studio</span>
+          </Button>
+
+          <Button variant="ghost" size="sm" className="h-9 gap-1.5 px-2 shrink-0" asChild>
+            <a href="https://www.sonceibe.es" aria-label="Volver a la web Son Ceibe">
+              <ExternalLink className="h-4 w-4" />
+              <span className="hidden xl:inline">SonCeibe.es</span>
+            </a>
+          </Button>
 
           <Separator orientation="vertical" className="studio-mobile-hide h-6" />
 
@@ -323,10 +349,6 @@ export function TopBar() {
                 <Save className="h-4 w-4" />
                 Guardar proyecto .scs
                 <DropdownMenuShortcut>Ctrl+S</DropdownMenuShortcut>
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={closeProject} className="gap-2">
-                <Home className="h-4 w-4" />
-                Proyectos e inicio
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setSettingsOpen(true)} className="gap-2">
                 <Settings className="h-4 w-4" />
