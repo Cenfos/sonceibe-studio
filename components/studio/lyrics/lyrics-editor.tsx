@@ -316,12 +316,12 @@ export function LyricsEditor() {
   if (!currentProject) return null;
 
   return (
-    <div className="flex h-full bg-background">
-      <div className="w-64 shrink-0 border-r border-border bg-card/30 flex flex-col">
+    <div className="flex h-full min-h-0 bg-background">
+      <div className="w-64 shrink-0 min-h-0 overflow-y-auto scrollbar-thin border-r border-border bg-card/30 flex flex-col">
         <div className="h-10 flex items-center px-4 border-b border-border">
           <span className="text-sm font-medium">Importar Letra</span>
         </div>
-        <div className="p-3 space-y-2">
+        <div className="p-3 space-y-2 border-b border-border bg-card/60">
           <input ref={fileRef} type="file" accept=".txt,.lrc" className="hidden" onChange={handleFileUpload} />
           <Button variant="outline" size="sm" className="w-full justify-start gap-2" onClick={() => fileRef.current?.click()}>
             <Upload className="h-4 w-4" /> Subir archivo TXT/LRC
