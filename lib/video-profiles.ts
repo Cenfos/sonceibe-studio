@@ -24,8 +24,8 @@ export const VIDEO_PROFILES: Record<VideoTarget, VideoProfile> = {
     height: 1920,
     orientation: 'portrait',
     fps: 30,
-    videoBitrate: 3_500_000,
-    audioBitrate: 128_000,
+    videoBitrate: 1_300_000,
+    audioBitrate: 96_000,
     filenameSuffix: '-movil-9x16',
   },
   pc: {
