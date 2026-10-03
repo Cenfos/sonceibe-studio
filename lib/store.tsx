@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useReducer, useCallback, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useReducer, useCallback, useEffect, useMemo, useState } from 'react';
 import { hasProjectContent } from './project-content';
 import type {
   Project,
@@ -334,8 +334,12 @@ function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+export type AutoSaveStatus = 'idle' | 'saving' | 'saved' | 'error';
+
 interface StoreContextValue extends State {
   currentProject: Project | null;
+  autoSaveStatus: AutoSaveStatus;
+  lastAutoSavedAt: number | null;
   dispatch: React.Dispatch<Action>;
   updateSettings: (s: Partial<ProjectSettings>) => void;
   updateBackground: (b: Partial<BackgroundConfig>) => void;
@@ -375,6 +379,8 @@ interface StoreProviderProps {
 }
 
 export function StoreProvider({ children, storageKey, migrateLegacy = false }: StoreProviderProps) {
+  const [autoSaveStatus, setAutoSaveStatus] = useState<AutoSaveStatus>('idle');
+  const [lastAutoSavedAt, setLastAutoSavedAt] = useState<number | null>(null);
   const [state, dispatch] = useReducer(reducer, initialState, (init) => {
     if (typeof window === 'undefined') return init;
 
@@ -408,9 +414,13 @@ export function StoreProvider({ children, storageKey, migrateLegacy = false }: S
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    setAutoSaveStatus('saving');
     try {
       localStorage.setItem(storageKey, JSON.stringify(savedProjects));
+      setLastAutoSavedAt(Date.now());
+      setAutoSaveStatus('saved');
     } catch {
+      setAutoSaveStatus('error');
       // El guardado explícito sigue disponible si el navegador agota la cuota local.
     }
   }, [savedProjects, storageKey]);
@@ -517,6 +527,8 @@ export function StoreProvider({ children, storageKey, migrateLegacy = false }: S
     ...state,
     projects: savedProjects,
     currentProject,
+    autoSaveStatus,
+    lastAutoSavedAt,
     dispatch,
     updateSettings,
     updateBackground,
