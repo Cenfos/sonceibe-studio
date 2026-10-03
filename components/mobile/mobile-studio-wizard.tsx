@@ -109,7 +109,7 @@ export function MobileStudioWizard() {
     if (!currentProject) return;
     updateExport({
       orientation: 'portrait',
-      resolution: '720p',
+      resolution: '1080p',
       fps: 30,
       includeAudio: true,
     });
@@ -269,7 +269,7 @@ export function MobileStudioWizard() {
     if (!hasPhotos && (!settings.visualStyle || settings.visualStyle === 'default')) {
       applyVisualPreset('sonceibe');
     }
-    updateExport({ orientation: 'portrait', resolution: '720p', fps: 30, includeAudio: true });
+    updateExport({ orientation: 'portrait', resolution: '1080p', fps: 30, includeAudio: true });
     updateBackground({ imageFit: 'cover' });
     setMobileExportOpen(true);
   };
