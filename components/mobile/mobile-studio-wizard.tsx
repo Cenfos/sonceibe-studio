@@ -12,6 +12,10 @@ import {
   Music,
   Palette,
   Upload,
+  Eye,
+  CheckCircle2,
+  AlertTriangle,
+  XCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -33,6 +37,7 @@ import { MobileExportDialog } from '@/components/mobile/mobile-export-dialog';
 import { SONCEIBE_LOGO_URL, getVisualPreset, visualPresets } from '@/lib/visual-presets';
 import type { VisualStyleId } from '@/lib/types';
 import { toast } from 'sonner';
+import { getExportPreflight, hasBlockingExportIssue } from '@/lib/export-preflight';
 
 const steps = [
   { id: 'music', label: 'Música', icon: Music },
@@ -86,6 +91,8 @@ export function MobileStudioWizard() {
     updateExport,
     setLyrics,
     closeProject,
+    autoSaveStatus,
+    lastAutoSavedAt,
   } = useStore();
   const audio = useAudioEngineContext();
   const userId = useStudioUserId();
@@ -104,6 +111,11 @@ export function MobileStudioWizard() {
   const effectiveStyle: VisualStyleId = settings?.visualStyle && settings.visualStyle !== 'default'
     ? settings.visualStyle
     : 'sonceibe';
+  const mobilePreflight = useMemo(
+    () => settings ? getExportPreflight(settings, audio.duration || settings.audioDuration || 0, 'mobile') : [],
+    [settings, audio.duration]
+  );
+  const hasBlockingIssue = hasBlockingExportIssue(mobilePreflight);
 
   useEffect(() => {
     if (!currentProject) return;
@@ -289,8 +301,33 @@ export function MobileStudioWizard() {
             <div className="min-w-0 text-center">
               <div className="truncate text-sm font-semibold">{title}</div>
               <div className="text-[11px] text-muted-foreground">Paso {step + 1} de {steps.length} · {steps[step].label}</div>
+              <div className="text-[10px] text-muted-foreground">
+                {autoSaveStatus === 'saving'
+                  ? 'Guardando…'
+                  : autoSaveStatus === 'error'
+                    ? 'Error al guardar'
+                    : `✓ Guardado automático${lastAutoSavedAt ? ` · ${new Date(lastAutoSavedAt).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}` : ''}`}
+              </div>
             </div>
             <div className="w-10" />
+          </div>
+          <div className="grid grid-cols-4 border-t border-border/60">
+            {steps.map((item, index) => {
+              const Icon = item.icon;
+              const active = index === step;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setStep(index)}
+                  className={`flex min-w-0 flex-col items-center gap-1 px-1 py-2 text-[10px] transition-colors ${active ? 'bg-primary/10 text-primary' : 'text-muted-foreground'}`}
+                  aria-current={active ? 'step' : undefined}
+                >
+                  <Icon className="h-4 w-4" />
+                  <span className="truncate">{item.label}</span>
+                </button>
+              );
+            })}
           </div>
           <div className="h-1 bg-secondary">
             <div className="h-full bg-primary transition-all" style={{ width: `${progress}%` }} />
@@ -446,7 +483,7 @@ export function MobileStudioWizard() {
             <Card className="p-5 space-y-4">
               <div>
                 <h2 className="font-medium">Listo para crear el vídeo</h2>
-                <p className="mt-1 text-sm text-muted-foreground">El MP4 se generará en vertical 720×1280 (9:16), a pantalla completa y optimizado para compartir.</p>
+                <p className="mt-1 text-sm text-muted-foreground">El MP4 se generará en vertical 1080×1920 (9:16), a pantalla completa y optimizado para compartir.</p>
               </div>
               <div className="space-y-2 rounded-lg bg-secondary/40 p-3 text-sm">
                 <div className="flex justify-between gap-3"><span className="text-muted-foreground">Música</span><span className="truncate">{settings.audioName || 'No añadida'}</span></div>
@@ -455,13 +492,41 @@ export function MobileStudioWizard() {
                 {!hasPhotos && (
                   <div className="flex justify-between gap-3"><span className="text-muted-foreground">Estilo</span><span>{selectedPreset?.label || 'SonCeibe'}</span></div>
                 )}
-                <div className="flex justify-between gap-3"><span className="text-muted-foreground">Formato</span><span>720×1280 · 30 FPS</span></div>
+                <div className="flex justify-between gap-3"><span className="text-muted-foreground">Formato</span><span>1080×1920 · 9:16 · 30 FPS</span></div>
               </div>
-              <Button className="w-full h-12 gap-2" onClick={prepareVideo} disabled={!hasAudio}>
+              <div className="rounded-lg border border-border p-3">
+                <div className="mb-2 text-sm font-medium">Comprobación antes de exportar</div>
+                <div className="space-y-2">
+                  {mobilePreflight.map((check) => (
+                    <div key={check.id} className="flex items-start gap-2 text-xs">
+                      {check.level === 'ok' ? (
+                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-green-500" />
+                      ) : check.level === 'warning' ? (
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+                      ) : (
+                        <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                      )}
+                      <div className="min-w-0">
+                        <span className="font-medium">{check.label}: </span>
+                        <span className="text-muted-foreground">{check.detail}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                className="w-full h-11 gap-2"
+                onClick={() => window.dispatchEvent(new Event('sonceibe:open-mobile-preview'))}
+              >
+                <Eye className="h-4 w-4" />
+                Vista previa y zona segura
+              </Button>
+              <Button className="w-full h-12 gap-2" onClick={prepareVideo} disabled={hasBlockingIssue}>
                 <Film className="h-5 w-5" />
                 Crear MP4 para móvil
               </Button>
-              {!hasAudio && <p className="text-xs text-destructive">Para crear el vídeo necesitas añadir una canción.</p>}
+              {hasBlockingIssue && <p className="text-xs text-destructive">Corrige los avisos en rojo antes de crear el vídeo.</p>}
             </Card>
           )}
 
