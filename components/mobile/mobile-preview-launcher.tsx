@@ -8,6 +8,7 @@ import { useAudioEngineContext } from '@/lib/audio-engine-context';
 import { formatTime } from '@/lib/format';
 import { preloadBackgroundImage, renderFrame } from '@/components/studio/preview/canvas-renderer';
 import { preloadVisualBranding } from '@/lib/visual-branding';
+import { settingsForVideoTarget } from '@/lib/video-profiles';
 
 const WIDTH = 720;
 const HEIGHT = 1280;
@@ -19,22 +20,10 @@ export function MobilePreviewLauncher() {
   const [open, setOpen] = useState(false);
 
   const settings = currentProject?.settings;
-  const mobileSettings = useMemo(() => {
-    if (!settings) return null;
-    return {
-      ...settings,
-      background: {
-        ...settings.background,
-        // Mobile preview must match the final 9:16 export: always fill the
-        // frame and crop the photo edges instead of showing black side bars.
-        imageFit: 'cover' as const,
-      },
-      exportConfig: {
-        ...settings.exportConfig,
-        orientation: 'portrait' as const,
-      },
-    };
-  }, [settings]);
+  const mobileSettings = useMemo(
+    () => settings ? settingsForVideoTarget(settings, 'mobile') : null,
+    [settings]
+  );
 
   const duration = audio.duration || settings?.audioDuration || 0;
   const sources = useMemo(() => {
