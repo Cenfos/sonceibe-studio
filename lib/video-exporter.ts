@@ -9,6 +9,15 @@ import {
 } from './video-profiles';
 import { preloadBackgroundImage, renderFrame } from '@/components/studio/preview/canvas-renderer';
 import { preloadVisualBranding } from './visual-branding';
+import {
+  BlobSource,
+  BufferTarget,
+  Conversion,
+  Input,
+  MP4,
+  Mp4OutputFormat,
+  Output,
+} from 'mediabunny';
 
 export type CapturableAudioElement = HTMLAudioElement & {
   captureStream?: () => MediaStream;
@@ -86,6 +95,43 @@ function readVideoDimensions(blob: Blob): Promise<{ width: number; height: numbe
     };
     video.src = url;
   });
+}
+
+async function makeStandardSeekableMp4(
+  blob: Blob,
+  onProgress?: (progress: number) => void
+): Promise<Blob> {
+  // MediaRecorder writes fragmented MP4 (moof/mdat fragments). That is valid
+  // for streaming but Windows Media Player and some social apps handle it
+  // poorly: seeking can stay at 0 and uploads may be interpreted strangely.
+  // Remux the exact H.264/AAC packets into a conventional indexed MP4. This
+  // does not re-encode the picture or audio, so there is no quality loss.
+  const input = new Input({
+    formats: [MP4],
+    source: new BlobSource(blob),
+  });
+  const target = new BufferTarget();
+  const output = new Output({
+    format: new Mp4OutputFormat({ fastStart: 'in-memory' }),
+    target,
+  });
+
+  const conversion = await Conversion.init({ input, output });
+  if (!conversion.isValid) {
+    throw new Error('No se pudo finalizar el MP4 en un formato compatible');
+  }
+
+  conversion.onProgress = (progress) => {
+    onProgress?.(95 + Math.round(progress * 5));
+  };
+
+  await conversion.execute();
+  const buffer = target.buffer;
+  if (!buffer || buffer.byteLength === 0) {
+    throw new Error('La finalización del MP4 produjo un archivo vacío');
+  }
+
+  return new Blob([buffer], { type: 'video/mp4' });
 }
 
 async function preloadProjectVisuals(settings: ProjectSettings): Promise<void> {
@@ -249,7 +295,7 @@ export async function createProjectMp4(options: Mp4ExportOptions): Promise<Mp4Ex
         videoTrack.requestFrame?.();
       }
 
-      const progress = Math.min(99, Math.round((time / duration) * 100));
+      const progress = Math.min(94, Math.round((time / duration) * 94));
       if (progress !== lastProgress) {
         lastProgress = progress;
         onProgress?.(progress);
@@ -263,7 +309,7 @@ export async function createProjectMp4(options: Mp4ExportOptions): Promise<Mp4Ex
       }
       drawFrame(duration);
       videoTrack?.requestFrame?.();
-      onProgress?.(100);
+      onProgress?.(95);
       if (activeRecorder.state !== 'inactive') activeRecorder.stop();
     };
 
@@ -273,9 +319,10 @@ export async function createProjectMp4(options: Mp4ExportOptions): Promise<Mp4Ex
     renderTick();
     await audioEl.play();
 
-    const blob = await finished;
-    if (!blob.size) throw new Error('El MP4 generado está vacío');
+    const recordedBlob = await finished;
+    if (!recordedBlob.size) throw new Error('El MP4 generado está vacío');
 
+    const blob = await makeStandardSeekableMp4(recordedBlob, onProgress);
     const dimensions = await readVideoDimensions(blob);
     if (!matchesVideoProfile(dimensions.width, dimensions.height, target)) {
       throw new Error(
@@ -287,11 +334,12 @@ export async function createProjectMp4(options: Mp4ExportOptions): Promise<Mp4Ex
       throw new Error('Se produjeron demasiados fallos de imagen durante el renderizado. No se ha guardado el vídeo.');
     }
 
+    onProgress?.(100);
     return {
       blob,
       width: dimensions.width,
       height: dimensions.height,
-      mimeType,
+      mimeType: 'video/mp4',
     };
   } finally {
     if (timer) clearInterval(timer);
