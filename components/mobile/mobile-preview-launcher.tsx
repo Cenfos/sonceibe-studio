@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Eye, Pause, Play, RotateCcw, X } from 'lucide-react';
+import { Eye, Pause, Play, RotateCcw, ShieldCheck, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useStore } from '@/lib/store';
 import { useAudioEngineContext } from '@/lib/audio-engine-context';
@@ -18,6 +18,13 @@ export function MobilePreviewLauncher() {
   const audio = useAudioEngineContext();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [open, setOpen] = useState(false);
+  const [showSafeZone, setShowSafeZone] = useState(false);
+
+  useEffect(() => {
+    const openPreview = () => setOpen(true);
+    window.addEventListener('sonceibe:open-mobile-preview', openPreview);
+    return () => window.removeEventListener('sonceibe:open-mobile-preview', openPreview);
+  }, []);
 
   const settings = currentProject?.settings;
   const mobileSettings = useMemo(
@@ -113,14 +120,45 @@ export function MobilePreviewLauncher() {
               <div className="truncate text-sm font-semibold">Vista previa</div>
               <div className="truncate text-[11px] text-white/60">{settings.title}</div>
             </div>
-            <Button variant="ghost" size="icon" onClick={closePreview} className="text-white hover:bg-white/10 hover:text-white">
-              <X className="h-5 w-5" />
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button
+                variant={showSafeZone ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => setShowSafeZone((value) => !value)}
+                className="gap-1.5 text-white hover:bg-white/10 hover:text-white"
+                aria-pressed={showSafeZone}
+              >
+                <ShieldCheck className="h-4 w-4" />
+                Zona segura
+              </Button>
+              <Button variant="ghost" size="icon" onClick={closePreview} className="text-white hover:bg-white/10 hover:text-white">
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
           </header>
 
           <div className="flex min-h-0 flex-1 items-center justify-center px-4 pb-3">
-            <div className="h-full max-h-[72dvh] overflow-hidden rounded-xl bg-black shadow-2xl" style={{ aspectRatio: '9 / 16' }}>
+            <div className="relative h-full max-h-[72dvh] overflow-hidden rounded-xl bg-black shadow-2xl" style={{ aspectRatio: '9 / 16' }}>
               <canvas ref={canvasRef} width={WIDTH} height={HEIGHT} className="h-full w-full" />
+              {showSafeZone && (
+                <div className="pointer-events-none absolute inset-0 z-20 text-[8px] font-medium text-white/90">
+                  <div className="absolute inset-[5%] rounded border border-dashed border-cyan-300/80">
+                    <span className="absolute left-1 top-1 rounded bg-black/65 px-1">Área visible segura</span>
+                  </div>
+                  <div className="absolute left-[10%] right-[10%] top-[8%] h-[20%] rounded border border-dashed border-amber-300/90">
+                    <span className="absolute left-1 top-1 rounded bg-black/65 px-1">Título</span>
+                  </div>
+                  <div className="absolute bottom-[20%] left-[10%] right-[10%] h-[36%] rounded border border-dashed border-emerald-300/90">
+                    <span className="absolute bottom-1 left-1 rounded bg-black/65 px-1">Letra</span>
+                  </div>
+                  <div className="absolute bottom-0 left-0 right-0 h-[17%] border-t border-dashed border-fuchsia-300/70 bg-fuchsia-500/10">
+                    <span className="absolute left-1 top-1 rounded bg-black/65 px-1">Controles de Reels</span>
+                  </div>
+                  <div className="absolute bottom-[17%] right-0 top-[18%] w-[13%] border-l border-dashed border-fuchsia-300/70 bg-fuchsia-500/10">
+                    <span className="absolute bottom-1 right-1 rounded bg-black/65 px-1 [writing-mode:vertical-rl]">Iconos</span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
