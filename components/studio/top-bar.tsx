@@ -13,6 +13,9 @@ import {
   MoreVertical,
   Save,
   ExternalLink,
+  CheckCircle2,
+  Loader2,
+  AlertCircle,
 } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { useAudioEngineContext } from '@/lib/audio-engine-context';
@@ -55,6 +58,8 @@ export function TopBar() {
     redo,
     undoStack,
     redoStack,
+    autoSaveStatus,
+    lastAutoSavedAt,
   } = useStore();
   const userId = useStudioUserId();
   const audio = useAudioEngineContext();
@@ -243,6 +248,28 @@ export function TopBar() {
             >
               <HardDrive className="h-3 w-3" />
               Proyecto local
+            </span>
+            <span
+              className="hidden lg:flex items-center gap-1 text-[11px] text-muted-foreground ml-1"
+              title="El proyecto se guarda automáticamente en este navegador"
+            >
+              {autoSaveStatus === 'saving' ? (
+                <>
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Guardando…
+                </>
+              ) : autoSaveStatus === 'error' ? (
+                <>
+                  <AlertCircle className="h-3 w-3 text-destructive" />
+                  Error al guardar
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="h-3 w-3 text-green-500" />
+                  Guardado automático
+                  {lastAutoSavedAt ? ` · ${new Date(lastAutoSavedAt).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}` : ''}
+                </>
+              )}
             </span>
           </div>
         </div>
