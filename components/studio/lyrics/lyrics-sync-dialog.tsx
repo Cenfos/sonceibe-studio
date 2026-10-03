@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Hand, Pause, Play, RotateCcw, Square } from 'lucide-react';
+import { ArrowLeft, Hand, Minus, Pause, Play, Plus, RotateCcw, Square } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { useAudioEngineContext } from '@/lib/audio-engine-context';
 import { formatTime } from '@/lib/format';
@@ -177,6 +177,55 @@ export function LyricsSyncDialog({ open, onOpenChange }: LyricsSyncDialogProps) 
     updateSettings,
   ]);
 
+  const adjustLastMark = useCallback((delta: number) => {
+    if (!currentProject || position <= 0) return;
+
+    const markedLine = syncableLyrics[position - 1];
+    if (!markedLine) return;
+    const lineBefore = position > 1 ? syncableLyrics[position - 2] : null;
+    const minimumStart = lineBefore ? lineBefore.start + 0.05 : 0;
+    const maximumStart = Math.max(minimumStart, markedLine.end - 0.05);
+    const nextStart = Math.min(
+      maximumStart,
+      Math.max(minimumStart, markedLine.start + delta)
+    );
+
+    const nextLyrics = currentProject.settings.lyrics.map((line) => {
+      if (lineBefore && line.id === lineBefore.id) {
+        return {
+          ...line,
+          end: Math.max(line.start + 0.05, nextStart),
+        };
+      }
+      if (line.id === markedLine.id) {
+        return {
+          ...line,
+          start: nextStart,
+          end: Math.max(nextStart + 0.05, line.end),
+        };
+      }
+      return line;
+    });
+
+    updateSettings({ lyrics: nextLyrics });
+  }, [currentProject, position, syncableLyrics, updateSettings]);
+
+  const goBackOneLine = useCallback(() => {
+    if (!currentProject || position <= 0) return;
+    const nextPosition = position - 1;
+    setPosition(nextPosition);
+    setCompleted(false);
+    updateSettings({
+      syncProgress: {
+        ...currentProject.settings.syncProgress,
+        inProgress: true,
+        currentIndex: nextPosition,
+        syncedCount: nextPosition,
+        totalCount: syncableLyrics.length,
+      },
+    });
+  }, [currentProject, position, syncableLyrics.length, updateSettings]);
+
   useEffect(() => {
     if (!open || !running) return;
 
@@ -275,6 +324,52 @@ export function LyricsSyncDialog({ open, onOpenChange }: LyricsSyncDialogProps) 
                 <Hand className="h-5 w-5" />
                 MARCAR ESTA LÍNEA (ESPACIO)
               </Button>
+
+              <div className="rounded-lg border border-border bg-card/30 p-3">
+                <div className="mb-2 text-xs font-medium text-muted-foreground">
+                  Corregir la última línea marcada
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => adjustLastMark(-0.1)}
+                    disabled={position <= 0}
+                    className="gap-1"
+                  >
+                    <Minus className="h-3.5 w-3.5" />
+                    0,1 s
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => adjustLastMark(0.1)}
+                    disabled={position <= 0}
+                    className="gap-1"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    0,1 s
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={goBackOneLine}
+                    disabled={position <= 0}
+                    className="gap-1"
+                  >
+                    <ArrowLeft className="h-3.5 w-3.5" />
+                    Repetir
+                  </Button>
+                </div>
+                {position > 0 && syncableLyrics[position - 1] && (
+                  <div className="mt-2 truncate text-[11px] text-muted-foreground">
+                    Última: {syncableLyrics[position - 1].text}
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
             <div className="rounded-xl border border-border bg-card/30 p-6 space-y-3">
