@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Check, Download, FileText, Film, Loader2, Monitor, Smartphone } from 'lucide-react';
+import { AlertTriangle, Check, CheckCircle2, Download, FileText, Film, Loader2, Monitor, Smartphone, XCircle } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { useAudioEngineContext } from '@/lib/audio-engine-context';
 import { exportToTxt, exportToLrc, downloadTextFile } from '@/lib/lyrics-utils';
@@ -22,6 +22,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { getExportPreflight, hasBlockingExportIssue } from '@/lib/export-preflight';
 
 type ExportType = 'video' | 'txt' | 'lrc';
 
@@ -89,6 +90,11 @@ export function ExportDialog() {
     () => estimateBytes(duration, profile.videoBitrate, profile.audioBitrate, includeAudio),
     [duration, profile.videoBitrate, profile.audioBitrate, includeAudio]
   );
+  const preflight = useMemo(
+    () => getExportPreflight(currentProject.settings, duration, target),
+    [currentProject.settings, duration, target]
+  );
+  const hasBlockingIssue = hasBlockingExportIssue(preflight);
 
   const exportText = (kind: 'txt' | 'lrc') => {
     if (kind === 'txt') {
@@ -287,6 +293,27 @@ export function ExportDialog() {
                     <strong>{estimatedBytes ? `~${formatMb(estimatedBytes)}` : '—'}</strong>
                   </div>
                 </div>
+
+                <div className="rounded-lg border border-border p-3">
+                  <div className="mb-2 text-sm font-medium">Comprobación antes de exportar</div>
+                  <div className="space-y-2">
+                    {preflight.map((check) => (
+                      <div key={check.id} className="flex items-start gap-2 text-xs">
+                        {check.level === 'ok' ? (
+                          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-green-500" />
+                        ) : check.level === 'warning' ? (
+                          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+                        ) : (
+                          <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                        )}
+                        <div className="min-w-0">
+                          <span className="font-medium">{check.label}: </span>
+                          <span className="text-muted-foreground">{check.detail}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </>
             ) : (
               <div className="py-4 text-sm text-muted-foreground">
@@ -300,7 +327,7 @@ export function ExportDialog() {
           <DialogFooter>
             <Button variant="outline" onClick={closeDialog}>Cancelar</Button>
             {exportType === 'video' ? (
-              <Button onClick={exportVideo} className="gap-2">
+              <Button onClick={exportVideo} className="gap-2" disabled={hasBlockingIssue}>
                 <Download className="h-4 w-4" />
                 Crear MP4 {target === 'mobile' ? 'móvil 9:16' : 'PC 16:9'}
               </Button>
