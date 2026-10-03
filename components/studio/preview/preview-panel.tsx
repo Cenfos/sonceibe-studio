@@ -5,6 +5,7 @@ import { useStore } from '@/lib/store';
 import { useAudioEngineContext } from '@/lib/audio-engine-context';
 import { formatTimecode } from '@/lib/format';
 import { sanitizeRenderSettings } from '@/lib/render-safety';
+import { VIDEO_PROFILES, settingsForVideoTarget, videoTargetFromOrientation } from '@/lib/video-profiles';
 import { preloadBackgroundImage, renderFrame } from './canvas-renderer';
 import {
   Play,
@@ -35,26 +36,18 @@ export function PreviewPanel() {
 
   const duration = audio.duration || currentProject?.settings.audioDuration || 0;
   const settings = currentProject?.settings;
-  const safeSettings = useMemo(() => {
-    if (!settings) return null;
-    const sanitized = sanitizeRenderSettings(settings);
-    if ((sanitized.exportConfig.orientation ?? 'landscape') !== 'portrait') return sanitized;
-
-    // The desktop "Móvil" preview must be identical to the actual mobile
-    // export. In 9:16 we always fill the whole frame, cropping image edges
-    // when needed instead of leaving black side bars.
-    return {
-      ...sanitized,
-      background: {
-        ...sanitized.background,
-        imageFit: 'cover' as const,
-      },
-    };
-  }, [settings]);
-  const orientation = safeSettings?.exportConfig.orientation ?? 'landscape';
-  const isPortrait = orientation === 'portrait';
-  const canvasWidth = isPortrait ? 1080 : 1920;
-  const canvasHeight = isPortrait ? 1920 : 1080;
+  const target = videoTargetFromOrientation(settings?.exportConfig.orientation);
+  const profile = VIDEO_PROFILES[target];
+  const safeSettings = useMemo(
+    () => settings
+      ? sanitizeRenderSettings(settingsForVideoTarget(settings, target))
+      : null,
+    [settings, target]
+  );
+  const orientation = profile.orientation;
+  const isPortrait = target === 'mobile';
+  const canvasWidth = profile.width;
+  const canvasHeight = profile.height;
   const aspectRatio = isPortrait ? '9 / 16' : '16 / 9';
 
   const draw = useCallback((time: number) => {
@@ -166,7 +159,7 @@ export function PreviewPanel() {
             variant={orientation === 'landscape' ? 'secondary' : 'ghost'}
             size="sm"
             className="h-7 gap-1 px-2 text-xs"
-            onClick={() => updateExport({ orientation: 'landscape' })}
+            onClick={() => updateExport({ orientation: 'landscape', resolution: '1080p', fps: 30 })}
             title="Formato horizontal 16:9"
           >
             <Monitor className="h-3.5 w-3.5" />
@@ -176,7 +169,7 @@ export function PreviewPanel() {
             variant={orientation === 'portrait' ? 'secondary' : 'ghost'}
             size="sm"
             className="h-7 gap-1 px-2 text-xs"
-            onClick={() => updateExport({ orientation: 'portrait' })}
+            onClick={() => updateExport({ orientation: 'portrait', resolution: '1080p', fps: 30 })}
             title="Formato vertical 9:16"
           >
             <Smartphone className="h-3.5 w-3.5" />
