@@ -614,57 +614,11 @@ export function Timeline() {
               <div className="absolute inset-0" onDragOver={onBackgroundDragOver} onDrop={onBackgroundDrop}>
                 {settings?.background.type === 'images' && imageMode === 'manual' ? (
                   imageClips.length > 0 ? (
-                    imageClips.map((clip, index) => {
-                      const left = clip.start * pxPerSec;
-                      const width = (clip.end - clip.start) * pxPerSec;
-                      const selected = selectedBackgroundId === clip.id;
-                      const active = playheadTime >= clip.start && playheadTime < clip.end;
+                    imageClips.map((clip, index) => <PhotoTimelineClip key={clip.id} labelPrefix="Imagen múltiple" clip={clip} index={index} duration={duration} pxPerSec={pxPerSec} snap={snapEnabled}
+                      onSelect={() => { setSelectedId(null); setSelectedBackgroundId(null); setTab('background'); audio.seek(clip.start); requestAnimationFrame(() => document.getElementById('multiple-image-library')?.scrollIntoView({ block: 'nearest' })); }}
+                      onChange={patch => updateBackground({ imageClips: imageClips.map(item => item.id === clip.id ? { ...item, ...patch } : item) })}
+                      onRemove={() => updateBackground({ imageClips: imageClips.filter(item => item.id !== clip.id) })} />)
 
-                      return (
-                        <ContextMenu key={clip.id}>
-                          <ContextMenuTrigger asChild>
-                            <div
-                              className={cn(
-                                'studio-timeline-clip absolute rounded-md overflow-hidden cursor-grab active:cursor-grabbing group text-xs font-medium touch-none select-none',
-                                selected ? 'ring-2 ring-primary z-10' : 'hover:ring-1 hover:ring-primary/50',
-                                active && 'ring-2 ring-primary/70 z-10'
-                              )}
-                              style={{
-                                left,
-                                width: Math.max(width, 30),
-                                top: 4,
-                                bottom: 4,
-                                backgroundImage: `linear-gradient(rgba(0,0,0,.28), rgba(0,0,0,.55)), url("${clip.url}")`,
-                                backgroundSize: 'cover',
-                                backgroundPosition: 'center',
-                                border: '1px solid hsl(var(--track-bg) / 0.6)',
-                              }}
-                              onPointerDown={(e) => onBackgroundClipPointerDown(clip, e)}
-                            >
-                              <span className="absolute inset-0 flex items-center px-2 text-white drop-shadow truncate pointer-events-none">
-                                Foto {index + 1}
-                              </span>
-                              <span
-                                data-handle="left"
-                                className="studio-timeline-handle absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize bg-white/0 group-hover:bg-white/50 touch-none"
-                              />
-                              <span
-                                data-handle="right"
-                                className="studio-timeline-handle absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize bg-white/0 group-hover:bg-white/50 touch-none"
-                              />
-                            </div>
-                          </ContextMenuTrigger>
-                          <ContextMenuContent>
-                            <ContextMenuItem onClick={() => audio.seek(clip.start)}>Ir al inicio de la imagen</ContextMenuItem>
-                            <ContextMenuItem onClick={() => duplicateBackgroundClip(clip.id)}>Duplicar</ContextMenuItem>
-                            <ContextMenuSeparator />
-                            <ContextMenuItem className="text-destructive" onClick={() => deleteBackgroundClip(clip.id)}>
-                              Quitar de la línea de tiempo
-                            </ContextMenuItem>
-                          </ContextMenuContent>
-                        </ContextMenu>
-                      );
-                    })
                   ) : (
                     <div
                       className="absolute rounded-md flex items-center px-2 text-xs text-muted-foreground pointer-events-none"

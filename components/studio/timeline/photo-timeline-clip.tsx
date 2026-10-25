@@ -4,15 +4,15 @@ import { useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import type { BackgroundImageClip } from '@/lib/types';
 
-interface Props { clip: BackgroundImageClip; index: number; duration: number; pxPerSec: number; snap: boolean; onSelect: () => void; onChange: (patch: Pick<BackgroundImageClip, 'start' | 'end'>) => void; onRemove: () => void }
+interface Props { labelPrefix?: string; clip: BackgroundImageClip; index: number; duration: number; pxPerSec: number; snap: boolean; onSelect: () => void; onChange: (patch: Pick<BackgroundImageClip, 'start' | 'end'>) => void; onRemove: () => void }
 
-export function PhotoTimelineClip({ clip, index, duration, pxPerSec, snap, onSelect, onChange, onRemove }: Props) {
+export function PhotoTimelineClip({ labelPrefix = 'Foto puntual', clip, index, duration, pxPerSec, snap, onSelect, onChange, onRemove }: Props) {
   const [draft, setDraft] = useState<Pick<BackgroundImageClip, 'start' | 'end'> | null>(null);
   const drag = useRef<{ x: number; start: number; end: number; mode: string; latest: Pick<BackgroundImageClip, 'start' | 'end'> } | null>(null);
   const shown = draft ?? clip;
   const limit = duration > 0 ? duration : Math.max(clip.end + 60, 60);
   const clamp = (n: number, min: number, max: number) => Math.max(min, Math.min(max, n));
-  const name = 'Foto puntual ' + (index + 1);
+  const name = labelPrefix + ' ' + (index + 1);
   function move(event: React.PointerEvent<HTMLDivElement>) {
     const state = drag.current;
     if (!state) return;

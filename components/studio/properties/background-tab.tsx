@@ -203,6 +203,14 @@ export function BackgroundTab() {
     e.dataTransfer.setData(IMAGE_DRAG_TYPE, String(index));
   };
 
+  const moveLibraryImage = (index: number, offset: number) => {
+    const destination = index + offset;
+    if (destination < 0 || destination >= bg.images.length) return;
+    const images = [...bg.images];
+    [images[index], images[destination]] = [images[destination], images[index]];
+    updateBackground({ images, imageUrl: images[0] || '' });
+  };
+
   const removeLibraryImage = (index: number) => {
     const url = bg.images[index];
     if (!url) return;
@@ -232,7 +240,7 @@ export function BackgroundTab() {
                 variant={active ? 'default' : 'outline'}
                 size="sm"
                 className={cn('flex-col h-16 gap-1 px-1', !active && 'text-muted-foreground')}
-                onClick={() => updateBackground({ type: bt.v })}
+                onClick={() => updateBackground(bt.v === 'images' ? { type: 'images', imageMode: 'manual', imageClips: imageClips.length ? imageClips : distributeImagesAcrossSong(bg.images, duration) } : { type: bt.v })}
               >
                 <Icon className="h-4 w-4" />
                 <span className="text-[10px]">{bt.label}</span>
@@ -324,8 +332,9 @@ export function BackgroundTab() {
                       onChange={(value) => updateBackground({ imageDuration: value })}
                     />
                     <p className="text-[11px] text-muted-foreground leading-relaxed">
-                      Las imágenes cambian automáticamente siguiendo este intervalo.
+                      Las imágenes cambian siguiendo este intervalo. Usa las flechas de cada miniatura para cambiar su orden.
                     </p>
+                    <Button type="button" size="sm" variant="outline" className="w-full" onClick={() => setImageMode('manual')}>Editar cada imagen en la línea de tiempo</Button>
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -358,7 +367,7 @@ export function BackgroundTab() {
             )}
 
             {bg.type === 'images' && bg.images.length > 0 && (
-              <div className="space-y-2">
+              <div id="multiple-image-library" className="space-y-2">
                 <p className="text-[11px] text-muted-foreground">
                   {bg.images.length} imagen{bg.images.length !== 1 ? 'es' : ''}
                   {imageMode === 'auto'
@@ -378,16 +387,19 @@ export function BackgroundTab() {
                       <img src={url} alt="" className="w-full h-full object-contain pointer-events-none" />
                       <button
                         type="button"
-                        title="Eliminar imagen"
+                        title="Eliminar imagen de la biblioteca y sus bloques"
+                        aria-label={'Eliminar imagen múltiple ' + (index + 1)}
                         onMouseDown={(e) => e.stopPropagation()}
                         onClick={(e) => {
                           e.stopPropagation();
                           removeLibraryImage(index);
                         }}
-                        className="absolute top-1 right-1 h-6 w-6 rounded-md bg-black/70 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive"
+                        className="absolute top-1 right-1 h-6 w-6 rounded-md bg-black/70 text-white flex items-center justify-center opacity-100 transition-opacity hover:bg-destructive"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
+                      <span className="absolute bottom-1 left-1 rounded bg-black/75 px-1.5 py-0.5 text-xs text-white pointer-events-none">Imagen {index + 1}</span>
+                      {imageMode === 'auto' && <div className="absolute bottom-1 right-1 flex gap-1"><button type="button" disabled={index === 0} aria-label={'Adelantar imagen ' + (index + 1)} className="h-7 w-7 rounded bg-black/80 text-white disabled:opacity-30" onClick={() => moveLibraryImage(index, -1)}>←</button><button type="button" disabled={index === bg.images.length - 1} aria-label={'Retrasar imagen ' + (index + 1)} className="h-7 w-7 rounded bg-black/80 text-white disabled:opacity-30" onClick={() => moveLibraryImage(index, 1)}>→</button></div>}
                     </div>
                   ))}
                 </div>
