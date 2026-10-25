@@ -71,10 +71,10 @@ export function TextTab() {
 
         <ControlRow label="Texto del título">
           <Input
-            value={settings.title}
-            onChange={(e) => updateSettings({ title: e.target.value })}
-            placeholder="Título de la canción"
-            className="h-9"
+            value={settings.showTitle === false ? '' : settings.title}
+            onChange={(e) => updateSettings({ title: e.target.value, showTitle: true })}
+            placeholder={settings.showTitle === false ? '(Sin título)' : 'Título de la canción'}
+            className="h-9 placeholder:italic placeholder:text-muted-foreground/60"
           />
         </ControlRow>
 

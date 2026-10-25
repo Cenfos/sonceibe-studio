@@ -116,7 +116,7 @@ export function PropertiesPanel({ mobileOpen = false, onMobileClose }: Propertie
           <X className="h-4 w-4" />
         </Button>
       </div>
-      <ScrollArea className="flex-1">
+      <ScrollArea key={activeTab} className="flex-1 min-h-0">
         <div className="p-4">
           <details className="mb-4 rounded-lg border border-border p-3"><summary className="cursor-pointer text-sm font-medium">Estilos preparados · elegir o cambiar</summary><div className="pt-3"><VisualPresetPicker /></div></details>
           {activeTab === 'text' && <TextTab />}

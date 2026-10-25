@@ -401,7 +401,7 @@ function drawProjectTitle(
 
   const minSide = Math.min(w, h);
   const renderScale = minSide / 1080;
-  const alpha = clamp01(time / 0.35);
+  const alpha = 1;
   const maxWidth = w * (settings.visualStyle === 'sonceibe' ? 0.78 : 0.84);
   let fontSize = titleStyle.fontSize * renderScale;
   const minTitleSize = Math.max(30 * renderScale, fontSize * 0.62);

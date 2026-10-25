@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState, useCallback, useMemo, useEffect } from 'react';
+import { PhotoTimelineClip } from './photo-timeline-clip';
 import { useStore } from '@/lib/store';
 import { useAudioEngineContext } from '@/lib/audio-engine-context';
 import { formatTime } from '@/lib/format';
@@ -697,9 +698,11 @@ export function Timeline() {
             </TrackRow>
 
             {photoClips.length > 0 && <TrackRow height={TRACK_H} color="hsl(var(--track-bg) / 0.1)">
-              {photoClips.map((clip, index) => <button key={clip.id} type="button" title={`Foto ${index + 1}: ${clip.start}s – ${clip.end}s. Editar en Fondo`} onClick={() => { setTab('background'); audio.seek(clip.start); }}
-                className="absolute top-1 bottom-1 overflow-hidden rounded border border-primary/50 bg-primary/20 px-2 text-left text-xs text-white"
-                style={{ left: clip.start * pxPerSec, width: Math.max(30, (clip.end - clip.start) * pxPerSec), backgroundImage: `linear-gradient(#0006,#0009),url("${clip.url}")`, backgroundSize: 'cover', backgroundPosition: 'center' }}>Foto {index + 1}</button>)}
+              {photoClips.map((clip, index) => <PhotoTimelineClip key={clip.id} clip={clip} index={index} duration={duration} pxPerSec={pxPerSec} snap={snapEnabled}
+                onSelect={() => { setSelectedId(null); setSelectedBackgroundId(null); setTab('background'); audio.seek(clip.start); requestAnimationFrame(() => document.getElementById('photo-insert-' + clip.id)?.scrollIntoView({ block: 'nearest' })); }}
+                onChange={patch => updateBackground({ photoClips: photoClips.map(item => item.id === clip.id ? { ...item, ...patch } : item) })}
+                onRemove={() => updateBackground({ photoClips: photoClips.filter(item => item.id !== clip.id) })} />)}
+
             </TrackRow>}
             <TrackRow height={TRACK_H} color="hsl(var(--track-effect) / 0.1)">
               {settings?.effects.vignette && (
