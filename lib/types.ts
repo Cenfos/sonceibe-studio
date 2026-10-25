@@ -18,6 +18,8 @@ export type VisualStyleId =
   | 'ska-ceibe'
   | 'galicia-gaita'
   | 'taberna-galega'
+  | 'noite-estrelada'
+  | 'papel-e-tinta'
   // Legacy values kept so projects saved before the redesign still load.
   | 'karaoke-pop'
   | 'minimal'
@@ -72,6 +74,8 @@ export interface BackgroundConfig {
   imageMode: ImageSequenceMode;
   imageDuration: number;
   imageClips: BackgroundImageClip[];
+  /** Optional timed photos, independent of the main background. */
+  photoClips?: BackgroundImageClip[];
   imageFit: ImageFitMode;
   videoUrl: string;
   blur: number;
@@ -165,6 +169,7 @@ export interface ProjectSettings {
   text: TextStyle;
   /** Independent appearance for the permanent song title. Optional for old projects. */
   titleStyle?: TitleStyle;
+  showTitle?: boolean;
   animation: AnimationConfig;
   effects: EffectsConfig;
   exportConfig: ExportConfig;

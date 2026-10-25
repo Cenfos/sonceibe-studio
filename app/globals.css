@@ -120,3 +120,7 @@
   90% { opacity: 1; }
   100% { transform: translateY(-100px) scale(0.5); opacity: 0; }
 }
+
+/* Keep a usable preview while allowing a wider desktop inspector. */
+.studio-adjustable-panel { width: clamp(288px, var(--studio-panel-width, 576px), calc(100vw - 480px)); min-height: 0; }
+@media (pointer: coarse) and (max-width: 1024px) { .studio-panel-resizer { display: none; } }

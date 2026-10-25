@@ -443,6 +443,7 @@ export function MobileStudioWizard() {
                         <button
                           key={preset.id}
                           type="button"
+                          aria-pressed={active}
                           onClick={() => applyVisualPreset(preset.id)}
                           className={`overflow-hidden rounded-xl border text-left transition-all ${active ? 'border-primary ring-1 ring-primary/40' : 'border-border'}`}
                         >
@@ -454,7 +455,7 @@ export function MobileStudioWizard() {
                               className="absolute inset-2 rounded-lg border"
                               style={{ borderColor: `${preset.accent}99`, boxShadow: `inset 0 0 18px ${preset.accent}22` }}
                             />
-                            {preset.id === 'sonceibe' && (
+                            {(
                               // eslint-disable-next-line @next/next/no-img-element
                               <img
                                 src={SONCEIBE_LOGO_URL}
@@ -462,7 +463,7 @@ export function MobileStudioWizard() {
                                 className="absolute bottom-3 right-3 h-12 w-12 rounded-full object-cover shadow-lg"
                               />
                             )}
-                            <div className="absolute inset-x-4 top-[44%] text-center text-sm font-bold text-white drop-shadow-lg">
+                            <div className="absolute inset-x-4 top-[44%] text-center text-sm font-bold drop-shadow-sm" style={{ color: preset.text.color, fontFamily: preset.text.fontFamily }}>
                               Son Ceibe
                             </div>
                           </div>

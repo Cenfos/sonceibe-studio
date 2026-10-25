@@ -316,10 +316,11 @@ export function HomePage() {
                       <span>●</span><span>●</span><span>●</span><span>●</span><span>●</span>
                     </div>
                   )}
+                  <Image src={SONCEIBE_LOGO_DATA_URL} alt="" width={36} height={36} unoptimized className="absolute bottom-3 right-3 rounded-full" />
                   <div className="absolute inset-0 flex items-center justify-center px-4">
                     <span
-                      className="text-white font-bold text-center drop-shadow-lg"
-                      style={{ fontFamily: preset.title.fontFamily || 'Inter' }}
+                      className="font-bold text-center drop-shadow-sm"
+                      style={{ fontFamily: preset.title.fontFamily || 'Inter', color: preset.title.color }}
                     >
                       {preset.label}
                     </span>

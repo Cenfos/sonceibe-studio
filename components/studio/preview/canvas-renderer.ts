@@ -387,7 +387,7 @@ function drawProjectTitle(
   settings: ProjectSettings,
   time: number
 ) {
-  if (time < 0 || isDefaultProjectTitle(settings.title)) return;
+  if (settings.showTitle === false || time < 0 || isDefaultProjectTitle(settings.title)) return;
 
   const presetTitle = getVisualPreset(settings.visualStyle)?.title ?? {};
   const titleStyle = {
@@ -511,6 +511,15 @@ export function renderFrame(
   ctx.filter = 'none';
   ctx.globalAlpha = 1;
   drawBackground(ctx, w, h, settings, time);
+  // Photos replace only the chosen interval; the main background remains unchanged.
+  const photo = [...(settings.background.photoClips ?? [])].reverse().find(clip => time >= clip.start && time < clip.end);
+  if (photo) {
+    const image = getCachedImage(photo.url);
+    if (image?.complete && image.naturalWidth > 0) {
+      ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, w, h);
+      drawImageFitted(ctx, image, w, h, settings.background.imageFit ?? 'contain', time, false, 0);
+    }
+  }
   drawText(ctx, w, h, settings, time);
   drawEffects(ctx, w, h, settings, time);
   drawProjectTitle(ctx, w, h, settings, time);

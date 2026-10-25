@@ -85,7 +85,9 @@ export function getExportPreflight(
       : 'Fondo o estilo visual preparado',
   });
 
-  if (!settings.title.trim() || settings.title.trim() === 'Nuevo Proyecto') {
+  if (settings.showTitle === false) {
+    checks.push({ id: 'title', level: 'ok', label: 'Título', detail: 'Oculto en el vídeo; texto conservado en el proyecto' });
+  } else if (!settings.title.trim() || settings.title.trim() === 'Nuevo Proyecto') {
     checks.push({
       id: 'title',
       level: 'warning',

@@ -1,7 +1,7 @@
 'use client';
 
 import type { VisualStyleId } from './types';
-import { SONCEIBE_LOGO_URL } from './visual-presets';
+import { SONCEIBE_LOGO_URL, getVisualPreset } from './visual-presets';
 
 let sonCeibeLogo: HTMLImageElement | null = null;
 
@@ -18,7 +18,7 @@ export async function preloadVisualBranding(
   style: VisualStyleId | undefined,
   showBranding = false
 ): Promise<void> {
-  if (style !== 'sonceibe' && !showBranding) return;
+  if (!getVisualPreset(style) && !showBranding) return;
   const image = getLogo();
   if (!image || (image.complete && image.naturalWidth > 0)) return;
 
@@ -294,7 +294,8 @@ function drawBrandSignature(
   h: number,
   inset: number,
   borderWidth: number,
-  hasCelticBorder = false
+  hasCelticBorder = false,
+  ink = false
 ) {
   const logo = getLogo();
   const minSide = Math.min(w, h);
@@ -312,16 +313,16 @@ function drawBrandSignature(
   ctx.textAlign = 'center';
   ctx.textBaseline = 'bottom';
   ctx.font = `600 ${fontSize}px Georgia, serif`;
-  ctx.fillStyle = '#f1d6a7';
+  ctx.fillStyle = ink ? '#38291c' : '#f1d6a7';
   ctx.shadowColor = 'rgba(0,0,0,0.96)';
-  ctx.shadowBlur = Math.max(6, minSide * 0.011);
+  ctx.shadowBlur = ink ? 0 : Math.max(6, minSide * 0.011);
   ctx.fillText(website, w / 2, websiteBaseline, w * 0.48);
 
   const textWidth = ctx.measureText(website).width;
   const ornamentGap = Math.max(12, minSide * 0.018);
   const lineWidth = Math.max(24, minSide * 0.055);
   const lineY = websiteBaseline - fontSize * 0.42;
-  ctx.strokeStyle = 'rgba(217,154,69,0.78)';
+  ctx.strokeStyle = ink ? 'rgba(98,67,41,0.65)' : 'rgba(217,154,69,0.78)';
   ctx.lineWidth = Math.max(1, minSide * 0.0016);
   ctx.beginPath();
   ctx.moveTo(w / 2 - textWidth / 2 - ornamentGap - lineWidth, lineY);
@@ -640,13 +641,7 @@ export function drawVisualBranding(
   time = 0,
   showBranding = false
 ): void {
-  const themed =
-    style === 'sonceibe' ||
-    style === 'rock-galego' ||
-    style === 'folk-atlantico' ||
-    style === 'ska-ceibe' ||
-    style === 'galicia-gaita' ||
-    style === 'taberna-galega';
+  const themed = Boolean(getVisualPreset(style));
   if (!themed && !showBranding) return;
 
   const minSide = Math.min(w, h);
@@ -676,7 +671,41 @@ export function drawVisualBranding(
     drawTabernaTheme(ctx, w, h, minSide, time);
   }
 
-  if (isSonCeibeStyle || showBranding) {
-    drawBrandSignature(ctx, w, h, inset, borderWidth, isSonCeibeStyle);
+  if (style === 'noite-estrelada' || style === 'papel-e-tinta') {
+    drawNewTheme(ctx, w, h, style, time);
   }
+
+  if (themed || showBranding) {
+    drawBrandSignature(ctx, w, h, inset, borderWidth, isSonCeibeStyle, style === 'papel-e-tinta');
+  }
+}
+
+function drawNewTheme(ctx: CanvasRenderingContext2D, w: number, h: number, style: VisualStyleId, time: number) {
+  const side = Math.min(w, h);
+  const inset = side * 0.045;
+  ctx.save();
+  if (style === 'noite-estrelada') {
+    ctx.strokeStyle = 'rgba(185,201,239,0.5)';
+    ctx.lineWidth = side * 0.0015;
+    ctx.strokeRect(inset, inset, w - inset * 2, h - inset * 2);
+    // Stars stay around the edges, leaving the title and lyric area clear.
+    for (let i = 0; i < 56; i++) {
+      const x = ((i * 7919 % 997) / 997) * w;
+      const y = ((i * 3571 % 991) / 991) * h;
+      if (x > w * 0.14 && x < w * 0.86 && y > h * 0.13 && y < h * 0.87) continue;
+      ctx.globalAlpha = 0.35 + 0.25 * (1 + Math.sin(time * 0.5 + i)) / 2;
+      ctx.fillStyle = '#dce7ff';
+      ctx.beginPath(); ctx.arc(x, y, side * (i % 3 === 0 ? 0.002 : 0.001), 0, Math.PI * 2); ctx.fill();
+    }
+  } else {
+    ctx.strokeStyle = 'rgba(98,67,41,0.5)'; ctx.lineWidth = side * 0.0015;
+    ctx.strokeRect(inset, inset, w - inset * 2, h - inset * 2);
+    ctx.strokeRect(inset + side * 0.008, inset + side * 0.008, w - inset * 2 - side * 0.016, h - inset * 2 - side * 0.016);
+    // Discreet ink ornaments in the corners, outside the lyrics.
+    for (const x of [inset, w - inset]) for (const y of [inset, h - inset]) {
+      ctx.save(); ctx.translate(x, y); ctx.rotate(Math.PI / 4);
+      ctx.fillStyle = '#624329'; ctx.fillRect(-side * 0.004, -side * 0.004, side * 0.008, side * 0.008); ctx.restore();
+    }
+  }
+  ctx.restore();
 }

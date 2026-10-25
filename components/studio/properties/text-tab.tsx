@@ -50,7 +50,7 @@ export function TextTab() {
             <div>
               <div className="text-xs font-semibold">Título de la canción</div>
               <p className="mt-0.5 text-[10px] leading-4 text-muted-foreground">
-                Se edita aparte de la letra y permanece visible durante todo el vídeo.
+                Puedes ocultarlo si la imagen ya incluye el título. Su texto queda guardado.
               </p>
             </div>
           </div>
@@ -66,6 +66,8 @@ export function TextTab() {
             Restablecer
           </Button>
         </div>
+
+        <ToggleRow label="Mostrar título en el vídeo" checked={settings.showTitle !== false} onChange={(showTitle) => updateSettings({ showTitle })} />
 
         <ControlRow label="Texto del título">
           <Input

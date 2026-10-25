@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useStore } from '@/lib/store';
 import { useAudioEngineContext } from '@/lib/audio-engine-context';
 import { formatTimecode } from '@/lib/format';
+import { preloadVisualBranding } from '@/lib/visual-branding';
 import { sanitizeRenderSettings } from '@/lib/render-safety';
 import { VIDEO_PROFILES, settingsForVideoTarget, videoTargetFromOrientation } from '@/lib/video-profiles';
 import { preloadBackgroundImage, renderFrame } from './canvas-renderer';
@@ -31,6 +32,15 @@ export function PreviewPanel() {
   const audio = useAudioEngineContext();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const [stageSize, setStageSize] = useState({ width: 640, height: 360 });
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const observer = new ResizeObserver(([entry]) => setStageSize({ width: entry.contentRect.width, height: entry.contentRect.height }));
+    observer.observe(stage);
+    return () => observer.disconnect();
+  }, []);
   const [zoom, setZoom] = useState(1);
   const [showSafeZone, setShowSafeZone] = useState(false);
 
@@ -48,7 +58,8 @@ export function PreviewPanel() {
   const isPortrait = target === 'mobile';
   const canvasWidth = profile.width;
   const canvasHeight = profile.height;
-  const aspectRatio = isPortrait ? '9 / 16' : '16 / 9';
+  const frameRatio = canvasWidth / canvasHeight;
+  const previewWidth = Math.min(stageSize.width, stageSize.height * frameRatio) * Math.min(1, zoom);
 
   const draw = useCallback((time: number) => {
     const canvas = canvasRef.current;
@@ -74,6 +85,14 @@ export function PreviewPanel() {
   }, [safeSettings]);
 
   useEffect(() => {
+    let cancelled = false;
+    void preloadVisualBranding(settings?.visualStyle, settings?.showSonCeibeBranding).then(() => {
+      if (!cancelled) draw(audio.audioEl?.currentTime ?? 0);
+    });
+    return () => { cancelled = true; };
+  }, [settings?.visualStyle, settings?.showSonCeibeBranding, draw, audio.audioEl]);
+
+  useEffect(() => {
     if (!audio.isPlaying) {
       draw(audio.audioEl?.currentTime ?? audio.currentTime);
     }
@@ -82,7 +101,6 @@ export function PreviewPanel() {
   useEffect(() => {
     if (!safeSettings) return;
     const bg = safeSettings.background;
-    if (bg.type !== 'image' && bg.type !== 'images') return;
 
     const clipSources = (bg.imageClips ?? []).map((clip) => clip.url);
     const sources = bg.type === 'images' && bg.images.length > 0
@@ -91,7 +109,7 @@ export function PreviewPanel() {
         ? [bg.imageUrl]
         : [];
 
-    const uniqueSources = Array.from(new Set(sources.filter(Boolean)));
+    const uniqueSources = Array.from(new Set([...sources, ...(bg.photoClips ?? []).map(clip => clip.url)].filter(Boolean)));
     if (uniqueSources.length === 0) return;
 
     let cancelled = false;
@@ -205,14 +223,14 @@ export function PreviewPanel() {
         </div>
       </div>
 
-      <div className="studio-preview-stage flex-1 min-h-0 flex items-center justify-center p-6 bg-[hsl(222_20%_5%)] overflow-hidden">
+      <div ref={stageRef} className="studio-preview-stage flex-1 min-h-0 flex items-center justify-center p-6 bg-[hsl(222_20%_5%)] overflow-hidden">
         <div
           ref={containerRef}
           className="relative shadow-2xl rounded-lg overflow-hidden bg-black"
           style={{
-            height: `${Math.min(100, zoom * 100)}%`,
-            maxWidth: '100%',
-            aspectRatio,
+            width: previewWidth,
+            height: previewWidth / frameRatio,
+            flexShrink: 0,
           }}
         >
           <canvas

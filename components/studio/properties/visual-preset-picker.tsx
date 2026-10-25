@@ -75,6 +75,8 @@ function ThemePreviewDecoration({ id }: { id: VisualStyleId }) {
     );
   }
 
+  if (id === 'noite-estrelada') return <><div className="absolute inset-3 border border-blue-100/50" /><span className="absolute left-5 top-4 text-blue-100">✦ ·</span><span className="absolute right-4 bottom-4 text-blue-100">· ✧</span></>;
+  if (id === 'papel-e-tinta') return <div className="absolute inset-3 border-[3px] border-double border-amber-950/50" />;
   return null;
 }
 
@@ -116,7 +118,7 @@ export function VisualPresetPicker() {
         <div>
           <div className="text-xs font-semibold">Estilos preparados</div>
           <p className="mt-0.5 text-[10px] leading-4 text-muted-foreground">
-            Cada tema aplica fondo, marco, título, letra, animación y efectos propios.
+            Todos incluyen el logo de Son Ceibe, fondo, marco, título y letra.
           </p>
         </div>
       </div>
@@ -133,6 +135,7 @@ export function VisualPresetPicker() {
                 active ? 'border-primary ring-1 ring-primary/40' : 'border-border hover:border-primary/50'
               }`}
               title={preset.description}
+              aria-pressed={active}
             >
               <div
                 className="relative aspect-[16/10] overflow-hidden"
@@ -143,7 +146,7 @@ export function VisualPresetPicker() {
                   style={{ borderColor: `${preset.accent}99`, boxShadow: `inset 0 0 12px ${preset.accent}22` }}
                 />
                 <ThemePreviewDecoration id={preset.id} />
-                {preset.id === 'sonceibe' && (
+                {(
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={SONCEIBE_LOGO_URL}
@@ -151,7 +154,7 @@ export function VisualPresetPicker() {
                     className="absolute bottom-2 right-2 h-8 w-8 rounded-full object-cover shadow-lg"
                   />
                 )}
-                <div className="absolute inset-x-2 top-[42%] truncate text-center text-[9px] font-bold text-white drop-shadow-lg">
+                <div className="absolute inset-x-2 top-[42%] truncate text-center text-[9px] font-bold drop-shadow-sm" style={{ color: preset.text.color, fontFamily: preset.text.fontFamily }}>
                   {preset.label}
                 </div>
               </div>

@@ -1,5 +1,6 @@
 'use client';
 
+import { PhotoInserts } from './photo-inserts';
 import { useStore } from '@/lib/store';
 import { ControlRow, ColorInput, SliderRow } from './controls';
 import { sampleBackgroundImages } from '@/lib/mock-data';
@@ -218,6 +219,7 @@ export function BackgroundTab() {
 
   return (
     <div className="space-y-5">
+      <PhotoInserts prepareImage={prepareImage} />
       <ControlRow label="Tipo de fondo">
         <div className="grid grid-cols-5 gap-1.5">
           {bgTypes.map((bt) => {

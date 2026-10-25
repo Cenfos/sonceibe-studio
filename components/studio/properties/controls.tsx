@@ -104,6 +104,9 @@ export function ToggleRow({ label, checked, onChange }: ToggleRowProps) {
       <Label className="text-xs text-muted-foreground font-normal">{label}</Label>
       <button
         type="button"
+        role="switch"
+        aria-label={label}
+        aria-checked={checked}
         onClick={() => onChange(!checked)}
         className={cn(
           'relative h-5 w-9 rounded-full transition-colors',

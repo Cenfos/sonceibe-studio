@@ -142,6 +142,7 @@ async function preloadProjectVisuals(settings: ProjectSettings): Promise<void> {
   for (const src of bg.images ?? []) if (src) sources.add(src);
   for (const clip of bg.imageClips ?? []) if (clip.url) sources.add(clip.url);
 
+  for (const clip of bg.photoClips ?? []) if (clip.url) sources.add(clip.url);
   await Promise.all(Array.from(sources).map(preloadBackgroundImage));
   await preloadVisualBranding(settings.visualStyle, settings.showSonCeibeBranding);
 }

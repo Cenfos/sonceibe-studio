@@ -6,9 +6,6 @@ import {
   Sparkles,
   Wand2,
   FileText,
-  Music,
-  Film,
-  Layers,
 } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
@@ -38,6 +35,8 @@ export function SidebarRail({ onTabSelected }: SidebarRailProps) {
         return (
           <button
             key={tab.id}
+            type="button"
+            aria-pressed={active}
             onClick={() => {
               setTab(tab.id);
               onTabSelected?.(tab.id);
@@ -59,11 +58,6 @@ export function SidebarRail({ onTabSelected }: SidebarRailProps) {
         );
       })}
 
-      <div className="studio-mobile-hide mt-auto flex flex-col items-center gap-3 text-muted-foreground/50">
-        <Layers className="h-5 w-5" />
-        <Music className="h-5 w-5" />
-        <Film className="h-5 w-5" />
-      </div>
     </aside>
   );
 }

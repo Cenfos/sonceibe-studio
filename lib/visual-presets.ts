@@ -425,6 +425,31 @@ export const visualPresets: VisualPreset[] = [
   },
 ];
 
+// New themes inherit complete settings so switching styles leaves no old effects behind.
+const base = visualPresets.find(preset => preset.id === 'folk-atlantico')!;
+visualPresets.push(
+  {
+    ...base, id: 'noite-estrelada', label: 'Noite Estrelada',
+    description: 'Azul noite, estrelas suaves e detalles de prata. Para cancións íntimas.',
+    previewFrom: '#080e26', previewTo: '#28375b', accent: '#b9c9ef',
+    background: { ...base.background, gradientFrom: '#080e26', gradientTo: '#28375b', gradientAngle: 160, overlay: 0.04 },
+    text: { ...base.text, fontFamily: 'Georgia', fontSize: 78, color: '#f1f4ff', outlineColor: '#080e26', shadowColor: '#080e26', glow: false, lineHeight: 1.28 },
+    title: { ...base.title, color: '#e2eaff', fontStyle: 'normal', outlineColor: '#080e26', shadowColor: '#080e26', glow: false, topOffset: 18 },
+    animation: { ...base.animation, in: 'fade', out: 'fade', duration: 0.8, karaokeColor: '#bdcffa' },
+    effects: { ...base.effects, particles: false, lightleaks: false, overlay: 0.04, overlayColor: '#060b1e', vignetteIntensity: 0.25, kenburns: false },
+  },
+  {
+    ...base, id: 'papel-e-tinta', label: 'Papel e Tinta',
+    description: 'Papel cálido, tinta escura e marco editorial. A letra é a protagonista.',
+    previewFrom: '#f1e4c9', previewTo: '#d6bd91', accent: '#624329',
+    background: { ...base.background, gradientFrom: '#f1e4c9', gradientTo: '#d6bd91', gradientAngle: 110, overlay: 0 },
+    text: { ...base.text, fontFamily: 'Georgia', fontSize: 78, fontWeight: 600, color: '#302319', outlineWidth: 0, shadow: false, glow: false, lineHeight: 1.3, letterSpacing: 0 },
+    title: { ...base.title, color: '#38291c', outlineWidth: 0, shadow: false, glow: false, fontStyle: 'italic', uppercase: false, topOffset: 18 },
+    animation: { ...base.animation, in: 'fade', out: 'fade', duration: 0.6, karaokeColor: '#7c352a' },
+    effects: { ...base.effects, overlay: 0, particles: false, lightleaks: false, vignette: false, kenburns: false },
+  }
+);
+
 export function getVisualPreset(id: VisualStyleId | undefined): VisualPreset | null {
   if (!id || id === 'default') return null;
   return visualPresets.find((preset) => preset.id === id) ?? null;

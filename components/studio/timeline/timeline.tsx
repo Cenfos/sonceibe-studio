@@ -50,6 +50,7 @@ export function Timeline() {
     deleteLyric,
     duplicateLyric,
     updateBackground,
+    setTab,
   } = useStore();
   const audio = useAudioEngineContext();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -67,6 +68,7 @@ export function Timeline() {
   const imageMode = settings?.background.imageMode ?? 'auto';
   const imageDuration = settings?.background.imageDuration ?? 5;
   const imageClips = settings?.background.imageClips ?? [];
+  const photoClips = settings?.background.photoClips ?? [];
 
   const waveformPeaks = useMemo(() => {
     if (audio.audioBuffer) return generateWaveformPeaks(audio.audioBuffer, 2000);
@@ -408,7 +410,7 @@ export function Timeline() {
           : 'Video';
 
   return (
-    <div className="studio-timeline h-64 shrink-0 flex flex-col border-t border-border bg-card/30">
+    <div className={cn("studio-timeline shrink-0 flex flex-col border-t border-border bg-card/30", photoClips.length ? "h-72" : "h-64")}>
       <div className="studio-timeline-header h-9 flex items-center justify-between px-3 border-b border-border">
         <div className="flex items-center gap-2 text-sm font-medium min-w-0">
           <Music className="h-4 w-4 text-primary shrink-0" />
@@ -470,6 +472,7 @@ export function Timeline() {
           <TrackLabel icon={Music} label="Audio" color="hsl(var(--track-audio))" />
           <TrackLabel icon={FileText} label="Letra" color="hsl(var(--track-lyrics))" />
           <TrackLabel icon={Image} label="Fondo" color="hsl(var(--track-bg))" />
+          {photoClips.length > 0 && <TrackLabel icon={Image} label="Fotos puntuales" color="hsl(var(--track-bg))" />}
           <TrackLabel icon={Wand2} label="Efectos" color="hsl(var(--track-effect))" />
         </div>
 
@@ -693,6 +696,11 @@ export function Timeline() {
               </div>
             </TrackRow>
 
+            {photoClips.length > 0 && <TrackRow height={TRACK_H} color="hsl(var(--track-bg) / 0.1)">
+              {photoClips.map((clip, index) => <button key={clip.id} type="button" title={`Foto ${index + 1}: ${clip.start}s – ${clip.end}s. Editar en Fondo`} onClick={() => { setTab('background'); audio.seek(clip.start); }}
+                className="absolute top-1 bottom-1 overflow-hidden rounded border border-primary/50 bg-primary/20 px-2 text-left text-xs text-white"
+                style={{ left: clip.start * pxPerSec, width: Math.max(30, (clip.end - clip.start) * pxPerSec), backgroundImage: `linear-gradient(#0006,#0009),url("${clip.url}")`, backgroundSize: 'cover', backgroundPosition: 'center' }}>Foto {index + 1}</button>)}
+            </TrackRow>}
             <TrackRow height={TRACK_H} color="hsl(var(--track-effect) / 0.1)">
               {settings?.effects.vignette && (
                 <div
