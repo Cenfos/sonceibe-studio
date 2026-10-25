@@ -1,5 +1,6 @@
 'use client';
 
+import { ImageFramingControls } from './image-framing-controls';
 import { PhotoInserts } from './photo-inserts';
 import { useStore } from '@/lib/store';
 import { ControlRow, ColorInput, SliderRow } from './controls';
@@ -258,7 +259,11 @@ export function BackgroundTab() {
               </label>
             </Button>
 
-            <div className="space-y-2 rounded-lg border border-border bg-card/30 p-3">
+            {bg.type === 'image' && bg.imageUrl && <>
+              <Button type="button" variant="outline" size="sm" className="w-full gap-2 text-destructive" onClick={() => { updateBackground({ imageUrl: '', imagePlacement: undefined, type: 'gradient' }); toast.success('Imagen fija eliminada. Se conserva el fondo del estilo.'); }}><Trash2 className="h-4 w-4" />Quitar imagen fija</Button>
+              <ImageFramingControls label="imagen fija" value={bg.imagePlacement} fit={imageFit} onChange={imagePlacement => updateBackground({ imagePlacement })} />
+            </>}
+            {bg.type === 'images' && <div className="space-y-2 rounded-lg border border-border bg-card/30 p-3">
               <p className="text-xs font-medium">Cómo mostrar la imagen</p>
               <div className="space-y-2">
                 <Button
@@ -283,7 +288,7 @@ export function BackgroundTab() {
                   ? 'Recomendado: la foto se ve entera. El espacio sobrante queda negro.'
                   : 'La foto ocupa toda la pantalla. Puede perder parte de los bordes.'}
               </p>
-            </div>
+            </div>}
 
             {bg.type === 'images' && (
               <div className="space-y-3 rounded-lg border border-border bg-card/30 p-3">

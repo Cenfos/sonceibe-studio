@@ -1,4 +1,4 @@
-import { defaultTitleStyle, type AnimationType, type ImageFitMode, type LyricLine, type ProjectSettings } from '@/lib/types';
+import { defaultTitleStyle, type AnimationType, type ImageFitMode, type ImagePlacement, type LyricLine, type ProjectSettings } from '@/lib/types';
 import { drawVisualBranding } from '@/lib/visual-branding';
 import { getVisualPreset } from '@/lib/visual-presets';
 import { isDefaultProjectTitle } from '@/lib/project-title';
@@ -116,6 +116,17 @@ function drawImageFitted(
   ctx.restore();
 }
 
+function drawPlacedImage(ctx: CanvasRenderingContext2D, image: HTMLImageElement, w: number, h: number, fit: ImageFitMode, time: number, kenBurns: boolean, intensity: number, placement?: ImagePlacement) {
+  const finite = (n: number | undefined, fallback: number) => typeof n === 'number' && Number.isFinite(n) ? n : fallback;
+  const scale = Math.max(0.2, Math.min(1, finite(placement?.scale, 100) / 100));
+  const width = w * scale, height = h * scale;
+  const x = (w - width) * Math.max(0, Math.min(100, finite(placement?.x, 50))) / 100;
+  const y = (h - height) * Math.max(0, Math.min(100, finite(placement?.y, 50))) / 100;
+  ctx.save(); ctx.beginPath(); ctx.rect(x, y, width, height); ctx.clip(); ctx.translate(x, y);
+  drawImageFitted(ctx, image, width, height, placement?.fit ?? fit, time, kenBurns, intensity);
+  ctx.restore();
+}
+
 function getBackgroundImageSource(settings: ProjectSettings, time: number): string {
   const bg = settings.background;
 
@@ -171,13 +182,17 @@ function drawBackground(
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, w, h);
   } else if (bg.type === 'image' || bg.type === 'images') {
-    ctx.fillStyle = '#000000';
+    if ((bg.imagePlacement?.scale ?? 100) < 100) {
+      const gradient = ctx.createLinearGradient(0, 0, w, h);
+      gradient.addColorStop(0, bg.gradientFrom || '#102d25'); gradient.addColorStop(1, bg.gradientTo || '#26190f');
+      ctx.fillStyle = gradient;
+    } else ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, w, h);
 
     const src = getBackgroundImageSource(settings, time);
     const image = getCachedImage(src);
     if (image?.complete && image.naturalWidth > 0) {
-      drawImageFitted(
+      drawPlacedImage(
         ctx,
         image,
         w,
@@ -185,7 +200,8 @@ function drawBackground(
         bg.imageFit ?? 'contain',
         time,
         fx.kenburns,
-        fx.kenburnsIntensity
+        fx.kenburnsIntensity,
+        bg.imagePlacement
       );
     }
   } else if (bg.type === 'video') {
@@ -516,8 +532,8 @@ export function renderFrame(
   if (photo) {
     const image = getCachedImage(photo.url);
     if (image?.complete && image.naturalWidth > 0) {
-      ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, w, h);
-      drawImageFitted(ctx, image, w, h, settings.background.imageFit ?? 'contain', time, false, 0);
+      if ((photo.placement?.scale ?? 100) >= 100) { ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, w, h); }
+      drawPlacedImage(ctx, image, w, h, settings.background.imageFit ?? 'contain', time, false, 0, photo.placement);
     }
   }
   drawText(ctx, w, h, settings, time);

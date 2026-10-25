@@ -1,5 +1,6 @@
 'use client';
 
+import { ImageFramingControls } from './image-framing-controls';
 import { useState } from 'react';
 import { useStore } from '@/lib/store';
 import { useAudioEngineContext } from '@/lib/audio-engine-context';
@@ -48,9 +49,10 @@ export function PhotoInserts({ prepareImage }: { prepareImage: (file: File) => P
     </label>
     {duration <= 0 && <p className="text-xs text-muted-foreground">Carga primero la música para elegir los segundos.</p>}
     {clips.length === 0 && <p className="text-xs text-muted-foreground">Las fotos que añadas aparecerán aquí con su miniatura y sus tiempos.</p>}
-    {clips.length > 0 && <div className="flex flex-wrap gap-2"><Button size="sm" variant={(bg.imageFit ?? 'contain') === 'contain' ? 'default' : 'outline'} onClick={() => updateBackground({ imageFit: 'contain' })}>Ver foto completa</Button><Button size="sm" variant={bg.imageFit === 'cover' ? 'default' : 'outline'} onClick={() => updateBackground({ imageFit: 'cover' })}>Llenar pantalla</Button></div>}
+
     {clips.map((clip, i) => <div key={clip.id} id={'photo-insert-' + clip.id} className="space-y-3 rounded-lg border border-border bg-card p-3">
       <div className="flex items-center gap-3"><img src={clip.url} alt={'Foto puntual ' + (i + 1)} className="h-14 w-20 rounded object-contain bg-black" /><span className="flex-1 text-sm font-medium">Foto {i + 1}</span><Button size="sm" variant="ghost" onClick={() => updateBackground({ photoClips: clips.filter(item => item.id !== clip.id) })} aria-label={'Quitar foto ' + (i + 1)}>Quitar</Button></div>
+      <ImageFramingControls label={'foto puntual ' + (i + 1)} value={clip.placement} fit={bg.imageFit ?? 'contain'} onChange={placement => updateBackground({ photoClips: clips.map(item => item.id === clip.id ? { ...item, placement } : item) })} />
       <div className="grid grid-cols-2 gap-3">{(['start', 'end'] as const).map(field => <label key={field} className="space-y-1 text-xs">{field === 'start' ? 'Inicio (segundos)' : 'Final (segundos)'}<input key={clip[field]} aria-label={(field === 'start' ? 'Inicio foto ' : 'Final foto ') + (i + 1)} type="number" min={0} max={duration || undefined} step={0.1} defaultValue={clip[field]} onBlur={e => updateTime(clip.id, field, e.currentTarget)} onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }} className="block w-full rounded border border-border bg-background px-2 py-2 text-sm" /></label>)}</div>
       <div className="flex flex-wrap items-center justify-between gap-2"><span className="text-xs text-muted-foreground">Duración: {(clip.end - clip.start).toFixed(1)} s</span><Button variant="outline" size="sm" onClick={() => audio.seek(clip.start)}>Ver este momento</Button></div>
     </div>)}

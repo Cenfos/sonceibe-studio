@@ -56,7 +56,15 @@ export interface LyricLine {
   words?: { text: string; start: number; end: number }[];
 }
 
+export interface ImagePlacement {
+  scale: number;
+  x: number;
+  y: number;
+  fit?: ImageFitMode;
+}
+
 export interface BackgroundImageClip {
+  placement?: ImagePlacement;
   id: ID;
   url: string;
   start: number;
@@ -77,6 +85,7 @@ export interface BackgroundConfig {
   /** Optional timed photos, independent of the main background. */
   photoClips?: BackgroundImageClip[];
   imageFit: ImageFitMode;
+  imagePlacement?: ImagePlacement;
   videoUrl: string;
   blur: number;
   overlay: number;
