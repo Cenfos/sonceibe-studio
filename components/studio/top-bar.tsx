@@ -44,6 +44,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { ProjectVersions } from './project-versions';
 
 export function TopBar() {
   const {
@@ -60,6 +61,7 @@ export function TopBar() {
     redoStack,
     autoSaveStatus,
     lastAutoSavedAt,
+    saveVersion,
   } = useStore();
   const userId = useStudioUserId();
   const audio = useAudioEngineContext();
@@ -118,6 +120,7 @@ export function TopBar() {
     if (!file || !currentProject) return;
 
     try {
+      await saveVersion('Antes de reemplazar el audio');
       await audio.loadFile(file);
       await saveProjectAudio(userId, currentProject.id, file);
       const derivedTitle = isDefaultProjectTitle(currentProject.settings.title)
@@ -131,8 +134,7 @@ export function TopBar() {
       toast.success(`MP3 cargado y guardado en este equipo: ${file.name}`);
     } catch (error) {
       console.error('Failed to load or persist audio:', error);
-      updateSettings({ audioName: file.name, audioUrl: '' });
-      toast.error('El MP3 se ha abierto, pero no se pudo guardar de forma permanente en este navegador');
+      toast.error('No se pudo guardar la versión anterior o el nuevo audio. Los ajustes guardados se conservan.');
     } finally {
       e.target.value = '';
     }
@@ -296,6 +298,7 @@ export function TopBar() {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
+          <ProjectVersions />
           <input
             ref={audioInputRef}
             type="file"

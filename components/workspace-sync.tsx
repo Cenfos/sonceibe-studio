@@ -8,10 +8,12 @@ import { deleteProjectLocalData } from '@/lib/project-deletion';
 import { saveProjectAudioToWorkspace, saveProjectsToWorkspace } from '@/lib/local-workspace';
 
 export function WorkspaceSync() {
-  const { projects } = useStore();
+  const { projects, audioRevision } = useStore();
   const userId = useStudioUserId();
   const copiedAudio = useRef(new Set<string>());
   const previousProjectIds = useRef(new Set(projects.map((project) => project.id)));
+
+  useEffect(() => { copiedAudio.current.clear(); }, [audioRevision]);
 
   useEffect(() => {
     const currentIds = new Set(projects.map((project) => project.id));
@@ -50,7 +52,7 @@ export function WorkspaceSync() {
     }, 1200);
 
     return () => window.clearTimeout(timer);
-  }, [projects, userId]);
+  }, [projects, userId, audioRevision]);
 
   return null;
 }

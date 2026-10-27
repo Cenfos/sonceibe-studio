@@ -1,6 +1,6 @@
 'use client';
 
-import { ExternalLink, Plus, Clock, MoreVertical, Trash2, Film, Sparkles, LogOut, HardDrive, FolderOpen } from 'lucide-react';
+import { ExternalLink, Plus, Clock, MoreVertical, Trash2, Film, Sparkles, LogOut, HardDrive, FolderOpen, Copy } from 'lucide-react';
 import Image from 'next/image';
 import { SONCEIBE_LOGO_DATA_URL } from '@/lib/sonceibe-logo-data';
 import { useStore } from '@/lib/store';
@@ -23,7 +23,16 @@ import { visualPresets } from '@/lib/visual-presets';
 import { toast } from 'sonner';
 
 export function HomePage() {
-  const { projects, openProject, createProject, deleteProject } = useStore();
+  const { projects, openProject, createProject, deleteProject, duplicateProject } = useStore();
+  const [duplicating, setDuplicating] = useState(false);
+  const duplicateBusy = useRef(false);
+  const handleDuplicate = async (id: string) => {
+    if (duplicateBusy.current) return;
+    duplicateBusy.current = true; setDuplicating(true);
+    try { await duplicateProject(id); toast.success('Proyecto duplicado con su audio y fotografías'); }
+    catch (error) { toast.error(error instanceof Error ? error.message : 'No se pudo duplicar el proyecto'); }
+    finally { duplicateBusy.current = false; setDuplicating(false); }
+  };
   const userId = useStudioUserId();
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
@@ -201,19 +210,23 @@ export function HomePage() {
                     </p>
                   </div>
 
-                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="absolute top-2 right-2">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button
                           variant="secondary"
                           size="icon"
                           className="h-8 w-8 bg-black/50 border-0 hover:bg-black/70"
+                          aria-label={`Opciones de ${p.settings.title}`}
                           onClick={(e) => e.stopPropagation()}
                         >
                           <MoreVertical className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenuItem className="gap-2" disabled={duplicating} onSelect={() => void handleDuplicate(p.id)}>
+                          <Copy className="h-4 w-4" />Duplicar proyecto
+                        </DropdownMenuItem>
                         <DropdownMenuItem
                           className="text-destructive gap-2"
                           onClick={() => setConfirmId(p.id)}
