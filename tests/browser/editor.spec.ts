@@ -1,0 +1,81 @@
+import { expect, test } from '@playwright/test';
+import type { Project } from '../../lib/types';
+
+test.beforeEach(async ({ page }) => {
+  await page.goto('/'); await page.evaluate(() => window.studioTest.seed()); await page.goto('/?ui');
+});
+
+test('duplicate from home keeps audio after deleting the original', async ({ page }) => {
+  await page.getByRole('button', { name: 'Opciones de Prueba Studio', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Duplicar proyecto' }).click();
+  await expect(page.getByRole('heading', { name: 'Prueba Studio — copia', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Opciones de Prueba Studio', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Eliminar', exact: true }).click();
+  await page.getByRole('button', { name: 'Eliminar', exact: true }).click();
+  await page.reload();
+  const result = await page.evaluate(async () => {
+    const projects = JSON.parse(localStorage.getItem('sonceibe-projects-v2:owner')!) as Project[];
+    const audio = await window.studioTest.getProjectAudio('owner', projects[0].id);
+    return { count: projects.length, id: projects[0].id, bytes: audio?.size, photo: projects[0].settings.background.photoClips?.[0] };
+  });
+  expect(result.count).toBe(1); expect(result.id).not.toBe('fixture'); expect(result.bytes).toBeGreaterThan(1000);
+  expect(result.photo?.placement).toEqual({ x: 25, y: 75, scale: 65 });
+});
+
+test('one drag is one undo; versions survive reload and restore', async ({ page }) => {
+  await page.getByRole('heading', { name: 'Prueba Studio', exact: true }).click();
+  const lyric = page.getByRole('group', { name: 'Letra 1', exact: true });
+  await expect(lyric).toBeVisible();
+  const box = (await lyric.boundingBox())!;
+  await page.mouse.move(box.x + 20, box.y + 15); await page.mouse.down();
+  await page.mouse.move(box.x + 60, box.y + 15, { steps: 10 }); await page.mouse.up();
+  await expect(page.getByRole('spinbutton', { name: 'Inicio de selección' })).toHaveValue('4');
+  await page.keyboard.press('Control+z');
+  await expect(page.getByRole('spinbutton', { name: 'Inicio de selección' })).toHaveValue('2');
+  await lyric.focus(); await page.keyboard.press('ArrowRight');
+  await expect(page.getByRole('spinbutton', { name: 'Inicio de selección' })).toHaveValue('2.1');
+  await page.getByRole('button', { name: 'Versiones locales' }).click();
+  await expect(page.getByText('Antes de editar la letra', { exact: true })).toBeVisible();
+  await page.reload(); await page.getByRole('heading', { name: 'Prueba Studio', exact: true }).click();
+  await page.getByRole('button', { name: 'Versiones locales' }).click();
+  await page.getByRole('button', { name: 'Restaurar', exact: true }).first().click();
+  await expect.poll(async () => page.evaluate(() => JSON.parse(localStorage.getItem('sonceibe-projects-v2:owner')!)[0].settings.lyrics[0].start)).toBe(2);
+  const versions = await page.evaluate(() => window.studioTest.listSnapshots('sonceibe-projects-v2:owner', 'fixture'));
+  expect(versions[0].reason).toBe('Antes de restaurar una versión');
+  expect(versions[0].settings.lyrics[0].start).toBe(2.1);
+});
+
+test('keyboard edges, photo intervals, zoom, and ruler after horizontal scrolling', async ({ page }) => {
+  await page.getByRole('heading', { name: 'Prueba Studio', exact: true }).click();
+  await page.getByRole('slider', { name: 'Final de Foto puntual 1', exact: true }).focus();
+  await page.keyboard.press('Alt+ArrowLeft');
+  await expect(page.getByRole('spinbutton', { name: 'Final de selección' })).toHaveValue('9.99');
+  await page.getByRole('slider', { name: 'Inicio de Imagen múltiple 1', exact: true }).focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByRole('spinbutton', { name: 'Inicio de selección' })).toHaveValue('1.1');
+  await page.locator('.studio-timeline-scroll').evaluate(element => element.scrollLeft = 500);
+  const scrollBox = (await page.locator('.studio-timeline-scroll').boundingBox())!;
+  const ruler = page.getByRole('slider', { name: 'Cursor de reproducción', exact: true });
+  const rulerBox = (await ruler.boundingBox())!;
+  await page.mouse.click(scrollBox.x + 100, rulerBox.y + 10);
+  await expect(ruler).toHaveAttribute('aria-valuenow', '30');
+  await page.getByRole('button', { name: 'Acercar timeline' }).click();
+  await expect(page.getByRole('slider', { name: 'Zoom horizontal' })).toHaveValue('30');
+  await page.getByRole('button', { name: 'Ver todo', exact: true }).click();
+  expect(await page.locator('.studio-timeline-scroll').evaluate(element => element.scrollLeft)).toBe(0);
+  await page.screenshot({ path: 'tests/.generated/editor.png', fullPage: true });
+});
+
+test('photo border snaps to an existing playhead; cancellation does not edit the project', async ({ page }) => {
+  await page.getByRole('heading', { name: 'Prueba Studio', exact: true }).click();
+  const ruler = (await page.getByRole('slider', { name: 'Cursor de reproducción', exact: true }).boundingBox())!;
+  await page.mouse.click(ruler.x + 120, ruler.y + 10); // 6 s at 20 px/s
+  const edge = (await page.getByRole('slider', { name: 'Final de Imagen múltiple 1', exact: true }).boundingBox())!;
+  await page.mouse.move(edge.x + edge.width / 2, edge.y + 10); await page.mouse.down();
+  await page.mouse.move(edge.x + edge.width / 2 + 18, edge.y + 10, { steps: 5 }); await page.mouse.up();
+  await expect(page.getByRole('spinbutton', { name: 'Final de selección' })).toHaveValue('6');
+  const photo = (await page.getByRole('group', { name: 'Foto puntual 1', exact: true }).boundingBox())!;
+  await page.mouse.move(photo.x + 15, photo.y + 15); await page.mouse.down();
+  await page.mouse.move(photo.x + 55, photo.y + 15, { steps: 5 }); await page.keyboard.press('Escape'); await page.mouse.up();
+  await expect(page.getByRole('spinbutton', { name: 'Inicio de selección' })).toHaveValue('7');
+});

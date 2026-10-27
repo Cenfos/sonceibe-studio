@@ -1,6 +1,10 @@
 'use client';
 
-import React, { createContext, useContext, useReducer, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useContext, useReducer, useCallback, useEffect, useMemo, useState, useRef } from 'react';
+import { captureSnapshot, copyProject, deleteSnapshots, listSnapshots, restoreSnapshotAudio, type ProjectSnapshot } from './project-history';
+import { deleteProjectMedia } from './local-media-storage';
+import { useStudioUserId } from './studio-user-context';
+import { toast } from 'sonner';
 import { hasProjectContent } from './project-content';
 import type {
   Project,
@@ -29,6 +33,8 @@ interface State {
 }
 
 type Action =
+  | { type: 'ADD_PROJECT'; project: Project }
+  | { type: 'RESTORE_PROJECT'; id: string; settings: ProjectSettings }
   | { type: 'SET_PAGE'; page: 'home' | 'studio' }
   | { type: 'OPEN_PROJECT'; id: string }
   | { type: 'CLOSE_PROJECT' }
@@ -102,6 +108,10 @@ function applyToSettings(state: State, fn: (s: ProjectSettings) => ProjectSettin
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
+    case 'ADD_PROJECT':
+      return { ...state, projects: [action.project, ...state.projects] };
+    case 'RESTORE_PROJECT':
+      return { ...state, isDirty: true, undoStack: [], redoStack: [], projects: state.projects.map(p => p.id === action.id ? { ...p, settings: action.settings } : p) };
     case 'SET_PAGE':
       return { ...state, currentPage: action.page };
 
@@ -334,9 +344,30 @@ function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+function snapshotReason(action: Action): string | null {
+  switch (action.type) {
+    case 'SET_LYRICS': case 'CLEAR_TIMESTAMPS': case 'SHIFT_TIMESTAMPS':
+    case 'REPLACE_IN_LYRICS': return 'Antes de cambiar o sincronizar la letra';
+    case 'UPDATE_LYRIC': case 'ADD_LYRIC': case 'DELETE_LYRIC':
+    case 'MOVE_LYRIC': case 'DUPLICATE_LYRIC': return 'Antes de editar la letra';
+    case 'UPDATE_BACKGROUND': return 'Antes de cambiar fotos o fondo';
+    case 'UPDATE_TEXT': case 'UPDATE_EFFECTS': case 'UPDATE_ANIMATION': return 'Antes de cambiar el estilo';
+    case 'UPDATE_SETTINGS':
+      return action.settings.visualStyle || action.settings.background || action.settings.lyrics || action.settings.titleStyle
+        ? 'Antes de cambiar el proyecto' : null;
+    default: return null;
+  }
+}
+
 export type AutoSaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
 interface StoreContextValue extends State {
+  historyError: string | null;
+  audioRevision: number;
+  saveVersion: (reason?: string) => Promise<void>;
+  getVersions: () => Promise<ProjectSnapshot[]>;
+  restoreVersion: (id: string) => Promise<void>;
+  duplicateProject: (id: string) => Promise<void>;
   currentProject: Project | null;
   autoSaveStatus: AutoSaveStatus;
   lastAutoSavedAt: number | null;
@@ -379,9 +410,14 @@ interface StoreProviderProps {
 }
 
 export function StoreProvider({ children, storageKey, migrateLegacy = false }: StoreProviderProps) {
+  const userId = useStudioUserId();
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [audioRevision, setAudioRevision] = useState(0);
+  const historyQueue = useRef<Promise<void>>(Promise.resolve());
+  const lastCapture = useRef<{ projectId: string; reason: string; at: number } | null>(null);
   const [autoSaveStatus, setAutoSaveStatus] = useState<AutoSaveStatus>('idle');
   const [lastAutoSavedAt, setLastAutoSavedAt] = useState<number | null>(null);
-  const [state, dispatch] = useReducer(reducer, initialState, (init) => {
+  const [state, rawDispatch] = useReducer(reducer, initialState, (init) => {
     if (typeof window === 'undefined') return init;
 
     try {
@@ -407,6 +443,78 @@ export function StoreProvider({ children, storageKey, migrateLegacy = false }: S
 
     return init;
   });
+
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const queueVersion = useCallback((project: Project, reason: string) => {
+    const captured = structuredClone(project);
+    const task = historyQueue.current.then(() => captureSnapshot(storageKey, userId, captured, reason));
+    historyQueue.current = task.catch(() => {});
+    return task.then(() => setHistoryError(null), error => {
+      const message = error instanceof Error ? error.message : 'No se pudo guardar la versión';
+      setHistoryError(message);
+      throw error;
+    });
+  }, [storageKey, userId]);
+
+  const dispatch = useCallback((action: Action) => {
+    const current = getCurrentProject(stateRef.current);
+    const syncStarting = action.type === 'UPDATE_SETTINGS' && action.settings.syncProgress?.inProgress === true && action.settings.syncProgress.currentIndex === 0 && Boolean(action.settings.lyrics);
+    const duringSync = current?.settings.syncProgress.inProgress && action.type === 'UPDATE_SETTINGS' && Boolean(action.settings.lyrics) && !syncStarting;
+    const reason = duringSync ? null : syncStarting ? 'Antes de resincronizar la letra' : snapshotReason(action);
+    if (current && reason && hasProjectContent(current.settings)) {
+      const last = lastCapture.current;
+      // Coalesce continuous edits; destructive/bulk actions always get a checkpoint.
+      const force = syncStarting || ['SET_LYRICS', 'CLEAR_TIMESTAMPS', 'SHIFT_TIMESTAMPS', 'REPLACE_IN_LYRICS'].includes(action.type)
+        || (action.type === 'UPDATE_SETTINGS' && Boolean(action.settings.visualStyle));
+      if (force || !last || last.projectId !== current.id || last.reason !== reason || Date.now() - last.at > 60_000) {
+        lastCapture.current = { projectId: current.id, reason, at: Date.now() };
+        void queueVersion(current, reason).catch(() => {
+          lastCapture.current = null;
+          toast.error('No se ha podido guardar la versión anterior. Revisa Versiones locales.');
+        });
+      }
+    }
+    if (action.type === 'DELETE_PROJECT') {
+      const task = historyQueue.current.then(() => deleteSnapshots(storageKey, action.id));
+      historyQueue.current = task.catch(() => { toast.error('No se pudo eliminar el historial local'); });
+    }
+    rawDispatch(action);
+  }, [queueVersion, storageKey]);
+
+  const saveVersion = useCallback(async (reason = 'Versión manual') => {
+    const project = getCurrentProject(stateRef.current);
+    if (project) await queueVersion(project, reason);
+  }, [queueVersion]);
+  const getVersions = useCallback(async () => {
+    const id = stateRef.current.currentProjectId;
+    await historyQueue.current;
+    return id ? listSnapshots(storageKey, id) : [];
+  }, [storageKey]);
+  const restoreVersion = useCallback(async (id: string) => {
+    const project = getCurrentProject(stateRef.current);
+    if (!project) return;
+    await historyQueue.current;
+    const snapshot = (await listSnapshots(storageKey, project.id)).find(item => item.id === id);
+    if (!snapshot) throw new Error('Esta versión ya no está disponible');
+    await queueVersion(project, 'Antes de restaurar una versión');
+    await restoreSnapshotAudio(userId, project.id, snapshot);
+    rawDispatch({ type: 'RESTORE_PROJECT', id: project.id, settings: { ...structuredClone(snapshot.settings), updatedAt: Date.now(), syncProgress: { ...snapshot.settings.syncProgress, inProgress: false } } });
+    setAudioRevision(revision => revision + 1);
+    lastCapture.current = null;
+  }, [queueVersion, storageKey, userId]);
+  const duplicateProject = useCallback(async (id: string) => {
+    const project = stateRef.current.projects.find(item => item.id === id);
+    if (!project) throw new Error('El proyecto ya no existe');
+    const copy = await copyProject(userId, project, stateRef.current.projects);
+    try {
+      localStorage.setItem(storageKey, JSON.stringify([copy, ...stateRef.current.projects]));
+      rawDispatch({ type: 'ADD_PROJECT', project: copy });
+    } catch (error) {
+      await deleteProjectMedia(userId, copy.id);
+      throw error;
+    }
+  }, [storageKey, userId]);
 
   const savedProjects = useMemo(() => state.projects.filter(
     (project) => project.id !== state.draftProjectId || hasProjectContent(project.settings)
@@ -524,6 +632,12 @@ export function StoreProvider({ children, storageKey, migrateLegacy = false }: S
   );
 
   const value: StoreContextValue = {
+    historyError,
+    audioRevision,
+    saveVersion,
+    getVersions,
+    restoreVersion,
+    duplicateProject,
     ...state,
     projects: savedProjects,
     currentProject,

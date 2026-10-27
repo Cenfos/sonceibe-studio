@@ -38,6 +38,7 @@ import { SONCEIBE_LOGO_URL, getVisualPreset, visualPresets } from '@/lib/visual-
 import type { VisualStyleId } from '@/lib/types';
 import { toast } from 'sonner';
 import { getExportPreflight, hasBlockingExportIssue } from '@/lib/export-preflight';
+import { ProjectVersions } from '@/components/studio/project-versions';
 
 const steps = [
   { id: 'music', label: 'Música', icon: Music },
@@ -93,6 +94,7 @@ export function MobileStudioWizard() {
     closeProject,
     autoSaveStatus,
     lastAutoSavedAt,
+    saveVersion,
   } = useStore();
   const audio = useAudioEngineContext();
   const userId = useStudioUserId();
@@ -207,6 +209,7 @@ export function MobileStudioWizard() {
     if (!file) return;
     setBusy(true);
     try {
+      await saveVersion('Antes de reemplazar el audio');
       await audio.loadFile(file);
       await saveProjectAudio(userId, currentProject.id, file);
       saveProjectAudioToWorkspace(userId, currentProject.id, file).catch(() => false);
@@ -309,7 +312,7 @@ export function MobileStudioWizard() {
                     : `✓ Guardado automático${lastAutoSavedAt ? ` · ${new Date(lastAutoSavedAt).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}` : ''}`}
               </div>
             </div>
-            <div className="w-10" />
+            <ProjectVersions />
           </div>
           <div className="grid grid-cols-4 border-t border-border/60">
             {steps.map((item, index) => {
