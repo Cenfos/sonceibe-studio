@@ -167,6 +167,7 @@ export interface SyncProgress {
 }
 
 export interface ProjectSettings {
+  reel?: { start: number; end: number; coverUrl: string; showLyrics: boolean; showTitle: boolean };
   title: string;
   artist: string;
   audioUrl: string;

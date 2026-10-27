@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { emptyStyle } from '@/lib/reel';
 import { useStore } from '@/lib/store';
 import { TextTab } from './text-tab';
 import { BackgroundTab } from './background-tab';
@@ -25,7 +26,7 @@ interface PropertiesPanelProps {
 }
 
 export function PropertiesPanel({ mobileOpen = false, onMobileClose }: PropertiesPanelProps) {
-  const { activeTab } = useStore();
+  const { activeTab, updateSettings } = useStore();
   const [width, setWidth] = useState(576);
   const [maxWidth, setMaxWidth] = useState(960);
   const drag = useRef<{ x: number; width: number } | null>(null);
@@ -118,6 +119,7 @@ export function PropertiesPanel({ mobileOpen = false, onMobileClose }: Propertie
       </div>
       <ScrollArea key={activeTab} className="flex-1 min-h-0">
         <div className="p-4">
+          <Button variant="outline" size="sm" className="mb-3 w-full" onClick={() => updateSettings(emptyStyle())}>Sin estilo · fondo vacío</Button>
           <details className="mb-4 rounded-lg border border-border p-3"><summary className="cursor-pointer text-sm font-medium">Estilos preparados · elegir o cambiar</summary><div className="pt-3"><VisualPresetPicker /></div></details>
           {activeTab === 'text' && <TextTab />}
           {activeTab === 'background' && <BackgroundTab />}

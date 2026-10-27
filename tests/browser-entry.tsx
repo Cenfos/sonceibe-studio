@@ -1,4 +1,5 @@
 import React from 'react';
+import { reelSettings, sliceAudioWav } from '../lib/reel';
 import { createRoot } from 'react-dom/client';
 import { StudioClient } from '../components/studio-client';
 import { createDefaultProjectSettings, type ProjectSettings } from '../lib/types';
@@ -38,16 +39,25 @@ async function seed() {
   localStorage.setItem('sonceibe-projects-v2:owner', JSON.stringify([{ id: 'fixture', settings }]));
 }
 
-async function exportFixture(target: VideoTarget) {
-  const settings = createDefaultProjectSettings();
+async function exportFixture(target: VideoTarget, cropped = false) {
+  let settings = createDefaultProjectSettings();
   settings.showTitle = false; settings.audioDuration = 6;
   settings.background = { ...settings.background, type: 'image', imageUrl: solidImage('#bb2222', target === 'mobile' ? 320 : 180, target === 'mobile' ? 180 : 320), imageFit: 'contain', overlay: 0 };
   settings.effects = { ...settings.effects, overlay: 0, vignette: false, particles: false, lightleaks: false };
   settings.animation = { ...settings.animation, in: 'line', out: 'line', duration: 0.05 };
   settings.text = { ...settings.text, fontFamily: 'Arial', shadow: false, outlineWidth: 0 };
   settings.lyrics = [{ id: '1', text: 'PRIMERA', start: 0, end: 2 }, { id: '2', text: 'SEGUNDA', start: 2, end: 4 }, { id: '3', text: 'ULTIMA', start: 4, end: 6 }];
+  let source: Blob = wav(6);
+  if (cropped) {
+    settings.audioDuration = 12;
+    settings.lyrics = settings.lyrics.map(line => ({ ...line, start: line.start + 3, end: line.end + 3 }));
+    settings.lyrics.unshift({ id: 'outside', text: 'NO EXPORTAR', start: 0, end: 3 });
+    settings = reelSettings(settings, 3, 9);
+    const context = new AudioContext();
+    try { source = sliceAudioWav(await context.decodeAudioData(await wav(12).arrayBuffer()), 3, 9); } finally { await context.close(); }
+  }
   const audio = document.createElement('audio');
-  audio.src = URL.createObjectURL(wav(6)); document.body.appendChild(audio);
+  audio.src = URL.createObjectURL(source); document.body.appendChild(audio);
   await new Promise<void>((resolve, reject) => { audio.oncanplaythrough = () => resolve(); audio.onerror = () => reject(new Error('Fixture audio failed')); });
   const drawn: string[] = [];
   const originalFillText = CanvasRenderingContext2D.prototype.fillText;
