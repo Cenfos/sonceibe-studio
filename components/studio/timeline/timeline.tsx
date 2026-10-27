@@ -2,6 +2,7 @@
 
 import { useRef, useState, useMemo, useEffect, useLayoutEffect, useCallback } from 'react';
 import { Music, Plus, ZoomIn, ZoomOut, Copy, Trash2 } from 'lucide-react';
+import { ReelDialog } from '../reel-dialog';
 import { TimelineClip } from './timeline-clip';
 import { WaveformDisplay } from './waveform-display';
 import { useStore } from '@/lib/store';
@@ -18,7 +19,7 @@ const IMAGE_DRAG_TYPE = 'application/x-sonceibe-image-index';
 const ROW_HEIGHT = 44;
 
 export function Timeline() {
-  const { currentProject, updateLyric, addLyric, deleteLyric, duplicateLyric, updateBackground, setTab } = useStore();
+  const { currentProject, updateLyric, addLyric, deleteLyric, duplicateLyric, updateBackground, updateSettings, setTab } = useStore();
   const audio = useAudioEngineContext();
   const scrollRef = useRef<HTMLDivElement>(null);
   const anchor = useRef<{ time: number; pixel: number } | null>(null);
@@ -26,8 +27,22 @@ export function Timeline() {
   const [viewportWidth, setViewportWidth] = useState(800);
   const [selection, setSelection] = useState<Selection | null>(null);
   const [snap, setSnap] = useState(true);
+  const [reelEnabled, setReelEnabled] = useState(Boolean(currentProject?.settings.reel));
   const settings = currentProject?.settings;
   const duration = audio.duration || settings?.audioDuration || 0;
+  const reel = settings?.reel || { start: 0, end: Math.min(30, duration), coverUrl: '', showLyrics: true, showTitle: true };
+  const reelRange = editTimeRange(reel, 'move', 0, duration);
+  function changeReel(range: TimeRange) {
+    updateSettings({ reel: { ...reel, ...range } });
+  }
+  function enableReel() {
+    const next = !reelEnabled;
+    setReelEnabled(next);
+    if (next) {
+      changeReel(settings?.reel ? reelRange : editTimeRange({ start: audio.currentTime, end: audio.currentTime + Math.min(30, duration) }, 'move', 0, duration));
+      setSelection(null);
+    }
+  }
   const lyrics = settings?.lyrics ?? [];
   const imageClips = settings?.background.imageClips ?? [];
   const photoClips = settings?.background.photoClips ?? [];
@@ -114,6 +129,7 @@ export function Timeline() {
     <div className="studio-timeline-header flex flex-wrap items-center justify-between gap-2 px-3 py-1 border-b border-border">
       <div className="flex items-center gap-2 text-sm"><Music className="h-4 w-4 text-primary" />Línea de Tiempo <span className="text-xs font-mono text-muted-foreground">{formatTime(audio.currentTime)} / {formatTime(duration)}</span></div>
       <div className="flex items-center gap-1">
+        <Button size="sm" variant={reelEnabled ? "default" : "outline"} className="h-7" disabled={duration < 0.2} aria-pressed={reelEnabled} onClick={enableReel}>Seleccionar Reel</Button>
         <Button size="sm" variant="ghost" className="h-7" aria-pressed={snap} onClick={() => setSnap(value => !value)} title="Ajustar los bordes al cursor de reproducción; Alt lo desactiva al arrastrar">Ajuste al cursor {snap ? '✓' : '—'}</Button>
         <Button size="icon" variant="ghost" className="h-7 w-7" aria-label="Alejar timeline" onClick={() => zoom(pxPerSec / 1.5)}><ZoomOut className="h-4 w-4" /></Button>
         <input type="range" min={0.25} max={200} step={0.25} value={pxPerSec} aria-label="Zoom horizontal" className="w-20" onChange={event => zoom(Number(event.target.value))} />
@@ -123,6 +139,13 @@ export function Timeline() {
         <Button size="icon" variant="ghost" className="h-7 w-7" aria-label="Añadir línea de letra" onClick={() => addLyric()}><Plus className="h-4 w-4" /></Button>
       </div>
     </div>
+    {reelEnabled && <div className="flex flex-wrap items-center gap-2 px-3 py-2 text-xs border-b border-primary/40 bg-primary/10" aria-label="Corte del Reel">
+      <span>Arrastra los bordes del Reel sobre el audio</span>
+      <Button size="sm" variant="outline" className="h-7" onClick={() => changeReel({ start: Math.min(audio.currentTime, duration - 0.2), end: audio.currentTime >= reelRange.end ? Math.min(duration, audio.currentTime + 30) : reelRange.end })}>Marcar inicio aquí</Button>
+      <Button size="sm" variant="outline" className="h-7" onClick={() => changeReel({ start: audio.currentTime <= reelRange.start ? Math.max(0, audio.currentTime - 30) : reelRange.start, end: Math.max(0.2, audio.currentTime) })}>Marcar fin aquí</Button>
+      <span className="font-mono" role="status">{formatTime(reelRange.start)} → {formatTime(reelRange.end)} · {(reelRange.end - reelRange.start).toFixed(1)} s</span>
+      <ReelDialog key={currentProject?.id} fromTimeline />
+    </div>}
     <div className="flex flex-wrap items-center gap-2 px-3 py-1 min-h-[36px] text-xs border-b border-border">
       {selected && selection ? <>
         <span>{selection.track === 'lyrics' ? 'Letra' : 'Foto'}</span>
@@ -151,7 +174,10 @@ export function Timeline() {
             onPointerUp={event => { if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }}>
             {ticks.map(time => <span key={time} className="absolute top-0 h-full border-l border-border pl-1 text-[10px] text-muted-foreground pointer-events-none" style={{ left: time * pxPerSec }}>{formatTime(time)}</span>)}
           </div>
-          <TrackRow>{peaks.length ? <WaveformDisplay peaks={peaks} width={duration * pxPerSec} height={36} playheadRatio={duration ? audio.currentTime / duration : 0} /> : <p className="p-3 text-xs text-muted-foreground">{duration ? 'Audio del proyecto' : 'Importa un MP3 para ver la forma de onda'}</p>}</TrackRow>
+          <TrackRow><div className="absolute inset-0 cursor-pointer" onPointerDown={event => { if (event.button === 0) audio.seek(pointerTime(event.clientX, event.currentTarget.getBoundingClientRect().left, pxPerSec, duration)); }}>{peaks.length ? <WaveformDisplay peaks={peaks} width={duration * pxPerSec} height={36} playheadRatio={duration ? audio.currentTime / duration : 0} /> : <p className="p-3 text-xs text-muted-foreground">{duration ? 'Audio del proyecto' : 'Importa un MP3 para ver la forma de onda'}</p>}</div>
+            {reelEnabled && <TimelineClip clip={{ ...reelRange, id: 'reel-range', text: 'Reel · arrastra los bordes' }} label="Reel" duration={duration} pxPerSec={pxPerSec} playhead={audio.currentTime} snap={snap} selected
+              onSelect={() => setSelection(null)} onSeek={() => audio.seek(reelRange.start)} onChange={changeReel} onRemove={() => setReelEnabled(false)} onDuplicate={() => {}} />}
+          </TrackRow>
           <TrackRow>{renderClips('lyrics')}</TrackRow>
           <TrackRow><div className="absolute inset-0"
             onDragOver={event => { if (settings?.background.type === 'images') { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; } }}

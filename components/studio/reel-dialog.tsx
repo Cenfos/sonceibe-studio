@@ -11,7 +11,7 @@ import { preloadVisualBranding } from '@/lib/visual-branding';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 
-export function ReelDialog() {
+export function ReelDialog({ fromTimeline = false }: { fromTimeline?: boolean }) {
   const { currentProject, updateSettings } = useStore();
   const audio = useAudioEngineContext();
   const [open, setOpen] = useState(false);
@@ -28,6 +28,7 @@ export function ReelDialog() {
   try { validateReel(reel.start, reel.end, duration); } catch { valid = false; }
   const patch = (value: Partial<typeof reel>) => { updateSettings({ reel: { ...reel, ...value } }); setResult(null); setError(''); };
   useEffect(() => () => { if (result) URL.revokeObjectURL(result.url); }, [result]);
+  useEffect(() => { setResult(null); }, [project?.reel]);
   useEffect(() => { if (!open || !previewing) return;
     if (audio.currentTime >= reel.end || audio.currentTime < reel.start - 0.1) { audio.pause(); setPreviewing(false); }
   }, [audio, open, previewing, reel.start, reel.end]);
@@ -86,12 +87,12 @@ export function ReelDialog() {
   };
 
   return <>
-    <Button variant="outline" size="sm" className="gap-2" onClick={() => close(true)}><Scissors className="h-4 w-4" />Reels</Button>
+    <Button variant="outline" size="sm" className="gap-2" disabled={fromTimeline && !valid} onClick={() => close(true)}><Scissors className="h-4 w-4" />{fromTimeline ? 'Crear Reel' : 'Reels'}</Button>
     <Dialog open={open} onOpenChange={close}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" onKeyDown={e => e.stopPropagation()} onInteractOutside={e => { if (busy) e.preventDefault(); }}>
-        <DialogHeader><DialogTitle>Reel de Instagram</DialogTitle><DialogDescription>Elige el fragmento de la canción. MP4 · 1080 × 1920 · 9:16 · 30 FPS. El proyecto completo se conserva.</DialogDescription></DialogHeader>
+        <DialogHeader><DialogTitle>Reel de Instagram</DialogTitle><DialogDescription>{fromTimeline ? 'Fragmento seleccionado en la línea de tiempo.' : 'Elige el fragmento de la canción.'} MP4 · 1080 × 1920 · 9:16 · 30 FPS. El proyecto completo se conserva.</DialogDescription></DialogHeader>
         <fieldset disabled={busy} className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+          {!fromTimeline && <div className="grid grid-cols-2 gap-3">
             {(['start', 'end'] as const).map(key => <div key={key} className="space-y-2">
               <label className="block text-sm">{key === 'start' ? 'Inicio (segundos)' : 'Fin (segundos)'}
                 <input className="mt-1 w-full rounded border bg-background p-2" type="number" min={0} max={duration} step={0.1} value={reel[key]} onChange={e => patch({ [key]: Number(e.target.value) })} />
@@ -99,7 +100,8 @@ export function ReelDialog() {
               <input aria-label={key === 'start' ? 'Mover inicio' : 'Mover fin'} className="w-full" type="range" min={0} max={duration} step={0.1} value={reel[key]} onChange={e => patch({ [key]: Number(e.target.value) })} />
               <Button variant="outline" size="sm" onClick={() => patch({ [key]: Math.round(audio.currentTime * 10) / 10 })}>Usar posición actual</Button>
             </div>)}
-          </div>
+          </div>}
+          {fromTimeline && <p className="text-sm">Inicio: {reel.start.toFixed(2)} s · Fin: {reel.end.toFixed(2)} s. Para ajustar el corte, vuelve a la línea de tiempo.</p>}
           <p className="text-sm" role="status">{valid ? `Duración del Reel: ${(reel.end - reel.start).toFixed(1)} s` : 'El inicio debe ser anterior al fin y ambos deben estar dentro de la canción (mínimo 0,2 s).'}</p>
           <label className="block text-sm">Portada (opcional)
             <input aria-label="Portada del Reel" className="mt-2 block w-full text-sm" type="file" accept="image/*" onChange={e => { void uploadCover(e.target.files?.[0]); e.target.value = ''; }} />
