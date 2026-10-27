@@ -1,11 +1,12 @@
 import { expect, test } from '@playwright/test';
 
-for (const target of ['mobile', 'pc'] as const) {
+for (const target of ['mobile', 'pc', 'reel'] as const) {
   test(`real ${target} MP4: resolution, cover, index, seek and final lyrics`, async ({ page }) => {
     await page.goto('/');
-    const result = await page.evaluate(target => window.studioTest.exportFixture(target), target);
-    expect([result.width, result.height]).toEqual(target === 'mobile' ? [1080, 1920] : [1920, 1080]);
+    const result = await page.evaluate(target => window.studioTest.exportFixture(target === 'reel' ? 'mobile' : target, target === 'reel'), target);
+    expect([result.width, result.height]).toEqual(target !== 'pc' ? [1080, 1920] : [1920, 1080]);
     expect(result.size).toBeGreaterThan(10000);
+    expect(result.drawn).not.toContain('NO EXPORTAR');
     expect(result.duration).toBeGreaterThan(5.5);
     expect(result.duration).toBeLessThan(7);
     expect(result.boxes).toContain('moov'); expect(result.boxes).toContain('mdat');

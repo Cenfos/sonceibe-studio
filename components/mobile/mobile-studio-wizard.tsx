@@ -38,6 +38,8 @@ import { SONCEIBE_LOGO_URL, getVisualPreset, visualPresets } from '@/lib/visual-
 import type { VisualStyleId } from '@/lib/types';
 import { toast } from 'sonner';
 import { getExportPreflight, hasBlockingExportIssue } from '@/lib/export-preflight';
+import { ReelDialog } from '@/components/studio/reel-dialog';
+import { emptyStyle } from '@/lib/reel';
 import { ProjectVersions } from '@/components/studio/project-versions';
 
 const steps = [
@@ -110,9 +112,7 @@ export function MobileStudioWizard() {
   const hasLyrics = Boolean(settings?.lyrics.some((line) => line.text.trim()));
   const hasPhotos = Boolean((settings?.background.images?.length ?? 0) > 0 || settings?.background.imageUrl);
   const hasAudio = Boolean(audio.duration > 0 || settings?.audioDuration);
-  const effectiveStyle: VisualStyleId = settings?.visualStyle && settings.visualStyle !== 'default'
-    ? settings.visualStyle
-    : 'sonceibe';
+  const effectiveStyle: VisualStyleId = settings?.visualStyle || 'default';
   const mobilePreflight = useMemo(
     () => settings ? getExportPreflight(settings, audio.duration || settings.audioDuration || 0, 'mobile') : [],
     [settings, audio.duration]
@@ -281,9 +281,6 @@ export function MobileStudioWizard() {
   };
 
   const prepareVideo = () => {
-    if (!hasPhotos && (!settings.visualStyle || settings.visualStyle === 'default')) {
-      applyVisualPreset('sonceibe');
-    }
     updateExport({ orientation: 'portrait', resolution: '1080p', fps: 30, includeAudio: true });
     updateBackground({ imageFit: 'cover' });
     setMobileExportOpen(true);
@@ -427,6 +424,7 @@ export function MobileStudioWizard() {
                 )}
               </Card>
 
+              <Button variant="outline" className="w-full" onClick={() => updateSettings(emptyStyle())}>Sin estilo · fondo vacío</Button>
               {!hasPhotos && (
                 <Card className="p-5 space-y-4">
                   <div className="flex items-start gap-3">
@@ -435,7 +433,7 @@ export function MobileStudioWizard() {
                     </div>
                     <div>
                       <h2 className="font-medium">O usa un estilo preparado</h2>
-                      <p className="mt-1 text-sm text-muted-foreground">Si no añades fotos, SonCeibe será el estilo inicial. Puedes elegir cualquiera de estos fondos.</p>
+                      <p className="mt-1 text-sm text-muted-foreground">Puedes elegir un fondo preparado o dejar el fondo vacío.</p>
                     </div>
                   </div>
 
@@ -494,7 +492,7 @@ export function MobileStudioWizard() {
                 <div className="flex justify-between gap-3"><span className="text-muted-foreground">Letra</span><span>{hasLyrics ? `${settings.lyrics.filter((line) => line.text.trim()).length} líneas` : 'Sin letra'}</span></div>
                 <div className="flex justify-between gap-3"><span className="text-muted-foreground">Fotos</span><span>{settings.background.images?.length ?? (settings.background.imageUrl ? 1 : 0)}</span></div>
                 {!hasPhotos && (
-                  <div className="flex justify-between gap-3"><span className="text-muted-foreground">Estilo</span><span>{selectedPreset?.label || 'SonCeibe'}</span></div>
+                  <div className="flex justify-between gap-3"><span className="text-muted-foreground">Estilo</span><span>{selectedPreset?.label || 'Sin estilo'}</span></div>
                 )}
                 <div className="flex justify-between gap-3"><span className="text-muted-foreground">Formato</span><span>1080×1920 · 9:16 · 30 FPS</span></div>
               </div>
@@ -526,6 +524,7 @@ export function MobileStudioWizard() {
                 <Eye className="h-4 w-4" />
                 Vista previa y zona segura
               </Button>
+              <div className="rounded-lg border p-3 space-y-2"><p className="text-sm">Para Instagram: selecciona sólo un fragmento y añade una portada.</p><ReelDialog key={currentProject.id} /></div>
               <Button className="w-full h-12 gap-2" onClick={prepareVideo} disabled={hasBlockingIssue}>
                 <Film className="h-5 w-5" />
                 Crear MP4 para móvil
