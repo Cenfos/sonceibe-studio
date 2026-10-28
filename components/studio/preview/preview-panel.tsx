@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { usePreviewOptions } from './preview-options';
 import { useStore } from '@/lib/store';
 import { useAudioEngineContext } from '@/lib/audio-engine-context';
 import { reelSettings } from '@/lib/reel';
@@ -15,21 +16,13 @@ import {
   Square,
   SkipBack,
   SkipForward,
-  Maximize2,
-  ZoomIn,
-  ZoomOut,
   Volume2,
   VolumeX,
-  Monitor,
-  Smartphone,
-  ShieldCheck,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Slider } from '@/components/ui/slider';
-import { Separator } from '@/components/ui/separator';
 
 export function PreviewPanel() {
-  const { currentProject, updateExport } = useStore();
+  const { currentProject } = useStore();
   const audio = useAudioEngineContext();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -42,8 +35,7 @@ export function PreviewPanel() {
     observer.observe(stage);
     return () => observer.disconnect();
   }, []);
-  const [zoom, setZoom] = useState(1);
-  const [showSafeZone, setShowSafeZone] = useState(false);
+  const { zoom, showSafeZone } = usePreviewOptions();
 
   const duration = audio.duration || currentProject?.settings.audioDuration || 0;
   const settings = currentProject?.settings;
@@ -158,77 +150,21 @@ export function PreviewPanel() {
   const skipBack = () => audio.seek(Math.max(0, audio.currentTime - 5));
   const skipForward = () => audio.seek(Math.min(duration, audio.currentTime + 5));
 
-  const toggleFullscreen = () => {
-    const el = containerRef.current;
-    if (!el) return;
-    if (document.fullscreenElement) {
-      document.exitFullscreen();
-    } else {
-      el.requestFullscreen();
-    }
-  };
+  useEffect(() => {
+    const fullscreen = () => {
+      const element = containerRef.current;
+      if (!element) return;
+      const request = document.fullscreenElement ? document.exitFullscreen() : element.requestFullscreen();
+      void request.catch(() => {});
+    };
+    window.addEventListener('sonceibe:preview-fullscreen', fullscreen);
+    return () => window.removeEventListener('sonceibe:preview-fullscreen', fullscreen);
+  }, []);
 
   return (
     <div className="flex flex-col h-full bg-background">
-      <div className="studio-preview-header h-10 shrink-0 flex items-center justify-between px-3 border-b border-border bg-card/30">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground min-w-0">
-          <span className="font-medium text-foreground shrink-0">Vista Previa</span>
-          <span className="studio-preview-meta text-xs truncate">
-            {canvasWidth}×{canvasHeight} · {isPortrait ? '9:16 Móvil' : '16:9 PC'}
-          </span>
-        </div>
-        <div className="flex items-center gap-1 shrink-0">
-          <Button
-            variant={orientation === 'landscape' ? 'secondary' : 'ghost'}
-            size="sm"
-            className="h-7 gap-1 px-2 text-xs"
-            onClick={() => updateExport({ orientation: 'landscape', resolution: '1080p', fps: 30 })}
-            title="Formato horizontal 16:9"
-          >
-            <Monitor className="h-3.5 w-3.5" />
-            PC
-          </Button>
-          <Button
-            variant={orientation === 'portrait' ? 'secondary' : 'ghost'}
-            size="sm"
-            className="h-7 gap-1 px-2 text-xs"
-            onClick={() => updateExport({ orientation: 'portrait', resolution: '1080p', fps: 30 })}
-            title="Formato vertical 9:16"
-          >
-            <Smartphone className="h-3.5 w-3.5" />
-            Móvil
-          </Button>
-          <Button
-            variant={showSafeZone ? 'secondary' : 'ghost'}
-            size="sm"
-            className="h-7 gap-1 px-2 text-xs"
-            onClick={() => setShowSafeZone((visible) => !visible)}
-            title="Mostrar zonas seguras para título, letra y redes sociales"
-            aria-pressed={showSafeZone}
-          >
-            <ShieldCheck className="h-3.5 w-3.5" />
-            Zona segura
-          </Button>
-          <div className="studio-preview-zoom flex items-center gap-1">
-            <Separator orientation="vertical" className="h-5 mx-1" />
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom((z) => Math.max(0.25, z - 0.25))}>
-              <ZoomOut className="h-4 w-4" />
-            </Button>
-            <span className="text-xs text-muted-foreground w-10 text-center">
-              {Math.round(zoom * 100)}%
-            </span>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom((z) => Math.min(2, z + 0.25))}>
-              <ZoomIn className="h-4 w-4" />
-            </Button>
-            <Separator orientation="vertical" className="h-5 mx-1" />
-          </div>
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={toggleFullscreen}>
-            <Maximize2 className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-
-      <div ref={stageRef} className="studio-preview-stage flex-1 min-h-0 flex items-center justify-center p-6 bg-[hsl(222_20%_5%)] overflow-hidden">
+      <div className="flex flex-1 min-h-0 min-w-0 gap-3 p-3 bg-[hsl(222_20%_5%)]">
+      <div ref={stageRef} className="studio-preview-stage flex-1 min-w-0 min-h-0 flex items-center justify-center overflow-hidden" aria-label="Vista previa del vídeo">
         <div
           ref={containerRef}
           className="relative shadow-2xl rounded-lg overflow-hidden bg-black"
@@ -270,51 +206,16 @@ export function PreviewPanel() {
         </div>
       </div>
 
-      <div className="studio-preview-controls h-16 shrink-0 flex items-center gap-4 px-4 border-t border-border bg-card/50 backdrop-blur-sm">
-        <div className="flex items-center gap-1 shrink-0">
-          <Button variant="ghost" size="icon" className="h-9 w-9" onClick={skipBack}>
-            <SkipBack className="h-4 w-4" />
-          </Button>
-          <Button size="icon" className="h-10 w-10 rounded-full" onClick={togglePlay}>
-            {audio.isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5 ml-0.5" />}
-          </Button>
-          <Button variant="ghost" size="icon" className="h-9 w-9" onClick={stop}>
-            <Square className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-9 w-9" onClick={skipForward}>
-            <SkipForward className="h-4 w-4" />
-          </Button>
-        </div>
-
-        <div className="text-xs font-mono text-muted-foreground tabular-nums w-20 shrink-0">
-          {formatTimecode(audio.currentTime)}
-        </div>
-
-        <div className="flex-1 flex items-center min-w-0">
-          <Slider
-            value={[audio.currentTime]}
-            min={0}
-            max={duration || 1}
-            step={0.01}
-            onValueChange={seek}
-            className="flex-1"
-          />
-        </div>
-
-        <div className="studio-time-end text-xs font-mono text-muted-foreground tabular-nums w-20 text-right shrink-0">
-          {formatTimecode(duration)}
-        </div>
-
-        <Separator orientation="vertical" className="studio-control-separator h-8" />
-
-        <Button
-          variant="ghost"
-          size="icon"
-          className="studio-volume-control h-9 w-9 shrink-0"
-          onClick={() => audio.setMuted(!audio.muted)}
-        >
-          {audio.muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-        </Button>
+      <aside aria-label="Reproductor" className="studio-preview-controls flex w-20 shrink-0 flex-col items-center gap-2 overflow-y-auto rounded-xl border border-border bg-card/50 px-2 py-3">
+        <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" aria-label="Retroceder 5 segundos" onClick={skipBack}><SkipBack className="h-4 w-4" /></Button>
+        <Button size="icon" className="h-10 w-10 shrink-0 rounded-full" aria-label={audio.isPlaying ? 'Pausar' : 'Reproducir'} onClick={togglePlay}>{audio.isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5 ml-0.5" />}</Button>
+        <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" aria-label="Detener" onClick={stop}><Square className="h-4 w-4" /></Button>
+        <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" aria-label="Avanzar 5 segundos" onClick={skipForward}><SkipForward className="h-4 w-4" /></Button>
+        <output aria-label="Tiempo de reproducción" className="text-[10px] font-mono text-muted-foreground tabular-nums">{formatTimecode(audio.currentTime)}</output>
+        <input aria-label="Posición del reproductor" type="range" min={0} max={duration || 1} step={0.01} value={audio.currentTime} onChange={event => seek([Number(event.target.value)])} className="min-h-16 w-5 flex-1 accent-primary [writing-mode:vertical-lr] [direction:rtl]" />
+        <span className="text-[10px] font-mono text-muted-foreground tabular-nums">{formatTimecode(duration)}</span>
+        <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" aria-label={audio.muted ? 'Activar sonido' : 'Silenciar'} onClick={() => audio.setMuted(!audio.muted)}>{audio.muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}</Button>
+      </aside>
       </div>
     </div>
   );

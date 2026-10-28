@@ -124,3 +124,9 @@
 /* Keep a usable preview while allowing a wider desktop inspector. */
 .studio-adjustable-panel { width: clamp(288px, var(--studio-panel-width, 576px), calc(100vw - 480px)); min-height: 0; }
 @media (pointer: coarse) and (max-width: 1024px) { .studio-panel-resizer { display: none; } }
+
+/* Keep the desktop workspace scrollbar visible beside the full-height editor. */
+.studio-workspace-scroll { scrollbar-gutter: stable; scrollbar-width: thin; scrollbar-color: hsl(215 15% 45%) hsl(222 20% 9%); }
+.studio-workspace-scroll::-webkit-scrollbar { width: 10px; }
+.studio-workspace-scroll::-webkit-scrollbar-track { background: hsl(222 20% 9%); }
+.studio-workspace-scroll::-webkit-scrollbar-thumb { background: hsl(215 15% 45%); border: 2px solid hsl(222 20% 9%); border-radius: 8px; }

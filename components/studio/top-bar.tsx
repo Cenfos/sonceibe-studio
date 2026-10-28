@@ -44,7 +44,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { ReelDialog } from './reel-dialog';
 import { ProjectVersions } from './project-versions';
 
 export function TopBar() {
@@ -305,7 +304,6 @@ export function TopBar() {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <ReelDialog />
           <ProjectVersions />
           <input
             ref={audioInputRef}

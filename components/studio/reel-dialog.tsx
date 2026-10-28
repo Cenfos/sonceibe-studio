@@ -14,7 +14,7 @@ import { ReelLyricsEditor } from './reel-lyrics-editor';
 import type { ProjectSettings } from '@/lib/types';
 import { VisualPresetPicker } from './properties/visual-preset-picker';
 
-export function ReelDialog({ fromTimeline = false, onRequestAudio, onManualDesign, label, initialManual = false, simple = false }: { simple?: boolean; initialManual?: boolean; label?: string; fromTimeline?: boolean; onRequestAudio?: () => void; onManualDesign?: () => void }) {
+export function ReelDialog({ fromTimeline = false, onRequestAudio, onManualDesign, label, initialManual = false, simple = false, triggerVariant }: { triggerVariant?: 'default' | 'outline'; simple?: boolean; initialManual?: boolean; label?: string; fromTimeline?: boolean; onRequestAudio?: () => void; onManualDesign?: () => void }) {
   const { currentProject, updateSettings, setTab } = useStore();
   const audio = useAudioEngineContext();
   const [step, setStep] = useState(0);
@@ -102,7 +102,7 @@ export function ReelDialog({ fromTimeline = false, onRequestAudio, onManualDesig
   };
 
   return <>
-    <Button variant={fromTimeline ? "outline" : "default"} size="sm" className="gap-2" disabled={fromTimeline && !valid} onClick={() => close(true)}><Scissors className="h-4 w-4" />{label || (fromTimeline ? 'Crear Reel' : 'Reels')}</Button>
+    <Button variant={triggerVariant || (fromTimeline ? "outline" : "default")} size="sm" className="gap-2" disabled={fromTimeline && !valid} onClick={() => close(true)}><Scissors className="h-4 w-4" />{label || (fromTimeline ? 'Crear Reel' : 'Reels')}</Button>
     <Dialog open={open} onOpenChange={close}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" onKeyDown={e => e.stopPropagation()} onInteractOutside={e => { if (busy) e.preventDefault(); }}>
         <DialogHeader><DialogTitle>Reel de Instagram</DialogTitle><DialogDescription>{fromTimeline ? 'Fragmento seleccionado en la línea de tiempo.' : 'Elige el fragmento de la canción.'} MP4 · 1080 × 1920 · 9:16 · 30 FPS. El proyecto completo se conserva.</DialogDescription></DialogHeader>

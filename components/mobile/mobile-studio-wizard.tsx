@@ -29,8 +29,8 @@ import {
   parseTxtLyrics,
   readLyricsFile,
 } from '@/lib/lyrics-utils';
-import { LOCAL_AUDIO_URL, getProjectAudio, saveProjectAudio } from '@/lib/local-media-storage';
-import { getProjectAudioFromWorkspace, saveProjectAudioToWorkspace } from '@/lib/local-workspace';
+import { LOCAL_AUDIO_URL, saveProjectAudio } from '@/lib/local-media-storage';
+import { saveProjectAudioToWorkspace } from '@/lib/local-workspace';
 import { LyricsSyncDialog } from '@/components/studio/lyrics/lyrics-sync-dialog';
 import { MobileOrientationGate } from '@/components/studio/mobile-orientation-gate';
 import { MobileExportDialog } from '@/components/mobile/mobile-export-dialog';
@@ -38,6 +38,7 @@ import { SONCEIBE_LOGO_URL, getVisualPreset, visualPresets } from '@/lib/visual-
 import type { VisualStyleId } from '@/lib/types';
 import { toast } from 'sonner';
 import { getExportPreflight, hasBlockingExportIssue } from '@/lib/export-preflight';
+import { MobileAudioPlayer } from './mobile-audio-player';
 import { ReelDialog } from '@/components/studio/reel-dialog';
 import { emptyStyle } from '@/lib/reel';
 import { ProjectVersions } from '@/components/studio/project-versions';
@@ -131,56 +132,6 @@ export function MobileStudioWizard() {
     // Only apply the mobile defaults when entering this project in mobile mode.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentProject?.id]);
-
-  useEffect(() => {
-    if (!currentProject || !audio.audioEl) return;
-
-    let cancelled = false;
-    const projectId = currentProject.id;
-    const { audioName, audioUrl } = currentProject.settings;
-
-    const restore = async () => {
-      try {
-        let file = await getProjectAudio(userId, projectId);
-        if (!file && audioName) {
-          file = await getProjectAudioFromWorkspace(userId, projectId, audioName);
-          if (file) await saveProjectAudio(userId, projectId, file);
-        }
-        if (cancelled) return;
-
-        if (file) {
-          await audio.loadFile(file);
-          if (audioUrl !== LOCAL_AUDIO_URL || audioName !== file.name) {
-            updateSettings({ audioName: file.name, audioUrl: LOCAL_AUDIO_URL });
-          }
-          return;
-        }
-
-        if (audioUrl && !audioUrl.startsWith('blob:') && audioUrl !== LOCAL_AUDIO_URL) {
-          await audio.loadFromUrl(audioUrl, audioName);
-          return;
-        }
-
-        audio.clear();
-      } catch (error) {
-        console.error('Mobile audio restore failed:', error);
-        audio.clear();
-      }
-    };
-
-    restore();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentProject?.id, userId, audio.audioEl]);
-
-  useEffect(() => {
-    if (!currentProject || audio.duration <= 0) return;
-    if (Math.abs((currentProject.settings.audioDuration || 0) - audio.duration) > 0.1) {
-      updateSettings({ audioDuration: audio.duration });
-    }
-  }, [audio.duration, currentProject, updateSettings]);
 
   const title = settings?.title || 'Proyecto';
   const progress = useMemo(() => ((step + 1) / steps.length) * 100, [step]);
@@ -332,6 +283,7 @@ export function MobileStudioWizard() {
           <div className="h-1 bg-secondary">
             <div className="h-full bg-primary transition-all" style={{ width: `${progress}%` }} />
           </div>
+          <MobileAudioPlayer />
         </header>
 
         <main className="mx-auto flex min-h-[calc(100dvh-72px)] max-w-lg flex-col px-4 py-5">

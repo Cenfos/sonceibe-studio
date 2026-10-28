@@ -42,8 +42,12 @@ export function useAudioEngine(): AudioEngine {
     const onPlay = () => setIsPlaying(true);
     const onPause = () => setIsPlaying(false);
     const onEnded = () => setIsPlaying(false);
+    const onReset = () => { setIsPlaying(false); setCurrentTime(0); };
+    const onError = () => setIsPlaying(false);
     const onVolume = () => setMutedState(el.muted);
 
+    el.addEventListener('emptied', onReset);
+    el.addEventListener('error', onError);
     el.addEventListener('timeupdate', onTime);
     el.addEventListener('loadedmetadata', onLoaded);
     el.addEventListener('durationchange', onLoaded);
@@ -53,6 +57,8 @@ export function useAudioEngine(): AudioEngine {
     el.addEventListener('volumechange', onVolume);
 
     return () => {
+      el.removeEventListener('emptied', onReset);
+      el.removeEventListener('error', onError);
       el.removeEventListener('timeupdate', onTime);
       el.removeEventListener('loadedmetadata', onLoaded);
       el.removeEventListener('durationchange', onLoaded);
@@ -160,11 +166,14 @@ export function useAudioEngine(): AudioEngine {
   }, [objectUrl]);
 
   const play = useCallback(() => {
-    audioRef.current?.play().catch(() => {});
+    const element = audioRef.current;
+    if (!element) return;
+    void element.play().then(() => setIsPlaying(!element.paused)).catch(() => setIsPlaying(false));
   }, []);
 
   const pause = useCallback(() => {
     audioRef.current?.pause();
+    setIsPlaying(false);
   }, []);
 
   const stop = useCallback(() => {

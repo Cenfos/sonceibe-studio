@@ -12,6 +12,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Type, Image, Sparkles, Wand2, FileText, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { EditingScope } from '../editing-scope';
 import { CreationGuide } from '../creation-guide';
 import { SidebarRail } from '../sidebar-rail';
 
@@ -68,6 +69,7 @@ export function PropertiesPanel({ mobileOpen = false, onMobileClose, onTabSelect
         )}
       >
         {resizeHandle}
+        <EditingScope />
         <SidebarRail onTabSelected={onTabSelected} />
         <div className="h-10 flex items-center justify-between px-4 border-b border-border">
           <span className="text-sm font-medium flex items-center gap-2">
@@ -106,6 +108,7 @@ export function PropertiesPanel({ mobileOpen = false, onMobileClose, onTabSelect
       )}
     >
       {resizeHandle}
+        <EditingScope />
         <SidebarRail onTabSelected={onTabSelected} />
       <div className="h-10 flex items-center justify-between gap-2 px-4 border-b border-border">
         <div className="flex items-center gap-2 min-w-0">

@@ -25,6 +25,7 @@ test('duplicate from home keeps audio after deleting the original', async ({ pag
 test('one drag is one undo; versions survive reload and restore', async ({ page }) => {
   await page.getByRole('heading', { name: 'Prueba Studio', exact: true }).click();
   const lyric = page.getByRole('group', { name: 'Letra 1', exact: true });
+  await lyric.scrollIntoViewIfNeeded();
   await expect(lyric).toBeVisible();
   const box = (await lyric.boundingBox())!;
   await page.mouse.move(box.x + 20, box.y + 15); await page.mouse.down();
@@ -68,6 +69,7 @@ test('keyboard edges, photo intervals, zoom, and ruler after horizontal scrollin
 
 test('photo border snaps to an existing playhead; cancellation does not edit the project', async ({ page }) => {
   await page.getByRole('heading', { name: 'Prueba Studio', exact: true }).click();
+  await page.getByRole('slider', { name: 'Cursor de reproducción', exact: true }).scrollIntoViewIfNeeded();
   const ruler = (await page.getByRole('slider', { name: 'Cursor de reproducción', exact: true }).boundingBox())!;
   await page.mouse.click(ruler.x + 120, ruler.y + 10); // 6 s at 20 px/s
   const edge = (await page.getByRole('slider', { name: 'Final de Imagen múltiple 1', exact: true }).boundingBox())!;
@@ -92,6 +94,56 @@ test('new project uses an in-page form when browser prompts are unsupported', as
   await page.getByLabel('Título de la canción (opcional)').fill('Mi canción nueva');
   await page.getByLabel('Título de la canción (opcional)').press('Enter');
   await expect(page.locator('.studio-project-title')).toHaveText('Mi canción nueva');
-  await expect(page.getByRole('button', { name: 'Reels', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Reel', exact: true })).toBeVisible();
   expect(errors).toEqual([]);
+});
+
+
+test('desktop preview uses full height with format controls in the inspector and player beside it', async ({ page }) => {
+  await page.getByRole('heading', { name: 'Prueba Studio', exact: true }).click();
+  const inspector = page.locator('.studio-properties-panel');
+  await expect(inspector.getByRole('button', { name: 'PC', exact: true })).toBeVisible();
+  await expect(inspector.getByRole('button', { name: 'Móvil', exact: true })).toBeVisible();
+  await expect(inspector.getByRole('button', { name: 'Reel', exact: true })).toBeVisible();
+  await expect(page.locator('.studio-preview-header')).toHaveCount(0);
+  const canvas = page.locator('.studio-preview-stage canvas');
+  const portrait = (await canvas.boundingBox())!;
+  const player = (await page.getByRole('complementary', { name: 'Reproductor', exact: true }).boundingBox())!;
+  expect(portrait.y).toBeLessThan(85);
+  expect(portrait.height).toBeGreaterThan(500);
+  expect(player.x).toBeGreaterThanOrEqual(portrait.x + portrait.width);
+  await page.getByRole('button', { name: 'Reproducir', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Pausar', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Detener', exact: true }).click();
+  await expect(page.getByLabel('Tiempo de reproducción')).toHaveText('00:00:00');
+  await page.screenshot({ path: 'tests/.generated/preview-portrait.png', animations: 'disabled' });
+  await inspector.getByRole('button', { name: 'PC', exact: true }).click();
+  await expect(inspector.getByRole('button', { name: 'PC', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  const landscape = (await canvas.boundingBox())!;
+  expect(landscape.width).toBeGreaterThan(landscape.height);
+  const landscapePlayer = (await page.getByRole('complementary', { name: 'Reproductor', exact: true }).boundingBox())!;
+  expect(landscapePlayer.x).toBeGreaterThanOrEqual(landscape.x + landscape.width);
+  await page.screenshot({ path: 'tests/.generated/preview-landscape.png', animations: 'disabled' });
+  await inspector.getByRole('button', { name: 'Reel', exact: true }).click();
+  await expect(page.getByRole('dialog')).toContainText('Reel de Instagram');
+});
+
+
+test('desktop workspace scrolls to compact timeline and has a single Reel entry', async ({ page }) => {
+  await page.getByRole('heading', { name: 'Prueba Studio', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Reels', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Reel', exact: true })).toHaveCount(1);
+  const workspace = page.locator('.studio-workspace-scroll');
+  expect(await workspace.evaluate(el => el.scrollHeight > el.clientHeight)).toBe(true);
+  const timeline = page.getByRole('region', { name: 'Línea de tiempo', exact: true });
+  expect((await timeline.boundingBox())!.y).toBeGreaterThanOrEqual(990);
+  const canvas = (await page.locator('.studio-preview-stage canvas').boundingBox())!;
+  expect(canvas.height).toBeGreaterThan(800);
+  await page.getByRole('button', { name: 'Ver línea de tiempo ↓', exact: true }).click();
+  await expect.poll(() => workspace.evaluate(el => el.scrollTop)).toBeGreaterThan(100);
+  await timeline.scrollIntoViewIfNeeded();
+  const labels = page.locator('.studio-timeline-labels > div');
+  expect((await labels.nth(1).boundingBox())!.height).toBe(28);
+  await page.getByRole('button', { name: 'Seleccionar Reel', exact: true }).click();
+  await expect(page.getByRole('slider', { name: 'Inicio de Reel', exact: true })).toBeVisible();
 });

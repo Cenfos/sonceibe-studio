@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext } from 'react';
 import { useAudioEngine, type AudioEngine } from '@/hooks/use-audio-engine';
+import { ProjectAudioRestore } from '@/components/studio/project-audio-restore';
 import { useStore } from './store';
 
 const AudioEngineContext = createContext<AudioEngine | null>(null);
@@ -15,6 +16,7 @@ function AudioEngineSession({ children }: { children: React.ReactNode }) {
   const engine = useAudioEngine();
   return (
     <AudioEngineContext.Provider value={engine}>
+      <ProjectAudioRestore />
       {children}
     </AudioEngineContext.Provider>
   );

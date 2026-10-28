@@ -90,7 +90,7 @@ test('mobile exposes Reels and does not restore a cleared style on export', asyn
 
 
 test('guided Reel offers quick durations and keeps exact manual editing', async ({ page }) => {
-  await page.getByRole('button', { name: 'Reels', exact: true }).click();
+  await page.getByRole('button', { name: 'Reel', exact: true }).click();
   const dialog = page.getByRole('dialog');
   await dialog.getByRole('button', { name: '15 segundos', exact: true }).click();
   await expect(dialog.getByLabel('Fin (segundos)')).toHaveValue('15');
@@ -127,7 +127,7 @@ test('video guide allows manual editing and format selection', async ({ page }) 
 
 
 test('Reel lyrics sync only the selected audio and persist separately from project lyrics', async ({ page }) => {
-  await page.getByRole('button', { name: 'Reels', exact: true }).click();
+  await page.getByRole('button', { name: 'Reel', exact: true }).click();
   const dialog = page.getByRole('dialog');
   await dialog.getByLabel('Inicio (segundos)').fill('40');
   await dialog.getByLabel('Fin (segundos)').fill('43');
@@ -150,7 +150,7 @@ test('Reel lyrics sync only the selected audio and persist separately from proje
   expect(saved.reel.lyrics[0]).toMatchObject({ text: 'Frase exclusiva', end: 3 });
   expect(saved.reel.lyrics[0].start).toBeLessThan(3);
   await page.reload(); await page.getByRole('heading', { name: 'Prueba Studio', exact: true }).click();
-  await page.getByRole('button', { name: 'Reels', exact: true }).click();
+  await page.getByRole('button', { name: 'Reel', exact: true }).click();
   await dialog.getByRole('button', { name: '2. Diseño', exact: true }).click();
   await expect(dialog.getByLabel('Frases del Reel', { exact: true })).toHaveValue('Frase exclusiva');
   await dialog.getByRole('button', { name: 'Usar letra del proyecto' }).click();
@@ -159,7 +159,7 @@ test('Reel lyrics sync only the selected audio and persist separately from proje
 
 
 test('boundary sliders seek audio and current-position buttons preserve an arbitrary Reel length', async ({ page }) => {
-  await page.getByRole('button', { name: 'Reels', exact: true }).click();
+  await page.getByRole('button', { name: 'Reel', exact: true }).click();
   const dialog = page.getByRole('dialog');
   await dialog.getByLabel('Inicio (segundos)').fill('50');
   await dialog.getByRole('slider', { name: 'Mover inicio', exact: true }).press('ArrowRight');
@@ -186,7 +186,7 @@ test('boundary sliders seek audio and current-position buttons preserve an arbit
 
 
 test('guided and advanced Reel editing share lyrics, range and full-song selection', async ({ page }) => {
-  await page.getByRole('button', { name: 'Reels', exact: true }).click();
+  await page.getByRole('button', { name: 'Reel', exact: true }).click();
   let dialog = page.getByRole('dialog');
   await dialog.getByLabel('Inicio (segundos)').fill('40');
   await dialog.getByLabel('Fin (segundos)').fill('45');
@@ -255,4 +255,55 @@ test.describe('simple mobile editing', () => {
     await expect(dialog.getByLabel('Frases del Reel', { exact: true })).toHaveValue('Frase desde el móvil');
     await page.screenshot({ path: 'test-results/reel-mobile-guided.png', animations: 'disabled' });
   });
+});
+
+
+test.describe('mobile music player', () => {
+  test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
+  test('loaded music can be played, paused and stopped from any guided step', async ({ page }) => {
+    const player = page.getByRole('region', { name: 'Escuchar proyecto', exact: true });
+    await expect(player.getByRole('button', { name: 'Escuchar', exact: true })).toBeEnabled();
+    await player.getByRole('button', { name: 'Escuchar', exact: true }).click();
+    await expect(player.getByRole('button', { name: 'Pausar', exact: true })).toBeVisible();
+    await expect.poll(() => player.getByLabel('Tiempo de escucha').innerText()).not.toBe('0:00');
+    await page.getByRole('button', { name: /Fotos o estilo/ }).click();
+    await expect(player.getByRole('button', { name: 'Pausar', exact: true })).toBeVisible();
+    await player.getByRole('button', { name: 'Pausar', exact: true }).click();
+    await expect(player.getByRole('button', { name: 'Escuchar', exact: true })).toBeVisible();
+    await player.getByRole('button', { name: 'Detener música', exact: true }).click();
+    await expect(player.getByLabel('Tiempo de escucha')).toHaveText('0:00');
+    await page.getByRole('button', { name: 'Vídeo', exact: true }).click();
+    await expect(player.getByRole('button', { name: 'Escuchar', exact: true })).toBeInViewport();
+    await page.screenshot({ path: 'test-results/mobile-music-player.png', animations: 'disabled' });
+  });
+});
+
+
+test('audio stays usable when changing Reel, full song and responsive mobile view', async ({ page }) => {
+  await page.getByRole('button', { name: 'Reproducir', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Pausar', exact: true })).toBeVisible();
+  await expect.poll(() => page.getByLabel('Tiempo de reproducción').innerText()).not.toBe('00:00:00');
+  await page.setViewportSize({ width: 390, height: 844 });
+  const player = page.getByRole('region', { name: 'Escuchar proyecto', exact: true });
+  await expect(player.getByRole('button', { name: 'Pausar', exact: true })).toBeVisible();
+  await player.getByRole('button', { name: 'Pausar', exact: true }).click();
+  await expect(player.getByRole('button', { name: 'Escuchar', exact: true })).toBeVisible();
+  await player.getByRole('button', { name: 'Escuchar', exact: true }).click();
+  const before = await player.getByLabel('Tiempo de escucha').innerText();
+  await expect.poll(() => player.getByLabel('Tiempo de escucha').innerText()).not.toBe(before);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await expect(page.getByRole('button', { name: 'Pausar', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Detener', exact: true }).click();
+  await page.getByRole('button', { name: 'Reel', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByLabel('Inicio (segundos)').fill('40');
+  await dialog.getByLabel('Fin (segundos)').fill('43');
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Canción completa', exact: true }).click();
+  await page.getByRole('button', { name: 'Reproducir', exact: true }).click();
+  await expect.poll(() => page.getByLabel('Tiempo de reproducción').innerText()).not.toBe('00:00:00');
+  await page.getByRole('button', { name: 'Reel · 40.0–43.0 s', exact: true }).click();
+  await page.getByRole('button', { name: 'Reproducir', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Pausar', exact: true })).toBeVisible();
+  await expect.poll(() => page.getByLabel('Tiempo de reproducción').innerText()).not.toBe('00:40:00');
 });

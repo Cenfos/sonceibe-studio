@@ -16,7 +16,7 @@ import type { BackgroundImageClip, LyricLine } from '@/lib/types';
 type Track = 'lyrics' | 'imageClips' | 'photoClips';
 type Selection = { track: Track; id: string };
 const IMAGE_DRAG_TYPE = 'application/x-sonceibe-image-index';
-const ROW_HEIGHT = 44;
+const ROW_HEIGHT = 28;
 
 export function Timeline() {
   const { currentProject, updateLyric: updateProjectLyric, addLyric: addProjectLyric, deleteLyric: deleteProjectLyric, duplicateLyric: duplicateProjectLyric, updateBackground, updateSettings, setTab } = useStore();
@@ -152,6 +152,7 @@ export function Timeline() {
     <div className="studio-timeline-header flex flex-wrap items-center justify-between gap-2 px-3 py-1 border-b border-border">
       <div className="flex items-center gap-2 text-sm"><Music className="h-4 w-4 text-primary" />Línea de Tiempo <span className="text-xs font-mono text-muted-foreground">{formatTime(audio.currentTime)} / {formatTime(duration)}</span></div>
       <div className="flex items-center gap-1">
+        <Button size="sm" variant="ghost" className="h-7" onClick={() => document.querySelector('.studio-main-workspace')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>Vista previa ↑</Button>
         <Button size="sm" variant={reelEnabled ? "default" : "outline"} className="h-7" disabled={duration < 0.2} aria-pressed={reelEnabled} onClick={enableReel}>Seleccionar Reel</Button>
         <Button size="sm" variant="ghost" className="h-7" aria-pressed={snap} onClick={() => setSnap(value => !value)} title="Ajustar los bordes al cursor de reproducción; Alt lo desactiva al arrastrar">Ajuste al cursor {snap ? '✓' : '—'}</Button>
         <Button size="icon" variant="ghost" className="h-7 w-7" aria-label="Alejar timeline" onClick={() => zoom(pxPerSec / 1.5)}><ZoomOut className="h-4 w-4" /></Button>
@@ -197,7 +198,7 @@ export function Timeline() {
             onPointerUp={event => { if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }}>
             {ticks.map(time => <span key={time} className="absolute top-0 h-full border-l border-border pl-1 text-[10px] text-muted-foreground pointer-events-none" style={{ left: time * pxPerSec }}>{formatTime(time)}</span>)}
           </div>
-          <TrackRow><div className="absolute inset-0 cursor-pointer" onPointerDown={event => { if (event.button === 0) audio.seek(pointerTime(event.clientX, event.currentTarget.getBoundingClientRect().left, pxPerSec, duration)); }}>{peaks.length ? <WaveformDisplay peaks={peaks} width={duration * pxPerSec} height={36} playheadRatio={duration ? audio.currentTime / duration : 0} /> : <p className="p-3 text-xs text-muted-foreground">{duration ? 'Audio del proyecto' : 'Importa un MP3 para ver la forma de onda'}</p>}</div>
+          <TrackRow><div className="absolute inset-0 cursor-pointer" onPointerDown={event => { if (event.button === 0) audio.seek(pointerTime(event.clientX, event.currentTarget.getBoundingClientRect().left, pxPerSec, duration)); }}>{peaks.length ? <WaveformDisplay peaks={peaks} width={duration * pxPerSec} height={24} playheadRatio={duration ? audio.currentTime / duration : 0} /> : <p className="px-2 py-1 text-xs text-muted-foreground">{duration ? 'Audio del proyecto' : 'Importa un MP3 para ver la forma de onda'}</p>}</div>
             {reelEnabled && <TimelineClip clip={{ ...reelRange, id: 'reel-range', text: 'Reel · arrastra los bordes' }} label="Reel" duration={duration} pxPerSec={pxPerSec} playhead={audio.currentTime} snap={snap} selected
               onSelect={() => setSelection(null)} onSeek={() => audio.seek(reelRange.start)} onChange={changeReel} onRemove={() => updateSettings({ editingTarget: 'full' })} onDuplicate={() => {}} />}
           </TrackRow>
@@ -218,11 +219,11 @@ export function Timeline() {
               updateBackground({ imageMode: 'manual', imageClips: [...imageClips, clip] });
               setSelection({ track: 'imageClips', id: clip.id });
             }}>
-            {manualImages ? imageClips.length ? renderClips('imageClips') : <p className="p-3 text-xs text-muted-foreground">Arrastra aquí una imagen desde el panel Fondo</p>
-              : <p className="p-3 text-xs text-muted-foreground">{settings?.background.type === 'images' ? `Automático · ${settings.background.images.length} imágenes · ${settings.background.imageDuration}s` : settings?.background.type === 'image' ? 'Imagen fija' : settings?.background.type === 'gradient' ? 'Gradiente animado' : settings?.background.type === 'video' ? 'Vídeo' : 'Color sólido'}</p>}
+            {manualImages ? imageClips.length ? renderClips('imageClips') : <p className="px-2 py-1 text-xs text-muted-foreground">Arrastra aquí una imagen desde el panel Fondo</p>
+              : <p className="px-2 py-1 text-xs text-muted-foreground">{settings?.background.type === 'images' ? `Automático · ${settings.background.images.length} imágenes · ${settings.background.imageDuration}s` : settings?.background.type === 'image' ? 'Imagen fija' : settings?.background.type === 'gradient' ? 'Gradiente animado' : settings?.background.type === 'video' ? 'Vídeo' : 'Color sólido'}</p>}
           </div></TrackRow>
           {photoClips.length > 0 && <TrackRow>{renderClips('photoClips')}</TrackRow>}
-          <TrackRow><p className="p-3 text-xs text-muted-foreground">{[settings?.effects.vignette && 'Viñeta', settings?.effects.particles && 'Partículas', settings?.effects.lightleaks && 'Fugas de luz'].filter(Boolean).join(' · ')}</p></TrackRow>
+          <TrackRow><p className="px-2 py-1 text-xs text-muted-foreground">{[settings?.effects.vignette && 'Viñeta', settings?.effects.particles && 'Partículas', settings?.effects.lightleaks && 'Fugas de luz'].filter(Boolean).join(' · ')}</p></TrackRow>
           <div className="absolute top-0 bottom-0 w-0.5 bg-primary pointer-events-none z-20" style={{ left: audio.currentTime * pxPerSec }}><div className="absolute left-[-5px] w-3 h-3 bg-primary rotate-45" /></div>
         </div>
       </div>
