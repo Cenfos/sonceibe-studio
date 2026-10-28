@@ -524,7 +524,7 @@ export function MobileStudioWizard() {
                 <Eye className="h-4 w-4" />
                 Vista previa y zona segura
               </Button>
-              <div className="rounded-lg border p-3 space-y-2"><p className="text-sm">Para Instagram: selecciona sólo un fragmento y añade una portada.</p><ReelDialog key={currentProject.id} /></div>
+              <div className="rounded-lg border p-3 space-y-2"><p className="text-sm">Para Instagram: selecciona sólo un fragmento y añade una portada.</p><ReelDialog simple key={currentProject.id} onRequestAudio={() => setStep(0)} onManualDesign={() => setStep(2)} /></div>
               <Button className="w-full h-12 gap-2" onClick={prepareVideo} disabled={hasBlockingIssue}>
                 <Film className="h-5 w-5" />
                 Crear MP4 para móvil

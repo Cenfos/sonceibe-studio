@@ -19,6 +19,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
+import { ReelDialog } from './reel-dialog';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -183,6 +184,7 @@ export function ExportDialog() {
           </DialogDescription>
         </DialogHeader>
 
+        {currentProject.settings.reel && currentProject.settings.editingTarget !== 'full' && !exporting && <div className="rounded-lg border border-primary/40 p-3 space-y-2"><p className="text-sm">Estás editando un Reel. Puedes exportar ese fragmento aquí o usar las opciones de abajo para la canción completa.</p><ReelDialog label="Exportar el Reel seleccionado" fromTimeline /></div>}
         {done ? (
           <div className="py-8 text-center space-y-3">
             <Check className="mx-auto h-10 w-10 text-green-500" />
@@ -281,6 +283,12 @@ export function ExportDialog() {
 
                 <div className="rounded-lg bg-secondary/40 p-3 text-sm">
                   <div className="flex justify-between gap-3">
+                    <span>Duración completa</span><strong>{duration.toFixed(1)} s</strong>
+                  </div>
+                  <div className="mt-1 flex justify-between gap-3">
+                    <span>Imagen</span><strong>Montaje del proyecto</strong>
+                  </div>
+                  <div className="mt-1 flex justify-between gap-3">
                     <span>Salida exacta</span>
                     <strong>{profile.width}×{profile.height}</strong>
                   </div>

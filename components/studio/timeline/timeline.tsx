@@ -11,7 +11,7 @@ import { generateWaveformPeaks } from '@/lib/waveform';
 import { formatTime } from '@/lib/format';
 import { editTimeRange, pointerTime, snapToPlayhead, type EditMode, type TimeRange } from '@/lib/timeline-edit';
 import { Button } from '@/components/ui/button';
-import type { BackgroundImageClip } from '@/lib/types';
+import type { BackgroundImageClip, LyricLine } from '@/lib/types';
 
 type Track = 'lyrics' | 'imageClips' | 'photoClips';
 type Selection = { track: Track; id: string };
@@ -19,7 +19,7 @@ const IMAGE_DRAG_TYPE = 'application/x-sonceibe-image-index';
 const ROW_HEIGHT = 44;
 
 export function Timeline() {
-  const { currentProject, updateLyric, addLyric, deleteLyric, duplicateLyric, updateBackground, updateSettings, setTab } = useStore();
+  const { currentProject, updateLyric: updateProjectLyric, addLyric: addProjectLyric, deleteLyric: deleteProjectLyric, duplicateLyric: duplicateProjectLyric, updateBackground, updateSettings, setTab } = useStore();
   const audio = useAudioEngineContext();
   const scrollRef = useRef<HTMLDivElement>(null);
   const anchor = useRef<{ time: number; pixel: number } | null>(null);
@@ -27,23 +27,46 @@ export function Timeline() {
   const [viewportWidth, setViewportWidth] = useState(800);
   const [selection, setSelection] = useState<Selection | null>(null);
   const [snap, setSnap] = useState(true);
-  const [reelEnabled, setReelEnabled] = useState(Boolean(currentProject?.settings.reel));
   const settings = currentProject?.settings;
+  const reelEnabled = !!settings?.reel && settings.editingTarget !== 'full';
   const duration = audio.duration || settings?.audioDuration || 0;
   const reel = settings?.reel || { start: 0, end: Math.min(30, duration), coverUrl: '', showLyrics: true, showTitle: true };
   const reelRange = editTimeRange(reel, 'move', 0, duration);
   function changeReel(range: TimeRange) {
-    updateSettings({ reel: { ...reel, ...range } });
+    updateSettings({ editingTarget: 'reel', reel: { ...reel, ...range } });
   }
   function enableReel() {
     const next = !reelEnabled;
-    setReelEnabled(next);
+    if (!next) updateSettings({ editingTarget: 'full' });
     if (next) {
       changeReel(settings?.reel ? reelRange : editTimeRange({ start: audio.currentTime, end: audio.currentTime + Math.min(30, duration) }, 'move', 0, duration));
       setSelection(null);
     }
   }
-  const lyrics = settings?.lyrics ?? [];
+  const customLyrics = reelEnabled && settings?.reel?.lyricsMode === 'custom';
+  const lyrics = customLyrics ? (settings?.reel?.lyrics || []).map(line => ({ ...line, start: line.start + reel.start, end: line.end + reel.start })) : settings?.lyrics ?? [];
+  function saveReelLyrics(lines: LyricLine[]) {
+    const relative = lines.map(line => ({ ...line, start: line.start - reel.start, end: line.end - reel.start, words: undefined }));
+    updateSettings({ reel: { ...reel, lyrics: relative, lyricsText: relative.map(line => line.text).join('\n') } });
+  }
+  function updateLyric(id: string, patch: Partial<LyricLine>) {
+    if (!customLyrics) { updateProjectLyric(id, patch); return; }
+    saveReelLyrics(lyrics.map(line => line.id === id ? { ...line, ...patch } : line));
+  }
+  function deleteLyric(id: string) {
+    if (!customLyrics) { deleteProjectLyric(id); return; }
+    saveReelLyrics(lyrics.filter(line => line.id !== id));
+  }
+  function duplicateLyric(id: string) {
+    if (!customLyrics) { duplicateProjectLyric(id); return; }
+    const line = lyrics.find(line => line.id === id);
+    if (line) saveReelLyrics([...lyrics, { ...line, id: crypto.randomUUID(), start: line.end, end: Math.min(reel.end, line.end + line.end - line.start) }]);
+  }
+  function addLyric() {
+    if (!customLyrics) { addProjectLyric(); return; }
+    const start = Math.max(reel.start, Math.min(reel.end - 0.05, audio.currentTime));
+    saveReelLyrics([...lyrics, { id: crypto.randomUUID(), text: '', start, end: Math.min(reel.end, start + 4) }]);
+  }
   const imageClips = settings?.background.imageClips ?? [];
   const photoClips = settings?.background.photoClips ?? [];
   const manualImages = settings?.background.type === 'images' && settings.background.imageMode === 'manual';
@@ -176,7 +199,7 @@ export function Timeline() {
           </div>
           <TrackRow><div className="absolute inset-0 cursor-pointer" onPointerDown={event => { if (event.button === 0) audio.seek(pointerTime(event.clientX, event.currentTarget.getBoundingClientRect().left, pxPerSec, duration)); }}>{peaks.length ? <WaveformDisplay peaks={peaks} width={duration * pxPerSec} height={36} playheadRatio={duration ? audio.currentTime / duration : 0} /> : <p className="p-3 text-xs text-muted-foreground">{duration ? 'Audio del proyecto' : 'Importa un MP3 para ver la forma de onda'}</p>}</div>
             {reelEnabled && <TimelineClip clip={{ ...reelRange, id: 'reel-range', text: 'Reel · arrastra los bordes' }} label="Reel" duration={duration} pxPerSec={pxPerSec} playhead={audio.currentTime} snap={snap} selected
-              onSelect={() => setSelection(null)} onSeek={() => audio.seek(reelRange.start)} onChange={changeReel} onRemove={() => setReelEnabled(false)} onDuplicate={() => {}} />}
+              onSelect={() => setSelection(null)} onSeek={() => audio.seek(reelRange.start)} onChange={changeReel} onRemove={() => updateSettings({ editingTarget: 'full' })} onDuplicate={() => {}} />}
           </TrackRow>
           <TrackRow>{renderClips('lyrics')}</TrackRow>
           <TrackRow><div className="absolute inset-0"

@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { EditingScope } from './editing-scope';
 import { TopBar } from './top-bar';
-import { SidebarRail } from './sidebar-rail';
 import { PreviewPanel } from './preview/preview-panel';
 import { PropertiesPanel } from './properties/properties-panel';
 import { Timeline } from './timeline/timeline';
@@ -184,8 +184,8 @@ export function StudioLayout() {
       <MobileOrientationGate />
       <div className="studio-editor-shell flex flex-col h-full">
         <TopBar />
+        <EditingScope />
         <div className="flex flex-1 min-h-0">
-          <SidebarRail onTabSelected={handleTabSelected} />
           <div className="flex flex-1 min-w-0">
             <div className="flex-1 min-w-0 min-h-0 flex flex-col">
               {activeTab === 'lyrics' ? (
@@ -195,6 +195,7 @@ export function StudioLayout() {
               )}
             </div>
             <PropertiesPanel
+              onTabSelected={handleTabSelected}
               mobileOpen={mobilePropertiesOpen}
               onMobileClose={() => setMobilePropertiesOpen(false)}
             />

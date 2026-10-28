@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { emptyStyle, reelSettings, sliceAudioWav, validateReel } from '../../lib/reel';
+import { emptyStyle, reelSettings, sliceAudioWav, validateReel, reelLyricsIssue } from '../../lib/reel';
 import { createDefaultProjectSettings } from '../../lib/types';
 
 it('clips overlapping lines, words and photos without mutating the full project', () => {
@@ -39,4 +39,24 @@ it('rejects invalid boundaries and resets backgrounds including overlays', () =>
   const reset = emptyStyle();
   expect(reset.background).toMatchObject({ type: 'color', color: '#000000', imageUrl: '', images: [], photoClips: [], overlay: 0 });
   expect(reset.effects).toMatchObject({ overlay: 0, particles: false, vignette: false });
+});
+
+
+it('uses relative Reel lyrics at a later song offset and preserves project lyrics', () => {
+  const settings = createDefaultProjectSettings(); settings.audioDuration = 120;
+  settings.lyrics = [{ id: 'original', text: 'Canción completa', start: 40, end: 50 }];
+  settings.reel = { start: 40, end: 44, coverUrl: '', showTitle: true, showLyrics: true, lyricsMode: 'custom', lyrics: [{ id: 'custom', text: 'Sólo este Reel', start: 0.5, end: 3 }] };
+  const before = JSON.stringify(settings);
+  expect(reelSettings(settings, 40, 44).lyrics).toEqual(settings.reel.lyrics);
+  expect(reelSettings(settings, 40, 44, '', false).lyrics).toEqual([]);
+  settings.reel.lyricsMode = 'project';
+  expect(reelSettings(settings, 40, 44).lyrics[0]).toMatchObject({ text: 'Canción completa', start: 0, end: 4 });
+  settings.reel.lyricsMode = 'custom';
+  expect(JSON.stringify(settings)).toBe(before);
+  expect(reelLyricsIssue(settings.reel)).toBe('');
+  settings.reel.lyrics![0].end = 5;
+  expect(reelLyricsIssue(settings.reel)).not.toBe('');
+  settings.reel.lyrics![0].end = 3;
+  settings.reel.lyricsText = 'Texto cambiado';
+  expect(reelLyricsIssue(settings.reel)).not.toBe('');
 });

@@ -5,6 +5,8 @@ import Image from 'next/image';
 import { SONCEIBE_LOGO_DATA_URL } from '@/lib/sonceibe-logo-data';
 import { useStore } from '@/lib/store';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { formatRelative, formatTime } from '@/lib/format';
@@ -24,6 +26,8 @@ import { toast } from 'sonner';
 
 export function HomePage() {
   const { projects, openProject, createProject, deleteProject, duplicateProject } = useStore();
+  const [createOpen, setCreateOpen] = useState(false);
+  const [projectTitle, setProjectTitle] = useState('');
   const [duplicating, setDuplicating] = useState(false);
   const duplicateBusy = useRef(false);
   const handleDuplicate = async (id: string) => {
@@ -48,14 +52,16 @@ export function HomePage() {
   };
 
   const handleCreateProject = () => {
-    const value = window.prompt(
-      'Título de la canción\n\nPuedes dejarlo en blanco: al cargar el MP3 se usará automáticamente el nombre del archivo.'
-    );
-    if (value === null) return;
+    setProjectTitle('');
+    setCreateOpen(true);
+  };
 
-    const title = value.trim();
+  const confirmCreateProject = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const title = projectTitle.trim();
     if (title) sessionStorage.setItem(PENDING_PROJECT_TITLE_KEY, title);
     else sessionStorage.removeItem(PENDING_PROJECT_TITLE_KEY);
+    setCreateOpen(false);
     createProject();
   };
 
@@ -96,6 +102,24 @@ export function HomePage() {
 
   return (
     <div className="h-full overflow-y-auto scrollbar-thin bg-background">
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Nuevo proyecto</DialogTitle>
+            <DialogDescription>Puedes dejar el título en blanco: al cargar el audio se usará el nombre del archivo.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={confirmCreateProject} className="space-y-4">
+            <div className="space-y-2">
+              <label htmlFor="new-project-title" className="text-sm font-medium">Título de la canción (opcional)</label>
+              <Input id="new-project-title" value={projectTitle} onChange={event => setProjectTitle(event.target.value)} placeholder="Nombre de tu canción" autoFocus />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>Cancelar</Button>
+              <Button type="submit">Crear proyecto</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
       <div className="relative overflow-hidden border-b border-border">
         <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-transparent to-transparent" />
         <div className="absolute inset-0 bg-grid opacity-30" />

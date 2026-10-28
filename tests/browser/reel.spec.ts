@@ -87,3 +87,172 @@ test('mobile exposes Reels and does not restore a cleared style on export', asyn
 });
 
 });
+
+
+test('guided Reel offers quick durations and keeps exact manual editing', async ({ page }) => {
+  await page.getByRole('button', { name: 'Reels', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('button', { name: '15 segundos', exact: true }).click();
+  await expect(dialog.getByLabel('Fin (segundos)')).toHaveValue('15');
+  await dialog.getByRole('button', { name: 'Continuar', exact: true }).click();
+  await expect(dialog.getByLabel('Portada del Reel')).toBeVisible();
+  await dialog.getByRole('button', { name: 'Continuar', exact: true }).click();
+  await expect(dialog.getByLabel('Resumen del Reel')).toContainText('15.0 s');
+  await dialog.getByRole('button', { name: 'Ajustar manualmente' }).click();
+  await dialog.getByLabel('Inicio (segundos)').fill('2');
+  await dialog.getByLabel('Fin (segundos)').fill('7');
+  await expect(dialog.getByLabel('Resumen del Reel')).toContainText('5.0 s');
+  await dialog.getByRole('button', { name: 'Volver a la guía' }).click();
+  await dialog.getByRole('button', { name: '1. Fragmento', exact: true }).click();
+  await expect(dialog.getByLabel('Inicio (segundos)')).toHaveValue('2');
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button', { name: 'Seleccionar Reel', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('slider', { name: 'Inicio de Reel', exact: true })).toHaveAttribute('aria-valuenow', '2');
+});
+
+test('video guide allows manual editing and format selection', async ({ page }) => {
+  const guide = page.getByRole('region', { name: 'Creación guiada de vídeo' });
+  await guide.getByRole('button', { name: 'Editar manualmente' }).click();
+  await expect(guide.getByRole('button', { name: '1. Audio' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Fondo', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Sin estilo · fondo vacío', exact: true })).toBeVisible();
+  await guide.getByRole('button', { name: 'Abrir guía' }).click();
+  await guide.getByRole('button', { name: '2. Formato', exact: true }).click();
+  await guide.getByRole('button', { name: 'Horizontal · 16:9' }).click();
+  await expect(guide.getByRole('button', { name: 'Horizontal · 16:9' })).toHaveAttribute('aria-pressed', 'true');
+  await guide.getByRole('button', { name: '4. Exportar', exact: true }).click();
+  await guide.getByRole('button', { name: 'Revisar y exportar vídeo' }).click();
+  await expect(page.getByRole('dialog')).toContainText('Duración completa');
+});
+
+
+test('Reel lyrics sync only the selected audio and persist separately from project lyrics', async ({ page }) => {
+  await page.getByRole('button', { name: 'Reels', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByLabel('Inicio (segundos)').fill('40');
+  await dialog.getByLabel('Fin (segundos)').fill('43');
+  await dialog.getByRole('button', { name: '2. Diseño', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Letra sólo para este Reel' }).click();
+  await dialog.getByLabel('Frases del Reel', { exact: true }).fill('Frase exclusiva');
+  await dialog.getByRole('button', { name: 'Preparar frases', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Sincronizar sólo este fragmento' }).click();
+  await expect.poll(async () => parseFloat(await dialog.getByLabel('Posición de sincronización').innerText())).toBeGreaterThan(0);
+  await dialog.getByRole('button', { name: 'Marcar entrada de frase' }).click();
+  await expect(dialog.getByRole('button', { name: 'Marcar final y terminar' })).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Sincronizar sólo este fragmento' })).toBeVisible({ timeout: 6000 });
+  await dialog.getByRole('button', { name: '3. Exportar', exact: true }).click();
+  await expect(dialog.getByRole('button', { name: 'Crear Reel MP4', exact: true })).toBeEnabled();
+  await dialog.getByRole('button', { name: 'Crear Reel MP4', exact: true }).click();
+  await expect(dialog.getByRole('link', { name: 'Descargar Reel', exact: true })).toBeVisible({ timeout: 30000 });
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('sonceibe-projects-v2:owner')!)[0].settings);
+  expect(saved.lyrics[0].text).toBe('Primera frase');
+  expect(saved.lyrics[1].start).toBe(110);
+  expect(saved.reel.lyrics[0]).toMatchObject({ text: 'Frase exclusiva', end: 3 });
+  expect(saved.reel.lyrics[0].start).toBeLessThan(3);
+  await page.reload(); await page.getByRole('heading', { name: 'Prueba Studio', exact: true }).click();
+  await page.getByRole('button', { name: 'Reels', exact: true }).click();
+  await dialog.getByRole('button', { name: '2. Diseño', exact: true }).click();
+  await expect(dialog.getByLabel('Frases del Reel', { exact: true })).toHaveValue('Frase exclusiva');
+  await dialog.getByRole('button', { name: 'Usar letra del proyecto' }).click();
+  await expect(dialog.getByText('No hay letra sincronizada en este fragmento.', { exact: false })).toBeVisible();
+});
+
+
+test('boundary sliders seek audio and current-position buttons preserve an arbitrary Reel length', async ({ page }) => {
+  await page.getByRole('button', { name: 'Reels', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByLabel('Inicio (segundos)').fill('50');
+  await dialog.getByRole('slider', { name: 'Mover inicio', exact: true }).press('ArrowRight');
+  await dialog.getByRole('button', { name: 'Usar posición actual como inicio' }).click();
+  await expect(dialog.getByLabel('Inicio (segundos)')).toHaveValue('50.01');
+  await dialog.getByLabel('Fin (segundos)').fill('83.72');
+  await dialog.getByRole('slider', { name: 'Mover fin', exact: true }).press('ArrowLeft');
+  await dialog.getByRole('button', { name: 'Usar posición actual como fin' }).click();
+  await expect(dialog.getByLabel('Fin (segundos)')).toHaveValue('83.71');
+  await expect(dialog.getByText('Duración del Reel: 33.7 s', { exact: true })).toBeVisible();
+  // Use a short arbitrary interval to check actual playback and MP4 duration.
+  await dialog.getByLabel('Fin (segundos)').fill('52.71');
+  await dialog.getByRole('button', { name: 'Usar posición actual como fin' }).click();
+  await dialog.getByRole('button', { name: 'Escuchar y previsualizar fragmento' }).click();
+  await expect(dialog.getByRole('button', { name: 'Parar fragmento', exact: true })).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Escuchar y previsualizar fragmento' })).toBeVisible({ timeout: 6000 });
+  await dialog.getByRole('button', { name: '3. Exportar', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Crear Reel MP4', exact: true }).click();
+  await expect(dialog.getByRole('link', { name: 'Descargar Reel', exact: true })).toBeVisible({ timeout: 30000 });
+  const video = dialog.locator('video');
+  await expect.poll(() => video.evaluate((el: HTMLVideoElement) => el.duration)).toBeGreaterThan(2.5);
+  expect(await video.evaluate((el: HTMLVideoElement) => el.duration)).toBeLessThan(3);
+});
+
+
+test('guided and advanced Reel editing share lyrics, range and full-song selection', async ({ page }) => {
+  await page.getByRole('button', { name: 'Reels', exact: true }).click();
+  let dialog = page.getByRole('dialog');
+  await dialog.getByLabel('Inicio (segundos)').fill('40');
+  await dialog.getByLabel('Fin (segundos)').fill('45');
+  await dialog.getByRole('button', { name: '2. Diseño', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Letra sólo para este Reel' }).click();
+  await dialog.getByLabel('Frases del Reel', { exact: true }).fill('Letra desde la guía');
+  await dialog.getByRole('button', { name: 'Preparar frases', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Abrir edición avanzada · Letra y línea de tiempo' }).click();
+  await expect(page.getByRole('heading', { name: 'Editor avanzado · Letra del Reel' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Seleccionar Reel', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('slider', { name: 'Inicio de Reel', exact: true })).toHaveAttribute('aria-valuenow', '40');
+  await page.getByLabel('Texto frase 1 del Reel').fill('Editada a mano');
+  await page.getByLabel('Inicio frase 1 del Reel').fill('1');
+  await page.getByLabel('Fin frase 1 del Reel').fill('4');
+  await expect(page.getByRole('group', { name: 'Letra 1', exact: true })).toContainText('Editada a mano');
+  await page.getByRole('button', { name: 'Volver a la guía del Reel', exact: true }).click();
+  dialog = page.getByRole('dialog');
+  await dialog.getByRole('button', { name: '2. Diseño', exact: true }).click();
+  await expect(dialog.getByLabel('Frases del Reel', { exact: true })).toHaveValue('Editada a mano');
+  await dialog.getByText('Ajustar tiempos manualmente · segundos dentro del Reel').click();
+  await expect(dialog.getByLabel('Inicio frase 1 del Reel')).toHaveValue('1');
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Canción completa', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Seleccionar Reel', exact: true })).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.getByRole('slider', { name: 'Inicio de Reel', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('group', { name: 'Letra 1', exact: true })).toContainText('Primera frase');
+  await page.getByRole('button', { name: 'Reel · 40.0–45.0 s', exact: true }).click();
+  await expect(page.getByLabel('Texto frase 1 del Reel')).toHaveValue('Editada a mano');
+  await page.getByRole('button', { name: 'Ajustes avanzados del Reel', exact: true }).click();
+  dialog = page.getByRole('dialog');
+  await expect(dialog.getByLabel('Inicio (segundos)')).toHaveValue('40');
+  await expect(dialog.getByLabel('Frases del Reel', { exact: true })).toHaveValue('Editada a mano');
+  await dialog.getByLabel('Fin (segundos)').fill('46');
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('slider', { name: 'Final de Reel', exact: true })).toHaveAttribute('aria-valuenow', '46');
+  await page.reload(); await page.getByRole('heading', { name: 'Prueba Studio', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Seleccionar Reel', exact: true })).toHaveAttribute('aria-pressed', 'true');
+});
+
+
+test.describe('simple mobile editing', () => {
+  test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
+  test('Reels only exposes guided steps and retains its settings after reload', async ({ page }) => {
+    await page.getByRole('button', { name: 'Vídeo', exact: true }).click();
+    await page.getByRole('button', { name: 'Reels', exact: true }).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog.getByRole('navigation', { name: 'Pasos del Reel' })).toBeVisible();
+    await expect(page.getByRole('button', { name: /avanzad|Ajustar manualmente|Editar diseño a mano|Volver a la guía/ })).toHaveCount(0);
+    await dialog.getByLabel('Inicio (segundos)').fill('40');
+    await dialog.getByLabel('Fin (segundos)').fill('45');
+    await dialog.getByRole('button', { name: 'Continuar', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Letra sólo para este Reel' }).click();
+    await dialog.getByLabel('Frases del Reel', { exact: true }).fill('Frase desde el móvil');
+    await dialog.getByRole('button', { name: 'Preparar frases', exact: true }).click();
+    await expect(dialog.getByRole('button', { name: 'Sincronizar sólo este fragmento' })).toBeVisible();
+    await expect(dialog.getByText('Ajustar tiempos manualmente', { exact: false })).toHaveCount(0);
+    await expect(dialog.getByLabel('Inicio frase 1 del Reel')).toHaveCount(0);
+    await dialog.getByRole('button', { name: 'Continuar', exact: true }).click();
+    await expect(dialog.getByLabel('Resumen del Reel')).toContainText('40.0–45.0');
+    await page.keyboard.press('Escape');
+    await page.reload(); await page.getByRole('heading', { name: 'Prueba Studio', exact: true }).click();
+    await page.getByRole('button', { name: 'Vídeo', exact: true }).click();
+    await page.getByRole('button', { name: 'Reels', exact: true }).click();
+    await expect(dialog.getByLabel('Inicio (segundos)')).toHaveValue('40');
+    await dialog.getByRole('button', { name: '2. Diseño', exact: true }).click();
+    await expect(dialog.getByLabel('Frases del Reel', { exact: true })).toHaveValue('Frase desde el móvil');
+    await page.screenshot({ path: 'test-results/reel-mobile-guided.png', animations: 'disabled' });
+  });
+});

@@ -44,6 +44,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { ReelDialog } from './reel-dialog';
 import { ProjectVersions } from './project-versions';
 
 export function TopBar() {
@@ -198,6 +199,12 @@ export function TopBar() {
     }
   };
 
+  useEffect(() => {
+    const upload = () => audioInputRef.current?.click();
+    window.addEventListener('sonceibe:upload-audio', upload);
+    return () => window.removeEventListener('sonceibe:upload-audio', upload);
+  }, []);
+
   const hasLyrics = (currentProject?.settings.lyrics.length ?? 0) > 0;
   const hasAudio = (audio.duration || currentProject?.settings.audioDuration || 0) > 0;
 
@@ -298,6 +305,7 @@ export function TopBar() {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
+          <ReelDialog />
           <ProjectVersions />
           <input
             ref={audioInputRef}

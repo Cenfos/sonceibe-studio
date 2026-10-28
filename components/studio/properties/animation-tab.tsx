@@ -63,6 +63,7 @@ export function AnimationTab() {
         </div>
       </ControlRow>
 
+      <details className="rounded-lg border border-border p-3"><summary className="cursor-pointer text-sm font-medium">Ajustes avanzados de animación</summary><div className="mt-4 space-y-5">
       <ControlRow label="Animación de salida">
         <div className="grid grid-cols-4 gap-1.5">
           {exitAnimations.map((an) => {
@@ -105,6 +106,7 @@ export function AnimationTab() {
           />
         </ControlRow>
       )}
+      </div></details>
     </div>
   );
 }

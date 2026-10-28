@@ -33,7 +33,9 @@ export function reelSettings(settings: ProjectSettings, start: number, end: numb
   const base = coverUrl ? { ...settings, ...emptyStyle() } : settings;
   return {
     ...base, audioDuration: end - start, showTitle,
-    lyrics: showLyrics ? trim(settings.lyrics).map(line => ({ ...line, words: line.words ? trim(line.words) : undefined })) : [],
+    lyrics: !showLyrics ? [] : settings.reel?.lyricsMode === 'custom'
+      ? (settings.reel.lyrics || []).filter(line => line.text.trim() && line.end > line.start && line.start < end - start).map(line => ({ ...line, start: Math.max(0, line.start), end: Math.min(end - start, line.end) }))
+      : trim(settings.lyrics).map(line => ({ ...line, words: line.words ? trim(line.words) : undefined })),
     background: coverUrl
       ? { ...base.background, type: 'image', imageUrl: coverUrl, imageFit: 'cover' }
       : { ...bg, imageMode: bg.type === 'images' ? 'manual' : bg.imageMode, imageClips: trim(imageClips), photoClips: trim(bg.photoClips || []) },
@@ -59,4 +61,15 @@ export function sliceAudioWav(buffer: Pick<AudioBuffer, 'duration' | 'sampleRate
     view.setInt16(44 + (frame * channels + channel) * 2, Math.round(sample * (sample < 0 ? 32768 : 32767)), true);
   }
   return new Blob([bytes], { type: 'audio/wav' });
+}
+
+
+export function reelLyricsIssue(reel: NonNullable<ProjectSettings['reel']>): string {
+  if (!reel.showLyrics || reel.lyricsMode !== 'custom') return '';
+  const lines = reel.lyrics || [];
+  if (!lines.length) return 'Prepara las frases del Reel o desactiva la letra.';
+  const draft = (reel.lyricsText ?? lines.map(line => line.text).join('\n')).split(/\r?\n/).map(text => text.trim()).filter(Boolean).join('\n');
+  if (draft !== lines.map(line => line.text).join('\n')) return 'Pulsa Preparar frases para aplicar los cambios de texto y sincronízalas.';
+  if (lines.some((line, index) => !Number.isFinite(line.start) || !Number.isFinite(line.end) || line.start < 0 || line.end > reel.end - reel.start || line.end <= line.start || (index > 0 && line.start < lines[index - 1].end))) return 'Sincroniza las frases del Reel o ajusta sus tiempos dentro del fragmento, sin solaparlas.';
+  return '';
 }

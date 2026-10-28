@@ -79,3 +79,19 @@ test('photo border snaps to an existing playhead; cancellation does not edit the
   await page.mouse.move(photo.x + 55, photo.y + 15, { steps: 5 }); await page.keyboard.press('Escape'); await page.mouse.up();
   await expect(page.getByRole('spinbutton', { name: 'Inicio de selección' })).toHaveValue('7');
 });
+
+
+test('new project uses an in-page form when browser prompts are unsupported', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.evaluate(() => { window.prompt = () => { throw new Error('prompt() is not supported.'); }; });
+  await page.getByRole('button', { name: 'Nuevo Proyecto', exact: true }).click();
+  await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'SonCeibe Studio', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Nuevo', exact: true }).click();
+  await page.getByLabel('Título de la canción (opcional)').fill('Mi canción nueva');
+  await page.getByLabel('Título de la canción (opcional)').press('Enter');
+  await expect(page.locator('.studio-project-title')).toHaveText('Mi canción nueva');
+  await expect(page.getByRole('button', { name: 'Reels', exact: true })).toBeVisible();
+  expect(errors).toEqual([]);
+});

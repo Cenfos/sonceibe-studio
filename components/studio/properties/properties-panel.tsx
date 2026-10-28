@@ -12,6 +12,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Type, Image, Sparkles, Wand2, FileText, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { CreationGuide } from '../creation-guide';
+import { SidebarRail } from '../sidebar-rail';
 
 const tabMeta = [
   { id: 'text', label: 'Texto', icon: Type },
@@ -21,12 +23,13 @@ const tabMeta = [
 ] as const;
 
 interface PropertiesPanelProps {
+  onTabSelected?: (tab: 'text' | 'background' | 'animation' | 'effects' | 'lyrics') => void;
   mobileOpen?: boolean;
   onMobileClose?: () => void;
 }
 
-export function PropertiesPanel({ mobileOpen = false, onMobileClose }: PropertiesPanelProps) {
-  const { activeTab, updateSettings } = useStore();
+export function PropertiesPanel({ mobileOpen = false, onMobileClose, onTabSelected }: PropertiesPanelProps) {
+  const { activeTab, updateSettings, currentProject } = useStore();
   const [width, setWidth] = useState(576);
   const [maxWidth, setMaxWidth] = useState(960);
   const drag = useRef<{ x: number; width: number } | null>(null);
@@ -65,6 +68,7 @@ export function PropertiesPanel({ mobileOpen = false, onMobileClose }: Propertie
         )}
       >
         {resizeHandle}
+        <SidebarRail onTabSelected={onTabSelected} />
         <div className="h-10 flex items-center justify-between px-4 border-b border-border">
           <span className="text-sm font-medium flex items-center gap-2">
             <FileText className="h-4 w-4" />
@@ -82,7 +86,7 @@ export function PropertiesPanel({ mobileOpen = false, onMobileClose }: Propertie
         </div>
         <div className="flex-1 flex items-center justify-center p-6 text-center">
           <p className="text-sm text-muted-foreground">
-            El editor de letra se muestra en el centro. Usa la barra lateral
+            El editor de letra se muestra en el centro. Usa los botones de arriba
             para volver a las propiedades.
           </p>
         </div>
@@ -102,6 +106,7 @@ export function PropertiesPanel({ mobileOpen = false, onMobileClose }: Propertie
       )}
     >
       {resizeHandle}
+        <SidebarRail onTabSelected={onTabSelected} />
       <div className="h-10 flex items-center justify-between gap-2 px-4 border-b border-border">
         <div className="flex items-center gap-2 min-w-0">
           <Icon className="h-4 w-4 text-primary shrink-0" />
@@ -117,8 +122,10 @@ export function PropertiesPanel({ mobileOpen = false, onMobileClose }: Propertie
           <X className="h-4 w-4" />
         </Button>
       </div>
-      <ScrollArea key={activeTab} className="flex-1 min-h-0">
+      <ScrollArea className="flex-1 min-h-0">
         <div className="p-4">
+          {currentProject?.settings.reel && currentProject.settings.editingTarget !== 'full' && <div className="mb-3 rounded-lg border border-primary/30 p-3 text-xs space-y-2"><p>Editando el Reel: los ajustes visuales se comparten con el proyecto. El corte, la portada y su letra propia se ajustan en «Ajustes avanzados del Reel».</p>{currentProject.settings.reel.coverUrl && <><p>La portada del Reel sustituye al montaje de fondo en este fragmento.</p><Button variant="outline" size="sm" onClick={() => updateSettings({ reel: { ...currentProject.settings.reel!, coverUrl: '' } })}>Quitar portada y usar el montaje</Button></>}</div>}
+          <CreationGuide />
           <Button variant="outline" size="sm" className="mb-3 w-full" onClick={() => updateSettings(emptyStyle())}>Sin estilo · fondo vacío</Button>
           <details className="mb-4 rounded-lg border border-border p-3"><summary className="cursor-pointer text-sm font-medium">Estilos preparados · elegir o cambiar</summary><div className="pt-3"><VisualPresetPicker /></div></details>
           {activeTab === 'text' && <TextTab />}

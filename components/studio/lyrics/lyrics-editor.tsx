@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { ReelLyricsEditor } from '../reel-lyrics-editor';
 import { useStore } from '@/lib/store';
 import { useAudioEngineContext } from '@/lib/audio-engine-context';
 import { formatTime } from '@/lib/format';
@@ -53,6 +54,22 @@ import {
 type ImportMode = 'txt' | 'lrc' | 'manual' | null;
 
 export function LyricsEditor() {
+  const { currentProject, updateSettings } = useStore();
+  const settings = currentProject?.settings;
+  if (settings?.reel && settings.editingTarget !== 'full') {
+    const reel = settings.reel;
+    return <ScrollArea className="flex-1 min-h-0"><div className="p-4 space-y-3">
+      <h2 className="text-base font-semibold">Editor avanzado · Letra del Reel</h2>
+      <p className="text-sm text-muted-foreground">Fragmento {reel.start.toFixed(2)}–{reel.end.toFixed(2)} s de la canción. Los tiempos de las frases se muestran desde el inicio del Reel.</p>
+      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={reel.showLyrics} onChange={e => updateSettings({ reel: { ...reel, showLyrics: e.target.checked } })} />Mostrar letra en el Reel</label>
+      <ReelLyricsEditor active reel={reel} advanced patch={value => updateSettings({ reel: { ...reel, ...value } })} />
+      {reel.lyricsMode !== 'custom' && <><p className="text-sm">Letra compartida con la canción completa: sus cambios se aplican también al proyecto.</p><FullLyricsEditor /></>}
+    </div></ScrollArea>;
+  }
+  return <FullLyricsEditor />;
+}
+
+function FullLyricsEditor() {
   const store = useStore();
   const audio = useAudioEngineContext();
   const {

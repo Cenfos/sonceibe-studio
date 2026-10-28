@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useStore } from '@/lib/store';
 import { useAudioEngineContext } from '@/lib/audio-engine-context';
+import { reelSettings } from '@/lib/reel';
 import { formatTimecode } from '@/lib/format';
 import { preloadVisualBranding } from '@/lib/visual-branding';
 import { sanitizeRenderSettings } from '@/lib/render-safety';
@@ -46,14 +47,17 @@ export function PreviewPanel() {
 
   const duration = audio.duration || currentProject?.settings.audioDuration || 0;
   const settings = currentProject?.settings;
-  const target = videoTargetFromOrientation(settings?.exportConfig.orientation);
+  const reel = settings?.reel;
+  const editingReel = !!reel && settings?.editingTarget !== 'full' && reel.end > reel.start && reel.end <= duration;
+  const target = editingReel ? 'mobile' : videoTargetFromOrientation(settings?.exportConfig.orientation);
   const profile = VIDEO_PROFILES[target];
   const safeSettings = useMemo(
     () => settings
-      ? sanitizeRenderSettings(settingsForVideoTarget(settings, target))
+      ? sanitizeRenderSettings(editingReel && reel ? reelSettings({ ...settings, audioDuration: duration }, reel.start, reel.end, reel.coverUrl, reel.showLyrics, reel.showTitle) : settingsForVideoTarget(settings, target))
       : null,
-    [settings, target]
+    [settings, target, editingReel, duration, reel]
   );
+  useEffect(() => { if (editingReel && reel && audio.isPlaying && audio.currentTime >= reel.end) audio.pause(); }, [editingReel, reel, audio]);
   const orientation = profile.orientation;
   const isPortrait = target === 'mobile';
   const canvasWidth = profile.width;
@@ -68,7 +72,7 @@ export function PreviewPanel() {
     if (!ctx) return;
 
     try {
-      renderFrame(ctx, canvas.width, canvas.height, safeSettings, time);
+      renderFrame(ctx, canvas.width, canvas.height, safeSettings, editingReel && reel ? Math.max(0, time - reel.start) : time);
     } catch (error) {
       console.error('Preview render error:', error);
       ctx.save();
@@ -82,7 +86,7 @@ export function PreviewPanel() {
       ctx.fillText('No se pudo mostrar este fotograma', canvas.width / 2, canvas.height / 2);
       ctx.restore();
     }
-  }, [safeSettings]);
+  }, [safeSettings, editingReel, reel]);
 
   useEffect(() => {
     let cancelled = false;
@@ -143,12 +147,13 @@ export function PreviewPanel() {
   }, [audio.isPlaying, audio.audioEl, draw]);
 
   const togglePlay = () => {
-    if (audio.currentTime >= duration) audio.seek(0);
+    if (editingReel && reel && (audio.currentTime < reel.start || audio.currentTime >= reel.end)) audio.seek(reel.start);
+    else if (audio.currentTime >= duration) audio.seek(0);
     if (audio.isPlaying) audio.pause();
     else audio.play();
   };
 
-  const stop = () => audio.stop();
+  const stop = () => { audio.pause(); audio.seek(editingReel && reel ? reel.start : 0); };
   const seek = (val: number[]) => audio.seek(val[0]);
   const skipBack = () => audio.seek(Math.max(0, audio.currentTime - 5));
   const skipForward = () => audio.seek(Math.min(duration, audio.currentTime + 5));

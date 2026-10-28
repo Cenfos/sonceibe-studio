@@ -28,7 +28,7 @@ export function SidebarRail({ onTabSelected }: SidebarRailProps) {
   const { activeTab, setTab } = useStore();
 
   return (
-    <aside className="studio-sidebar w-16 shrink-0 flex flex-col items-center py-3 gap-1 border-r border-border bg-card/30">
+    <nav aria-label="Herramientas del editor" className="studio-tools grid grid-cols-5 shrink-0 gap-1 border-b border-border bg-card/30 p-2">
       {tabs.map((tab) => {
         const Icon = tab.icon;
         const active = activeTab === tab.id;
@@ -42,7 +42,7 @@ export function SidebarRail({ onTabSelected }: SidebarRailProps) {
               onTabSelected?.(tab.id);
             }}
             className={cn(
-              'studio-sidebar-tab group relative flex flex-col items-center justify-center gap-1 w-12 h-14 rounded-lg transition-all',
+              'studio-sidebar-tab group relative flex flex-col items-center justify-center gap-1 min-w-0 h-14 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary',
               active
                 ? 'bg-primary/15 text-primary'
                 : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
@@ -52,12 +52,12 @@ export function SidebarRail({ onTabSelected }: SidebarRailProps) {
             <Icon className="h-5 w-5" />
             <span className="text-[10px] font-medium">{tab.label}</span>
             {active && (
-              <span className="studio-active-indicator absolute left-0 top-1/2 -translate-y-1/2 h-6 w-0.5 rounded-r-full bg-primary" />
+              <span className="studio-active-indicator absolute bottom-0 inset-x-2 h-0.5 rounded-full bg-primary" />
             )}
           </button>
         );
       })}
 
-    </aside>
+    </nav>
   );
 }

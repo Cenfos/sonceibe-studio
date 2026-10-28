@@ -19,13 +19,16 @@ function usePhoneStudio(): boolean | null {
   useEffect(() => {
     const pointer = window.matchMedia('(pointer: coarse)');
     const compact = window.matchMedia('(max-width: 1024px)');
-    const update = () => setIsPhone(pointer.matches && compact.matches);
+    const narrow = window.matchMedia('(max-width: 767px)');
+    const update = () => setIsPhone(narrow.matches || (pointer.matches && compact.matches));
     update();
     pointer.addEventListener?.('change', update);
     compact.addEventListener?.('change', update);
+    narrow.addEventListener?.('change', update);
     return () => {
       pointer.removeEventListener?.('change', update);
       compact.removeEventListener?.('change', update);
+      narrow.removeEventListener?.('change', update);
     };
   }, []);
 
