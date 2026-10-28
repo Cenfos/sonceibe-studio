@@ -21,6 +21,8 @@ const ROW_HEIGHT = 28;
 export function Timeline() {
   const { currentProject, updateLyric: updateProjectLyric, addLyric: addProjectLyric, deleteLyric: deleteProjectLyric, duplicateLyric: duplicateProjectLyric, updateBackground, updateSettings, setTab } = useStore();
   const audio = useAudioEngineContext();
+  const tracksRef = useRef<HTMLDivElement>(null);
+  const [tracksHeight, setTracksHeight] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const anchor = useRef<{ time: number; pixel: number } | null>(null);
   const [pxPerSec, setPxPerSec] = useState(20);
@@ -75,6 +77,14 @@ export function Timeline() {
   const visualDuration = Math.max(duration, ...lyrics.map(line => line.end), ...imageClips.map(clip => clip.end), ...photoClips.map(clip => clip.end), 1);
   const totalWidth = Math.max(visualDuration * pxPerSec + 24, viewportWidth);
   const peaks = useMemo(() => audio.audioBuffer ? generateWaveformPeaks(audio.audioBuffer, 2000) : [], [audio.audioBuffer]);
+
+  useEffect(() => {
+    const element = tracksRef.current;
+    if (!element) return;
+    const observer = new ResizeObserver(() => setTracksHeight(element.clientHeight));
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     const element = scrollRef.current;
@@ -147,8 +157,9 @@ export function Timeline() {
   const tickStep = pxPerSec < 2 ? 60 : pxPerSec < 10 ? 10 : pxPerSec < 40 ? 5 : 1;
   const ticks = Array.from({ length: Math.floor(visualDuration / tickStep) + 1 }, (_, index) => index * tickStep);
   const labels = ['Audio', 'Letra', 'Fondo', ...(photoClips.length ? ['Fotos puntuales'] : []), 'Efectos'];
+  const rowHeight = Math.min(ROW_HEIGHT * 2, Math.max(ROW_HEIGHT, (tracksHeight - 28) / labels.length));
 
-  return <section aria-label="Línea de tiempo" className="studio-timeline shrink-0 flex flex-col border-t border-border bg-card/30">
+  return <section aria-label="Línea de tiempo" style={{ minHeight: 'var(--timeline-min-height, 0px)', '--timeline-row-height': rowHeight + 'px' } as React.CSSProperties} className="studio-timeline shrink-0 flex flex-col border-t border-border bg-card/30">
     <div className="studio-timeline-header flex flex-wrap items-center justify-between gap-2 px-3 py-1 border-b border-border">
       <div className="flex items-center gap-2 text-sm"><Music className="h-4 w-4 text-primary" />Línea de Tiempo <span className="text-xs font-mono text-muted-foreground">{formatTime(audio.currentTime)} / {formatTime(duration)}</span></div>
       <div className="flex items-center gap-1">
@@ -183,10 +194,10 @@ export function Timeline() {
         <Button size="icon" variant="ghost" className="h-6 w-6" aria-label="Eliminar selección" onClick={() => remove(selection)}><Trash2 className="h-3 w-3" /></Button>
       </> : <span className="text-muted-foreground">Selecciona una letra o foto. ← →: 0,1 s · Shift: 0,5 s · Alt: 0,01 s. Los bordes también admiten teclado.</span>}
     </div>
-    <div className="flex min-h-0">
+    <div ref={tracksRef} className="studio-timeline-tracks flex flex-1 min-h-0" style={{ minHeight: 28 + labels.length * ROW_HEIGHT }}>
       <div className="studio-timeline-labels shrink-0 border-r border-border w-[120px]">
         <div className="h-7 border-b border-border" />
-        {labels.map(label => <div key={label} className="flex items-center px-3 text-xs border-b border-border" style={{ height: ROW_HEIGHT }}>{label}</div>)}
+        {labels.map(label => <div key={label} className="flex items-center px-3 text-xs border-b border-border" style={{ height: rowHeight }}>{label}</div>)}
       </div>
       <div ref={scrollRef} className="studio-timeline-scroll flex-1 min-w-0 overflow-x-auto scrollbar-thin relative touch-pan-x">
         <div style={{ width: totalWidth, position: 'relative' }}>
@@ -198,7 +209,7 @@ export function Timeline() {
             onPointerUp={event => { if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId); }}>
             {ticks.map(time => <span key={time} className="absolute top-0 h-full border-l border-border pl-1 text-[10px] text-muted-foreground pointer-events-none" style={{ left: time * pxPerSec }}>{formatTime(time)}</span>)}
           </div>
-          <TrackRow><div className="absolute inset-0 cursor-pointer" onPointerDown={event => { if (event.button === 0) audio.seek(pointerTime(event.clientX, event.currentTarget.getBoundingClientRect().left, pxPerSec, duration)); }}>{peaks.length ? <WaveformDisplay peaks={peaks} width={duration * pxPerSec} height={24} playheadRatio={duration ? audio.currentTime / duration : 0} /> : <p className="px-2 py-1 text-xs text-muted-foreground">{duration ? 'Audio del proyecto' : 'Importa un MP3 para ver la forma de onda'}</p>}</div>
+          <TrackRow><div className="absolute inset-0 cursor-pointer" onPointerDown={event => { if (event.button === 0) audio.seek(pointerTime(event.clientX, event.currentTarget.getBoundingClientRect().left, pxPerSec, duration)); }}>{peaks.length ? <WaveformDisplay peaks={peaks} width={duration * pxPerSec} height={Math.max(24, rowHeight - 4)} playheadRatio={duration ? audio.currentTime / duration : 0} /> : <p className="px-2 py-1 text-xs text-muted-foreground">{duration ? 'Audio del proyecto' : 'Importa un MP3 para ver la forma de onda'}</p>}</div>
             {reelEnabled && <TimelineClip clip={{ ...reelRange, id: 'reel-range', text: 'Reel · arrastra los bordes' }} label="Reel" duration={duration} pxPerSec={pxPerSec} playhead={audio.currentTime} snap={snap} selected
               onSelect={() => setSelection(null)} onSeek={() => audio.seek(reelRange.start)} onChange={changeReel} onRemove={() => updateSettings({ editingTarget: 'full' })} onDuplicate={() => {}} />}
           </TrackRow>
@@ -232,7 +243,7 @@ export function Timeline() {
 }
 
 function TrackRow({ children }: { children: React.ReactNode }) {
-  return <div className="relative border-b border-border bg-secondary/10" style={{ height: ROW_HEIGHT }}>{children}</div>;
+  return <div className="relative border-b border-border bg-secondary/10" style={{ height: 'var(--timeline-row-height, 28px)' }}>{children}</div>;
 }
 function TimeField({ label, value, onCommit }: { label: string; value: number; onCommit: (value: number) => void }) {
   return <label className="flex items-center gap-1">{label}<input type="number" aria-label={`${label} de selección`} defaultValue={Number(value.toFixed(3))} step="0.01" min="0" className="w-20 rounded border bg-background p-1"

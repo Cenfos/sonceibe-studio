@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { emptyStyle, reelSettings, sliceAudioWav, validateReel, reelLyricsIssue } from '../../lib/reel';
+import { emptyStyle, reelSettings, sliceAudioWav, validateReel, reelLyricsIssue, markReelBoundary } from '../../lib/reel';
 import { createDefaultProjectSettings } from '../../lib/types';
 
 it('clips overlapping lines, words and photos without mutating the full project', () => {
@@ -54,9 +54,22 @@ it('uses relative Reel lyrics at a later song offset and preserves project lyric
   settings.reel.lyricsMode = 'custom';
   expect(JSON.stringify(settings)).toBe(before);
   expect(reelLyricsIssue(settings.reel)).toBe('');
-  settings.reel.lyrics![0].end = 5;
+  settings.reel.lyrics![0].end = 0;
   expect(reelLyricsIssue(settings.reel)).not.toBe('');
   settings.reel.lyrics![0].end = 3;
   settings.reel.lyricsText = 'Texto cambiado';
   expect(reelLyricsIssue(settings.reel)).not.toBe('');
+});
+
+
+it('marks a Reel from song lyrics without shifting the custom lyrics in the song', () => {
+  const settings = createDefaultProjectSettings(); settings.audioDuration = 120;
+  settings.reel = { start: 40, end: 50, coverUrl: '', showTitle: true, showLyrics: true, lyricsMode: 'custom', lyricsText: 'Una frase', lyrics: [{ id: 'a', text: 'Una frase', start: 2, end: 8 }] };
+  const next = { ...settings, ...markReelBoundary(settings, 'start', 43, 120) };
+  expect(next.reel!.lyrics![0]).toMatchObject({ start: -1, end: 5 });
+  expect(next.reel!.start).toBe(43);
+  expect(settings.reel.lyrics![0].start).toBe(2);
+  const cropped = { ...next, ...markReelBoundary(next, 'end', 47, 120) };
+  expect(reelLyricsIssue(cropped.reel!)).toBe('');
+  expect(reelSettings(cropped, 43, 47).lyrics[0]).toMatchObject({ text: 'Una frase', start: 0, end: 4 });
 });

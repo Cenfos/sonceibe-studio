@@ -29,7 +29,7 @@ export function EditingScope() {
       <Button size="sm" variant={!selected && portrait ? 'default' : 'outline'} aria-pressed={!selected && portrait} onClick={() => format('portrait')}>Móvil</Button>
       <ReelDialog label="Reel" triggerVariant={selected ? 'default' : 'outline'} />
       <span className="ml-auto text-[11px] text-muted-foreground">{portrait ? '1080×1920 · 9:16' : '1920×1080 · 16:9'}</span>
-    </div>
+      <details className="relative ml-auto" onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) event.currentTarget.open = false; }} onKeyDown={event => { if (event.key === 'Escape') { event.currentTarget.open = false; event.stopPropagation(); } }}><summary className="cursor-pointer rounded border border-border px-2 py-1.5 text-xs">Vista y edición</summary><div className="absolute right-0 top-full z-50 mt-2 w-80 max-w-[85vw] space-y-3 rounded-lg border border-border bg-card p-3 shadow-xl">
     <div aria-label="Contenido en edición" className="flex flex-wrap items-center gap-1">
       <Button size="sm" className="h-7 text-xs" variant={!selected ? 'secondary' : 'ghost'} aria-pressed={!selected} onClick={() => select('full')}>Canción completa</Button>
       {reel && <Button size="sm" className="h-7 text-xs" variant={selected ? 'secondary' : 'ghost'} aria-pressed={selected} onClick={() => select('reel')}>Reel · {reel.start.toFixed(1)}–{reel.end.toFixed(1)} s</Button>}
@@ -42,6 +42,8 @@ export function EditingScope() {
       <span className="text-xs text-muted-foreground">{Math.round(zoom * 100)}%</span>
       <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Ampliar vista previa" onClick={() => setZoom(value => Math.min(2, value + 0.25))}><ZoomIn className="h-4 w-4" /></Button>
       <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Vista previa a pantalla completa" onClick={() => window.dispatchEvent(new Event('sonceibe:preview-fullscreen'))}><Maximize2 className="h-4 w-4" /></Button>
+    </div>
+      </div></details>
     </div>
   </section>;
 }

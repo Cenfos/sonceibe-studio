@@ -202,6 +202,7 @@ test('guided and advanced Reel editing share lyrics, range and full-song selecti
   await page.getByLabel('Inicio frase 1 del Reel').fill('1');
   await page.getByLabel('Fin frase 1 del Reel').fill('4');
   await expect(page.getByRole('group', { name: 'Letra 1', exact: true })).toContainText('Editada a mano');
+  if (await page.locator('details').filter({ has: page.getByText('Vista y edición', { exact: true }) }).getAttribute('open') === null) await page.getByText('Vista y edición', { exact: true }).click();
   await page.getByRole('button', { name: 'Volver a la guía del Reel', exact: true }).click();
   dialog = page.getByRole('dialog');
   await dialog.getByRole('button', { name: '2. Diseño', exact: true }).click();
@@ -209,12 +210,15 @@ test('guided and advanced Reel editing share lyrics, range and full-song selecti
   await dialog.getByText('Ajustar tiempos manualmente · segundos dentro del Reel').click();
   await expect(dialog.getByLabel('Inicio frase 1 del Reel')).toHaveValue('1');
   await page.keyboard.press('Escape');
+  if (await page.locator('details').filter({ has: page.getByText('Vista y edición', { exact: true }) }).getAttribute('open') === null) await page.getByText('Vista y edición', { exact: true }).click();
   await page.getByRole('button', { name: 'Canción completa', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Seleccionar Reel', exact: true })).toHaveAttribute('aria-pressed', 'false');
   await expect(page.getByRole('slider', { name: 'Inicio de Reel', exact: true })).toHaveCount(0);
   await expect(page.getByRole('group', { name: 'Letra 1', exact: true })).toContainText('Primera frase');
+  if (await page.locator('details').filter({ has: page.getByText('Vista y edición', { exact: true }) }).getAttribute('open') === null) await page.getByText('Vista y edición', { exact: true }).click();
   await page.getByRole('button', { name: 'Reel · 40.0–45.0 s', exact: true }).click();
   await expect(page.getByLabel('Texto frase 1 del Reel')).toHaveValue('Editada a mano');
+  if (await page.locator('details').filter({ has: page.getByText('Vista y edición', { exact: true }) }).getAttribute('open') === null) await page.getByText('Vista y edición', { exact: true }).click();
   await page.getByRole('button', { name: 'Ajustes avanzados del Reel', exact: true }).click();
   dialog = page.getByRole('dialog');
   await expect(dialog.getByLabel('Inicio (segundos)')).toHaveValue('40');
@@ -299,11 +303,33 @@ test('audio stays usable when changing Reel, full song and responsive mobile vie
   await dialog.getByLabel('Inicio (segundos)').fill('40');
   await dialog.getByLabel('Fin (segundos)').fill('43');
   await page.keyboard.press('Escape');
+  if (await page.locator('details').filter({ has: page.getByText('Vista y edición', { exact: true }) }).getAttribute('open') === null) await page.getByText('Vista y edición', { exact: true }).click();
   await page.getByRole('button', { name: 'Canción completa', exact: true }).click();
   await page.getByRole('button', { name: 'Reproducir', exact: true }).click();
   await expect.poll(() => page.getByLabel('Tiempo de reproducción').innerText()).not.toBe('00:00:00');
+  if (await page.locator('details').filter({ has: page.getByText('Vista y edición', { exact: true }) }).getAttribute('open') === null) await page.getByText('Vista y edición', { exact: true }).click();
   await page.getByRole('button', { name: 'Reel · 40.0–43.0 s', exact: true }).click();
   await page.getByRole('button', { name: 'Reproducir', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Pausar', exact: true })).toBeVisible();
   await expect.poll(() => page.getByLabel('Tiempo de reproducción').innerText()).not.toBe('00:40:00');
+});
+
+
+test('advanced lyrics mark Reel boundaries directly and update the normal timeline', async ({ page }) => {
+  await expect(page.getByRole('button', { name: 'Canción completa', exact: true })).not.toBeVisible();
+  await expect(page.getByRole('button', { name: 'Zona segura', exact: true })).not.toBeVisible();
+  await page.getByRole('button', { name: 'Letra', exact: true }).click();
+  await page.getByRole('button', { name: 'Empezar Reel en Primera frase', exact: true }).click();
+  await page.getByRole('button', { name: 'Terminar Reel en Primera frase', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Corte del Reel desde la letra' })).toContainText('2.00–6.00 s');
+  await expect(page.getByRole('slider', { name: 'Inicio de Reel', exact: true })).toHaveAttribute('aria-valuenow', '2');
+  await expect(page.getByRole('slider', { name: 'Final de Reel', exact: true })).toHaveAttribute('aria-valuenow', '6');
+  const seek = page.getByRole('slider', { name: 'Buscar posición para el corte del Reel', exact: true });
+  await seek.press('Home'); await seek.press('ArrowRight');
+  await page.getByRole('button', { name: 'Marcar inicio en la posición actual' }).click();
+  await expect(page.getByRole('slider', { name: 'Inicio de Reel', exact: true })).toHaveAttribute('aria-valuenow', '0.01');
+  await page.getByRole('button', { name: 'Texto', exact: true }).click();
+  await expect(page.getByRole('slider', { name: 'Final de Reel', exact: true })).toHaveAttribute('aria-valuenow', '6');
+  await page.getByText('Vista y edición', { exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Zona segura', exact: true })).toBeVisible();
 });

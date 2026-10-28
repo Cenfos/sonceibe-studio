@@ -6,6 +6,7 @@ import { TopBar } from './top-bar';
 import { PreviewPanel } from './preview/preview-panel';
 import { PropertiesPanel } from './properties/properties-panel';
 import { Timeline } from './timeline/timeline';
+import { ResizableWorkspace } from './resizable-workspace';
 import { useStore } from '@/lib/store';
 import { useAudioEngineContext } from '@/lib/audio-engine-context';
 import { LyricsEditor } from './lyrics/lyrics-editor';
@@ -91,8 +92,7 @@ export function StudioLayout() {
       <MobileOrientationGate />
       <div className="studio-editor-shell flex flex-col h-full">
         <TopBar />
-        <div className="studio-workspace-scroll flex-1 min-h-0 overflow-y-scroll overscroll-contain">
-        <div className="studio-main-workspace flex h-[calc(100dvh-56px)] min-h-[540px] shrink-0">
+        <ResizableWorkspace timeline={<Timeline />} editor={
           <div className="flex flex-1 min-w-0">
             <div className="flex-1 min-w-0 min-h-0 flex flex-col">
               {activeTab === 'lyrics' ? (
@@ -107,9 +107,7 @@ export function StudioLayout() {
               onMobileClose={() => setMobilePropertiesOpen(false)}
             />
           </div>
-        </div>
-        <Timeline />
-        </div>
+        } />
       </div>
     </PreviewOptionsProvider>
   );

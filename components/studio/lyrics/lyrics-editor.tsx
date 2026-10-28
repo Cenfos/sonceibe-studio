@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { ReelCutControls, LyricReelMarkers } from './reel-cut-controls';
 import { ReelLyricsEditor } from '../reel-lyrics-editor';
 import { useStore } from '@/lib/store';
 import { useAudioEngineContext } from '@/lib/audio-engine-context';
@@ -59,6 +60,7 @@ export function LyricsEditor() {
   if (settings?.reel && settings.editingTarget !== 'full') {
     const reel = settings.reel;
     return <ScrollArea className="flex-1 min-h-0"><div className="p-4 space-y-3">
+      <ReelCutControls />
       <h2 className="text-base font-semibold">Editor avanzado · Letra del Reel</h2>
       <p className="text-sm text-muted-foreground">Fragmento {reel.start.toFixed(2)}–{reel.end.toFixed(2)} s de la canción. Los tiempos de las frases se muestran desde el inicio del Reel.</p>
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={reel.showLyrics} onChange={e => updateSettings({ reel: { ...reel, showLyrics: e.target.checked } })} />Mostrar letra en el Reel</label>
@@ -66,7 +68,7 @@ export function LyricsEditor() {
       {reel.lyricsMode !== 'custom' && <><p className="text-sm">Letra compartida con la canción completa: sus cambios se aplican también al proyecto.</p><FullLyricsEditor /></>}
     </div></ScrollArea>;
   }
-  return <FullLyricsEditor />;
+  return <><ReelCutControls /><FullLyricsEditor /></>;
 }
 
 function FullLyricsEditor() {
@@ -528,6 +530,7 @@ function FullLyricsEditor() {
                             <Input type="number" step="0.1" value={line.end > 0 ? line.end.toFixed(1) : ''} onChange={(e) => updateLyric(line.id, { end: parseFloat(e.target.value) || 0 })} onClick={(e) => e.stopPropagation()} className="w-16 h-7 text-[11px] font-mono" placeholder="Fin" />
                           </div>
 
+                          <LyricReelMarkers start={line.start} end={line.end} label={line.text || line.id} />
                           <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" title="Asignar tiempo actual" onClick={(e) => { e.stopPropagation(); handleSetTimeToLine(line.id); }}><Clock className="h-3.5 w-3.5" /></Button>
                           <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" title="Reproducir desde aquí" onClick={(e) => { e.stopPropagation(); if (line.start > 0) audio.seek(line.start); audio.play(); }}><Play className="h-3.5 w-3.5" /></Button>
                         </div>

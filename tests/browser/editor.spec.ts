@@ -139,6 +139,7 @@ test('desktop workspace scrolls to compact timeline and has a single Reel entry'
   expect((await timeline.boundingBox())!.y).toBeGreaterThanOrEqual(990);
   const canvas = (await page.locator('.studio-preview-stage canvas').boundingBox())!;
   expect(canvas.height).toBeGreaterThan(800);
+  if (await page.locator('details').filter({ has: page.getByText('Vista y edición', { exact: true }) }).getAttribute('open') === null) await page.getByText('Vista y edición', { exact: true }).click();
   await page.getByRole('button', { name: 'Ver línea de tiempo ↓', exact: true }).click();
   await expect.poll(() => workspace.evaluate(el => el.scrollTop)).toBeGreaterThan(100);
   await timeline.scrollIntoViewIfNeeded();
@@ -146,4 +147,56 @@ test('desktop workspace scrolls to compact timeline and has a single Reel entry'
   expect((await labels.nth(1).boundingBox())!.height).toBe(28);
   await page.getByRole('button', { name: 'Seleccionar Reel', exact: true }).click();
   await expect(page.getByRole('slider', { name: 'Inicio de Reel', exact: true })).toBeVisible();
+});
+
+
+test('timeline divider resizes the editor, supports keys and remembers the chosen split', async ({ page }) => {
+  await page.getByRole('heading', { name: 'Prueba Studio', exact: true }).click();
+  const divider = page.getByRole('separator', { name: 'Ajustar altura de la línea de tiempo', exact: true });
+  const editor = page.locator('.studio-main-workspace');
+  await expect(divider).toBeInViewport();
+  const initial = (await editor.boundingBox())!.height;
+  const box = (await divider.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2); await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 - 260, { steps: 10 }); await page.mouse.up();
+  await expect.poll(async () => (await editor.boundingBox())!.height).toBeLessThan(initial - 200);
+  const resized = (await editor.boundingBox())!.height;
+  await expect(page.getByRole('region', { name: 'Línea de tiempo', exact: true })).toBeInViewport();
+  await divider.focus(); await page.keyboard.press('ArrowUp');
+  await expect(divider).toHaveAttribute('aria-valuenow', String(resized - 32));
+  const saved = (await editor.boundingBox())!.height;
+  await page.reload(); await page.getByRole('heading', { name: 'Prueba Studio', exact: true }).click();
+  await expect.poll(async () => (await editor.boundingBox())!.height).toBe(saved);
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await expect.poll(async () => (await editor.boundingBox())!.height).toBeLessThan(saved);
+  await divider.focus(); await page.keyboard.press('End');
+  await expect.poll(async () => Number(await divider.getAttribute('aria-valuenow'))).toBe(Number(await divider.getAttribute('aria-valuemax')));
+  await divider.dblclick();
+  await expect.poll(async () => (await editor.boundingBox())!.height).toBeLessThan(Number(await divider.getAttribute('aria-valuemax')));
+  await page.screenshot({ path: 'tests/.generated/timeline-resized.png', animations: 'disabled' });
+});
+
+
+test('timeline tracks stay between compact and double height without a lower gap', async ({ page }) => {
+  await page.getByRole('heading', { name: 'Prueba Studio', exact: true }).click();
+  const divider = page.getByRole('separator', { name: 'Ajustar altura de la línea de tiempo', exact: true });
+  await divider.focus(); await page.keyboard.press('Home');
+  const maximum = Number(await divider.getAttribute('aria-valuemax'));
+  const minimum = Number(await divider.getAttribute('aria-valuemin'));
+  expect(minimum).toBeGreaterThanOrEqual(Math.floor(maximum / 2));
+  await expect(divider).toHaveAttribute('aria-valuenow', String(minimum));
+  await page.keyboard.press('ArrowUp');
+  await expect(divider).toHaveAttribute('aria-valuenow', String(minimum));
+  const timeline = page.getByRole('region', { name: 'Línea de tiempo', exact: true });
+  await expect.poll(async () => (await page.locator('.studio-timeline-labels > div').nth(1).boundingBox())!.height).toBeGreaterThan(28);
+  const row = (await page.locator('.studio-timeline-labels > div').nth(1).boundingBox())!.height;
+  expect(row).toBeLessThanOrEqual(56);
+  const bottom = await timeline.evaluate(el => el.getBoundingClientRect().bottom);
+  expect(Math.abs(bottom - 1000)).toBeLessThan(3);
+  await page.screenshot({ path: 'tests/.generated/timeline-half-expanded.png', animations: 'disabled' });
+  await page.keyboard.press('End');
+  await expect(divider).toHaveAttribute('aria-valuenow', String(maximum));
+  expect((await timeline.boundingBox())!.y).toBeGreaterThanOrEqual(990);
+  await divider.dblclick();
+  await expect(timeline).toBeInViewport();
 });

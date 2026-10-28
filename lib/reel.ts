@@ -34,7 +34,7 @@ export function reelSettings(settings: ProjectSettings, start: number, end: numb
   return {
     ...base, audioDuration: end - start, showTitle,
     lyrics: !showLyrics ? [] : settings.reel?.lyricsMode === 'custom'
-      ? (settings.reel.lyrics || []).filter(line => line.text.trim() && line.end > line.start && line.start < end - start).map(line => ({ ...line, start: Math.max(0, line.start), end: Math.min(end - start, line.end) }))
+      ? (settings.reel.lyrics || []).filter(line => line.text.trim() && line.end > line.start && line.end > 0 && line.start < end - start).map(line => ({ ...line, start: Math.max(0, line.start), end: Math.min(end - start, line.end) }))
       : trim(settings.lyrics).map(line => ({ ...line, words: line.words ? trim(line.words) : undefined })),
     background: coverUrl
       ? { ...base.background, type: 'image', imageUrl: coverUrl, imageFit: 'cover' }
@@ -70,6 +70,24 @@ export function reelLyricsIssue(reel: NonNullable<ProjectSettings['reel']>): str
   if (!lines.length) return 'Prepara las frases del Reel o desactiva la letra.';
   const draft = (reel.lyricsText ?? lines.map(line => line.text).join('\n')).split(/\r?\n/).map(text => text.trim()).filter(Boolean).join('\n');
   if (draft !== lines.map(line => line.text).join('\n')) return 'Pulsa Preparar frases para aplicar los cambios de texto y sincronízalas.';
-  if (lines.some((line, index) => !Number.isFinite(line.start) || !Number.isFinite(line.end) || line.start < 0 || line.end > reel.end - reel.start || line.end <= line.start || (index > 0 && line.start < lines[index - 1].end))) return 'Sincroniza las frases del Reel o ajusta sus tiempos dentro del fragmento, sin solaparlas.';
+  if (lines.some((line, index) => !Number.isFinite(line.start) || !Number.isFinite(line.end) || line.end <= line.start || (index > 0 && line.start < lines[index - 1].end))) return 'Sincroniza las frases del Reel o ajusta sus tiempos dentro del fragmento, sin solaparlas.';
+  if (!lines.some(line => line.end > 0 && line.start < reel.end - reel.start)) return 'No hay frases dentro del fragmento elegido.';
   return '';
+}
+
+
+/** Keep custom lyric timestamps anchored to the song when moving a Reel boundary. */
+export function markReelBoundary(settings: ProjectSettings, edge: 'start' | 'end', time: number, duration: number): Partial<ProjectSettings> {
+  const previous = settings.reel || { start: 0, end: duration, coverUrl: '', showLyrics: true, showTitle: true };
+  if (!Number.isFinite(time) || duration < 0.2) return {};
+  const next = { ...previous, [edge]: Math.max(edge === 'end' ? 0.2 : 0, Math.min(duration - (edge === 'start' ? 0.2 : 0), time)) };
+  if (next.end - next.start < 0.2) {
+    if (edge === 'start') next.end = Math.min(duration, next.start + 0.2);
+    else next.start = Math.max(0, next.end - 0.2);
+  }
+  if (previous.lyricsMode === 'custom' && previous.lyrics && next.start !== previous.start) {
+    const offset = previous.start - next.start;
+    next.lyrics = previous.lyrics.map(line => ({ ...line, start: line.start + offset, end: line.end + offset, words: undefined }));
+  }
+  return { editingTarget: 'reel', reel: next };
 }
