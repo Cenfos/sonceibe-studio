@@ -50,6 +50,8 @@ function cleanupAttempts(now: number) {
 
 function currentAttempt(key: string, now: number): LoginAttempt {
   const existing = loginAttempts.get(key);
+  // A block can outlast the attempt window; do not reset it prematurely.
+  if (existing && existing.blockedUntil > now) { existing.lastSeenAt = now; return existing; }
 
   if (!existing || now - existing.windowStartedAt > ATTEMPT_WINDOW_MS) {
     const fresh: LoginAttempt = {

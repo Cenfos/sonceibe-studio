@@ -1,4 +1,5 @@
 import type { Project } from '@/lib/types';
+import { validateProject } from '@/lib/project-validation';
 
 interface DownloadableProjectFile {
   format: 'sonceibe-studio';
@@ -50,6 +51,9 @@ export async function downloadCurrentProject(
   audioBlob?: Blob | null
 ): Promise<void> {
   const audioDataUrl = await getAudioDataUrl(audioSrc, audioBlob);
+  if ((project.settings.audioName || project.settings.audioUrl) && !audioDataUrl) {
+    throw new Error('No se pudo incluir el audio. Vuelve a cargarlo antes de descargar una copia del proyecto.');
+  }
 
   const projectCopy: Project = {
     ...project,
@@ -84,6 +88,7 @@ export async function downloadCurrentProject(
 }
 
 export async function readPortableProjectFile(file: File): Promise<ImportedPortableProject> {
+  if (file.size > 256 * 1024 * 1024) throw new Error('El proyecto supera el límite de 256 MB. No se ha importado.');
   let payload: DownloadableProjectFile;
   try {
     payload = JSON.parse(await file.text()) as DownloadableProjectFile;
@@ -93,6 +98,11 @@ export async function readPortableProjectFile(file: File): Promise<ImportedPorta
 
   if (payload?.format !== 'sonceibe-studio' || payload.version !== 1 || !payload.project?.settings) {
     throw new Error('El archivo no es un proyecto SonCeibe Studio compatible');
+  }
+  const project = validateProject(payload.project);
+  if (payload.audioDataUrl !== null && payload.audioDataUrl !== undefined &&
+      (typeof payload.audioDataUrl !== 'string' || !/^data:(audio\/[a-z0-9.+-]+|application\/octet-stream);base64,[a-z0-9+/=\r\n]+$/i.test(payload.audioDataUrl))) {
+    throw new Error('El audio incrustado no es válido. No se ha importado el proyecto.');
   }
 
   let audioFile: File | null = null;
@@ -110,5 +120,5 @@ export async function readPortableProjectFile(file: File): Promise<ImportedPorta
     }
   }
 
-  return { project: payload.project, audioFile };
+  return { project, audioFile };
 }

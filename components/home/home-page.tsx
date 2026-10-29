@@ -23,6 +23,7 @@ import { readPortableProjectFile } from '@/lib/project/download-current-project'
 import { PENDING_PROJECT_TITLE_KEY } from '@/lib/project-title';
 import { visualPresets } from '@/lib/visual-presets';
 import { toast } from 'sonner';
+import { saveProjectStorage } from '@/lib/project-storage';
 
 export function HomePage() {
   const { projects, openProject, createProject, deleteProject, duplicateProject } = useStore();
@@ -88,10 +89,10 @@ export function HomePage() {
       };
 
       const storageKey = `sonceibe-projects-v2:${userId}`;
-      localStorage.setItem(storageKey, JSON.stringify([project, ...projects]));
       if (imported.audioFile) {
         await saveProjectAudio(userId, projectId, imported.audioFile);
       }
+      saveProjectStorage(localStorage, storageKey, [project, ...projects]);
       toast.success('Proyecto importado. Se abrirá en este equipo.');
       window.setTimeout(() => window.location.reload(), 250);
     } catch (error) {

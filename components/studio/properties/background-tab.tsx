@@ -9,7 +9,6 @@ import { Button } from '@/components/ui/button';
 import {
   Image as ImageIcon,
   Images,
-  Video,
   Palette,
   Blend,
   Upload,
@@ -26,7 +25,6 @@ const IMAGE_DRAG_TYPE = 'application/x-sonceibe-image-index';
 const bgTypes = [
   { v: 'image', label: 'Imagen', icon: ImageIcon },
   { v: 'images', label: 'Múltiple', icon: Images },
-  { v: 'video', label: 'Video', icon: Video },
   { v: 'color', label: 'Color', icon: Palette },
   { v: 'gradient', label: 'Gradiente', icon: Blend },
 ] as const;
@@ -430,10 +428,7 @@ export function BackgroundTab() {
 
       {bg.type === 'video' && (
         <ControlRow label="Video de fondo">
-          <Button variant="outline" size="sm" className="w-full gap-2">
-            <Upload className="h-4 w-4" />
-            Subir video
-          </Button>
+          <p className="text-xs text-muted-foreground">Este proyecto usa un fondo de vídeo antiguo que aún no se puede reproducir. Elige una imagen, un color o un gradiente para el fondo.</p>
         </ControlRow>
       )}
 

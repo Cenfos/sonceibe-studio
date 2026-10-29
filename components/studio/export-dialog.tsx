@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Check, CheckCircle2, Download, FileText, Film, Loader2, Monitor, Smartphone, XCircle } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { useAudioEngineContext } from '@/lib/audio-engine-context';
@@ -67,6 +67,7 @@ export function ExportDialog() {
   const audio = useAudioEngineContext();
 
   const [exportType, setExportType] = useState<ExportType>('video');
+  const [scope, setScope] = useState<'full' | 'reel'>('full');
   const [target, setTarget] = useState<VideoTarget>('mobile');
   const [exporting, setExporting] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -81,6 +82,7 @@ export function ExportDialog() {
     setProgress(0);
     setDone(false);
     setDoneText('');
+    setScope(currentProject.settings.reel && currentProject.settings.editingTarget !== 'full' ? 'reel' : 'full');
   }, [isExportOpen, currentProject?.id, currentProject?.settings.exportConfig.orientation]);
 
   if (!currentProject) return null;
@@ -89,14 +91,8 @@ export function ExportDialog() {
   const duration = audio.duration || currentProject.settings.audioDuration || 0;
   const includeAudio = currentProject.settings.exportConfig.includeAudio;
   const title = currentProject.settings.title || 'SonCeibe';
-  const estimatedBytes = useMemo(
-    () => estimateBytes(duration, profile.videoBitrate, profile.audioBitrate, includeAudio),
-    [duration, profile.videoBitrate, profile.audioBitrate, includeAudio]
-  );
-  const preflight = useMemo(
-    () => getExportPreflight(currentProject.settings, duration, target),
-    [currentProject.settings, duration, target]
-  );
+  const estimatedBytes = estimateBytes(duration, profile.videoBitrate, profile.audioBitrate, includeAudio);
+  const preflight = getExportPreflight(currentProject.settings, duration, target);
   const hasBlockingIssue = hasBlockingExportIssue(preflight);
 
   const exportText = (kind: 'txt' | 'lrc') => {
@@ -192,7 +188,17 @@ export function ExportDialog() {
           </DialogDescription>
         </DialogHeader>
 
-        {currentProject.settings.reel && currentProject.settings.editingTarget !== 'full' && !exporting && <div className="rounded-lg border border-primary/40 p-3 space-y-2"><p className="text-sm">Estás editando un Reel. Puedes exportar ese fragmento aquí o usar las opciones de abajo para la canción completa.</p><ReelDialog label="Exportar el Reel seleccionado" fromTimeline /></div>}
+        {!exporting && !done && exportType === 'video' && <section aria-label="Contenido del MP4" className="rounded-lg border border-primary/40 p-3 space-y-3">
+          <p className="font-medium">¿Qué quieres crear?</p>
+          <div className="flex gap-2">
+            <Button variant={scope === 'full' ? 'default' : 'outline'} aria-pressed={scope === 'full'} onClick={() => setScope('full')}>Canción completa</Button>
+            {currentProject.settings.reel && <Button variant={scope === 'reel' ? 'default' : 'outline'} aria-pressed={scope === 'reel'} onClick={() => setScope('reel')}>Reel seleccionado</Button>}
+          </div>
+          <p role="status">{scope === 'reel' && currentProject.settings.reel
+            ? `Vas a crear un Reel: ${currentProject.settings.reel.start.toFixed(1)}–${currentProject.settings.reel.end.toFixed(1)} s · ${(currentProject.settings.reel.end - currentProject.settings.reel.start).toFixed(1)} s · vertical 9:16.`
+            : `Vas a crear el vídeo de la canción completa: 0.0–${duration.toFixed(1)} s · ${duration.toFixed(1)} s.`}</p>
+          {scope === 'reel' && <ReelDialog label="Revisar y crear Reel" fromTimeline />}
+        </section>}
         {done ? (
           <div className="py-8 text-center space-y-3">
             <Check className="mx-auto h-10 w-10 text-green-500" />
@@ -238,7 +244,7 @@ export function ExportDialog() {
               ))}
             </div>
 
-            {exportType === 'video' ? (
+            {exportType === 'video' && scope === 'reel' ? <p className="text-sm text-muted-foreground">Revisa el fragmento antes de crear el Reel. Su corte, portada y letra propia se conservan separados de la canción completa.</p> : exportType === 'video' ? (
               <>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <button
@@ -343,7 +349,7 @@ export function ExportDialog() {
         {!exporting && !done && (
           <DialogFooter>
             <Button variant="outline" onClick={closeDialog}>Cancelar</Button>
-            {exportType === 'video' ? (
+            {exportType === 'video' ? scope === 'full' && (
               <Button onClick={exportVideo} className="gap-2" disabled={hasBlockingIssue}>
                 <Download className="h-4 w-4" />
                 Crear MP4 {target === 'mobile' ? 'móvil 9:16' : 'PC 16:9'}

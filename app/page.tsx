@@ -7,9 +7,9 @@ import {
   readStudioSession,
 } from '@/lib/studio-auth-server';
 
-export default function Home() {
+export default async function Home() {
   const configured = isStudioAccessConfigured();
-  const token = cookies().get(STUDIO_SESSION_COOKIE)?.value;
+  const token = (await cookies()).get(STUDIO_SESSION_COOKIE)?.value;
   const session = configured ? readStudioSession(token) : null;
   const userId = session?.u || (!configured && process.env.NODE_ENV !== 'production' ? 'owner' : null);
 

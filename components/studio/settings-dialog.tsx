@@ -13,7 +13,8 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
-import { Cpu, Bell, Palette, Info } from 'lucide-react';
+import { Palette, Info } from 'lucide-react';
+import { version } from '@/package.json';
 
 export function SettingsDialog() {
   const { isSettingsOpen, setSettingsOpen, currentProject, updateSettings } = useStore();
@@ -27,7 +28,7 @@ export function SettingsDialog() {
         <DialogHeader>
           <DialogTitle>Ajustes del Proyecto</DialogTitle>
           <DialogDescription>
-            Configura los detalles y el audio de tu proyecto.
+            Edita los datos del proyecto y consulta la versión de Studio.
           </DialogDescription>
         </DialogHeader>
 
@@ -52,23 +53,9 @@ export function SettingsDialog() {
           {/* Preferences */}
           <div className="space-y-3">
             <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              Preferencias
+              Información de Studio
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="flex items-center gap-2 p-3 rounded-lg border border-border bg-secondary/30">
-                <Cpu className="h-4 w-4 text-primary" />
-                <div>
-                  <div className="text-xs font-medium">Aceleración</div>
-                  <div className="text-[11px] text-muted-foreground">GPU activada</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 p-3 rounded-lg border border-border bg-secondary/30">
-                <Bell className="h-4 w-4 text-primary" />
-                <div>
-                  <div className="text-xs font-medium">Notificaciones</div>
-                  <div className="text-[11px] text-muted-foreground">Activadas</div>
-                </div>
-              </div>
               <div className="flex items-center gap-2 p-3 rounded-lg border border-border bg-secondary/30">
                 <Palette className="h-4 w-4 text-primary" />
                 <div>
@@ -80,7 +67,7 @@ export function SettingsDialog() {
                 <Info className="h-4 w-4 text-primary" />
                 <div>
                   <div className="text-xs font-medium">Versión</div>
-                  <div className="text-[11px] text-muted-foreground">1.0.0</div>
+                  <div className="text-[11px] text-muted-foreground">{version}</div>
                 </div>
               </div>
             </div>

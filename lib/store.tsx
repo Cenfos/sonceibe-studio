@@ -6,6 +6,8 @@ import { deleteProjectMedia } from './local-media-storage';
 import { useStudioUserId } from './studio-user-context';
 import { toast } from 'sonner';
 import { hasProjectContent } from './project-content';
+import { loadProjectStorage, saveProjectStorage } from './project-storage';
+import { parseProjectList } from './project-validation';
 import type {
   Project,
   ProjectSettings,
@@ -417,8 +419,16 @@ export function StoreProvider({ children, storageKey, migrateLegacy = false }: S
   const lastCapture = useRef<{ projectId: string; reason: string; at: number } | null>(null);
   const [autoSaveStatus, setAutoSaveStatus] = useState<AutoSaveStatus>('idle');
   const [lastAutoSavedAt, setLastAutoSavedAt] = useState<number | null>(null);
+  const [loaded] = useState(() => typeof window === 'undefined'
+    ? { projects: [], recovery: false, raw: null, backup: null }
+    : loadProjectStorage(localStorage, storageKey));
+  const [recovery, setRecovery] = useState(loaded.recovery);
+  const [recoveryDownloaded, setRecoveryDownloaded] = useState(false);
+  const [recoveryError, setRecoveryError] = useState('');
   const [state, rawDispatch] = useReducer(reducer, initialState, (init) => {
     if (typeof window === 'undefined') return init;
+    if (loaded.recovery) return init;
+    if (loaded.raw !== null) return { ...init, projects: loaded.projects };
 
     try {
       const raw = localStorage.getItem(storageKey);
@@ -430,7 +440,7 @@ export function StoreProvider({ children, storageKey, migrateLegacy = false }: S
       if (migrateLegacy) {
         const legacyRaw = localStorage.getItem(LEGACY_STORAGE_KEY);
         if (legacyRaw) {
-          const legacyProjects = JSON.parse(legacyRaw) as Project[];
+          const legacyProjects = parseProjectList(legacyRaw);
           if (Array.isArray(legacyProjects)) {
             localStorage.setItem(storageKey, JSON.stringify(legacyProjects));
             return { ...init, projects: legacyProjects };
@@ -508,7 +518,7 @@ export function StoreProvider({ children, storageKey, migrateLegacy = false }: S
     if (!project) throw new Error('El proyecto ya no existe');
     const copy = await copyProject(userId, project, stateRef.current.projects);
     try {
-      localStorage.setItem(storageKey, JSON.stringify([copy, ...stateRef.current.projects]));
+      saveProjectStorage(localStorage, storageKey, [copy, ...stateRef.current.projects]);
       rawDispatch({ type: 'ADD_PROJECT', project: copy });
     } catch (error) {
       await deleteProjectMedia(userId, copy.id);
@@ -522,16 +532,17 @@ export function StoreProvider({ children, storageKey, migrateLegacy = false }: S
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    if (recovery) { setAutoSaveStatus('error'); return; }
     setAutoSaveStatus('saving');
     try {
-      localStorage.setItem(storageKey, JSON.stringify(savedProjects));
+      saveProjectStorage(localStorage, storageKey, savedProjects);
       setLastAutoSavedAt(Date.now());
       setAutoSaveStatus('saved');
     } catch {
       setAutoSaveStatus('error');
       // El guardado explícito sigue disponible si el navegador agota la cuota local.
     }
-  }, [savedProjects, storageKey]);
+  }, [savedProjects, storageKey, recovery]);
 
   const currentProject =
     state.projects.find((p) => p.id === state.currentProjectId) ?? null;
@@ -673,6 +684,26 @@ export function StoreProvider({ children, storageKey, migrateLegacy = false }: S
     setSettingsOpen,
   };
 
+  if (recovery) return <main className="mx-auto max-w-xl space-y-4 p-6" role="alert">
+    <h1 className="text-xl font-semibold">Tus datos necesitan recuperación</h1>
+    <p>No se pudieron leer los proyectos guardados. Hemos detenido el autoguardado para conservar el original.</p>
+    <p>{loaded.backup ? `Hay una copia válida con ${loaded.backup.length} proyectos. Descarga primero el original para conservarlo y después restaura la copia.` : 'Descarga el original para conservarlo. Después puedes iniciar una lista nueva e importar tus archivos .scs desde la portada.'}</p>
+    <button className="rounded border px-4 py-2" disabled={loaded.raw === null} onClick={() => {
+      const url = URL.createObjectURL(new Blob([loaded.raw!], { type: 'application/json' }));
+      const link = document.createElement('a'); link.href = url; link.download = 'sonceibe-datos-para-recuperar.json'; link.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000); setRecoveryDownloaded(true);
+    }}>Descargar datos originales</button>
+    <button className="ml-2 rounded border px-4 py-2" disabled={!recoveryDownloaded} onClick={() => {
+      try {
+        const projects = loaded.backup ?? [];
+        localStorage.setItem(storageKey, JSON.stringify(projects));
+        for (const project of [...projects].reverse()) rawDispatch({ type: 'ADD_PROJECT', project });
+        setRecovery(false);
+      } catch { setRecoveryError('No se pudo recuperar el almacenamiento. El original sigue protegido. Libera espacio y vuelve a intentarlo.'); }
+    }}>{loaded.backup ? 'Restaurar copia válida' : 'Empezar con lista vacía'}</button>
+    <button className="block underline" onClick={() => window.location.reload()}>Reintentar lectura</button>
+    {recoveryError && <p>{recoveryError}</p>}
+  </main>;
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }
 

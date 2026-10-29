@@ -45,5 +45,8 @@ export function EditingScope() {
     </div>
       </div></details>
     </div>
+    <p role="status" className="text-xs font-medium">{selected && reel
+      ? `Editando Reel · ${reel.start.toFixed(1)}–${reel.end.toFixed(1)} s · ${(reel.end - reel.start).toFixed(1)} s`
+      : `Editando canción completa · ${(audio.duration || settings.audioDuration).toFixed(1)} s`}</p>
   </section>;
 }

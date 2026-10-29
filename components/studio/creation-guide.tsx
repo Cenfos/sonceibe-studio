@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { VisualPresetPicker } from './properties/visual-preset-picker';
 
 export function CreationGuide() {
-  const { currentProject, updateExport, setExportOpen } = useStore();
+  const { currentProject, updateExport, updateSettings, setExportOpen } = useStore();
   const audio = useAudioEngineContext();
   const [step, setStep] = useState(0);
   const [guided, setGuided] = useState(true);
@@ -26,7 +26,7 @@ export function CreationGuide() {
       {step === 0 && <><p className="text-sm">{hasAudio ? `Audio listo: ${settings.audioName || 'Canción cargada'}` : 'Carga tu canción para empezar.'}</p><Button variant="outline" onClick={() => window.dispatchEvent(new Event('sonceibe:upload-audio'))}>{hasAudio ? 'Cambiar audio' : 'Elegir audio'}</Button></>}
       {step === 1 && <><p className="text-sm">Para un fragmento vertical, abre Reels en la barra superior. Para el vídeo completo, elige:</p><div className="flex flex-wrap gap-2">{(['portrait', 'landscape'] as const).map(orientation => <Button key={orientation} variant={settings.exportConfig.orientation === orientation ? 'default' : 'outline'} aria-pressed={settings.exportConfig.orientation === orientation} onClick={() => updateExport({ orientation, resolution: '1080p', fps: 30 })}>{orientation === 'portrait' ? 'Vertical · 9:16' : 'Horizontal · 16:9'}</Button>)}</div></>}
       {step === 2 && <><p className="text-xs text-muted-foreground">Puedes conservar tu diseño o aplicar una plantilla. Después podrás ajustar cada detalle en los controles de abajo.</p><VisualPresetPicker /></>}
-      {step === 3 && <><p className="text-sm">Vídeo completo · {settings.audioDuration.toFixed(1)} s · {settings.exportConfig.orientation === 'portrait' ? 'Vertical 9:16' : 'Horizontal 16:9'}. Revisa la vista previa y confirma los detalles al exportar.</p><Button disabled={!hasAudio} onClick={() => setExportOpen(true)}>Revisar y exportar vídeo</Button>{!hasAudio && <p className="text-xs text-muted-foreground">Carga el audio para exportar.</p>}</>}
+      {step === 3 && <><p className="text-sm">Vídeo completo · {settings.audioDuration.toFixed(1)} s · {settings.exportConfig.orientation === 'portrait' ? 'Vertical 9:16' : 'Horizontal 16:9'}. Revisa la vista previa y confirma los detalles al exportar.</p><Button disabled={!hasAudio} onClick={() => { updateSettings({ editingTarget: 'full' }); setExportOpen(true); }}>Revisar y exportar vídeo</Button>{!hasAudio && <p className="text-xs text-muted-foreground">Carga el audio para exportar.</p>}</>}
       {step < 3 && <Button size="sm" disabled={step === 0 && !hasAudio} onClick={() => setStep(step + 1)}>Continuar</Button>}
     </>}
     <p className="text-xs text-muted-foreground">Edición manual siempre disponible debajo: texto, fondo, animación y efectos. Puedes saltar entre los pasos.</p>

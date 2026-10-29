@@ -177,7 +177,7 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
         <Card className="w-full p-5">
           <div className="mb-5 flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-lg font-semibold">Vídeo MP4 del proyecto</h2>
+              <h2 className="text-lg font-semibold">Vídeo de la canción completa</h2>
               <p className="mt-1 text-xs text-muted-foreground">Vertical real 9:16 · 1080×1920 · pantalla completa · 30 FPS</p>
             </div>
             {!exporting && (
@@ -227,6 +227,7 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
           ) : (
             <div className="space-y-4">
               <div className="rounded-lg bg-secondary/40 p-3 text-sm">
+                <p role="status" className="mb-2 font-medium">Vas a crear la canción completa: 0.0–{duration.toFixed(1)} s. Para crear un fragmento, vuelve atrás y elige Reels.</p>
                 <div className="flex justify-between"><span className="text-muted-foreground">Formato</span><span>1080×1920 · 9:16</span></div>
                 <div className="mt-1 flex justify-between"><span className="text-muted-foreground">Duración</span><span>{Math.round(duration)} s</span></div>
                 <div className="mt-1 flex justify-between"><span className="text-muted-foreground">Tamaño estimado</span><span>~{estimatedSize ? formatMb(estimatedSize) : '—'}</span></div>
