@@ -12,9 +12,10 @@ test('duplicate from home keeps audio after deleting the original', async ({ pag
   await page.getByRole('button', { name: 'Opciones de Prueba Studio', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Eliminar', exact: true }).click();
   await page.getByRole('button', { name: 'Eliminar', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Prueba Studio', exact: true })).toHaveCount(0);
   await page.reload();
   const result = await page.evaluate(async () => {
-    const projects = JSON.parse(localStorage.getItem('sonceibe-projects-v2:owner')!) as Project[];
+    const projects = (await window.studioTest.savedProjects()) as Project[];
     const audio = await window.studioTest.getProjectAudio('owner', projects[0].id);
     return { count: projects.length, id: projects[0].id, bytes: audio?.size, photo: projects[0].settings.background.photoClips?.[0] };
   });
@@ -40,7 +41,7 @@ test('one drag is one undo; versions survive reload and restore', async ({ page 
   await page.reload(); await page.getByRole('heading', { name: 'Prueba Studio', exact: true }).click();
   await page.getByRole('button', { name: 'Versiones locales' }).click();
   await page.getByRole('button', { name: 'Restaurar', exact: true }).first().click();
-  await expect.poll(async () => page.evaluate(() => JSON.parse(localStorage.getItem('sonceibe-projects-v2:owner')!)[0].settings.lyrics[0].start)).toBe(2);
+  await expect.poll(async () => page.evaluate(async () => (await window.studioTest.savedProjects())[0].settings.lyrics[0].start)).toBe(2);
   const versions = await page.evaluate(() => window.studioTest.listSnapshots('sonceibe-projects-v2:owner', 'fixture'));
   expect(versions[0].reason).toBe('Antes de restaurar una versión');
   expect(versions[0].settings.lyrics[0].start).toBe(2.1);

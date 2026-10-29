@@ -17,16 +17,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useStudioUserId } from '@/lib/studio-user-context';
-import { LOCAL_AUDIO_URL, saveProjectAudio } from '@/lib/local-media-storage';
 import { readPortableProjectFile } from '@/lib/project/download-current-project';
-import { PENDING_PROJECT_TITLE_KEY } from '@/lib/project-title';
 import { visualPresets } from '@/lib/visual-presets';
 import { toast } from 'sonner';
-import { saveProjectStorage } from '@/lib/project-storage';
+import { MAX_RECENT_PROJECTS, hasExternalCopy } from '@/lib/recent-projects';
 
 export function HomePage() {
-  const { projects, openProject, createProject, deleteProject, duplicateProject } = useStore();
+  const { projects, openProject, createProject, deleteProject, duplicateProject, importProject, saveProjectFile, externalCopies, trimRecentProjects } = useStore();
   const [createOpen, setCreateOpen] = useState(false);
   const [projectTitle, setProjectTitle] = useState('');
   const [duplicating, setDuplicating] = useState(false);
@@ -34,11 +31,10 @@ export function HomePage() {
   const handleDuplicate = async (id: string) => {
     if (duplicateBusy.current) return;
     duplicateBusy.current = true; setDuplicating(true);
-    try { await duplicateProject(id); toast.success('Proyecto duplicado con su audio y fotografías'); }
+    try { if (await duplicateProject(id)) toast.success('Proyecto duplicado con su audio y fotografías'); }
     catch (error) { toast.error(error instanceof Error ? error.message : 'No se pudo duplicar el proyecto'); }
     finally { duplicateBusy.current = false; setDuplicating(false); }
   };
-  const userId = useStudioUserId();
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -57,13 +53,12 @@ export function HomePage() {
     setCreateOpen(true);
   };
 
-  const confirmCreateProject = (event: React.FormEvent<HTMLFormElement>) => {
+  const confirmCreateProject = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const title = projectTitle.trim();
-    if (title) sessionStorage.setItem(PENDING_PROJECT_TITLE_KEY, title);
-    else sessionStorage.removeItem(PENDING_PROJECT_TITLE_KEY);
     setCreateOpen(false);
-    createProject();
+    try { await createProject(title); }
+    catch { toast.error('No se pudo crear el proyecto. Los proyectos anteriores se conservan.'); }
   };
 
   const handleProjectImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -73,28 +68,7 @@ export function HomePage() {
 
     try {
       const imported = await readPortableProjectFile(file);
-      const existingIds = new Set(projects.map((project) => project.id));
-      const projectId = existingIds.has(imported.project.id)
-        ? `${imported.project.id}-${Date.now().toString(36)}`
-        : imported.project.id;
-      const now = Date.now();
-      const project = {
-        ...imported.project,
-        id: projectId,
-        settings: {
-          ...imported.project.settings,
-          audioUrl: imported.audioFile ? LOCAL_AUDIO_URL : imported.project.settings.audioUrl,
-          updatedAt: now,
-        },
-      };
-
-      const storageKey = `sonceibe-projects-v2:${userId}`;
-      if (imported.audioFile) {
-        await saveProjectAudio(userId, projectId, imported.audioFile);
-      }
-      saveProjectStorage(localStorage, storageKey, [project, ...projects]);
-      toast.success('Proyecto importado. Se abrirá en este equipo.');
-      window.setTimeout(() => window.location.reload(), 250);
+      if (await importProject(imported.project, imported.audioFile)) toast.success('Proyecto abierto desde el archivo .scs');
     } catch (error) {
       console.error('Project import failed:', error);
       toast.error(error instanceof Error ? error.message : 'No se pudo importar el proyecto');
@@ -148,7 +122,7 @@ export function HomePage() {
           </p>
           <p className="text-xs text-muted-foreground max-w-2xl mb-8 flex items-center gap-1.5">
             <HardDrive className="h-3.5 w-3.5" />
-            Tus proyectos se guardan localmente en este navegador y no se suben a la nube.
+            Guarda tus proyectos .scs en tu equipo y ábrelos para continuar. Studio conserva hasta cinco recientes en este navegador como recuperación.
           </p>
           <div className="flex flex-wrap gap-3">
             <Button size="lg" variant="outline" className="gap-2" asChild>
@@ -167,7 +141,7 @@ export function HomePage() {
             />
             <Button size="lg" variant="outline" className="gap-2" onClick={() => importInputRef.current?.click()}>
               <FolderOpen className="h-5 w-5" />
-              Importar proyecto .scs
+              Abrir proyecto .scs
             </Button>
             <Button size="lg" variant="outline" className="gap-2" disabled title="Lo añadiremos más adelante">
               <Film className="h-5 w-5" />
@@ -183,7 +157,7 @@ export function HomePage() {
             <div>
               <h2 className="text-xl font-semibold">Proyectos Recientes</h2>
               <p className="text-sm text-muted-foreground">
-                {mounted ? `${projects.length} proyecto${projects.length !== 1 ? 's' : ''} en este navegador` : 'Cargando...'}
+                {mounted ? `${projects.length} de ${MAX_RECENT_PROJECTS} recientes en este navegador · tus archivos .scs se conservan aparte` : 'Cargando...'}
               </p>
             </div>
             <Button variant="ghost" size="sm" onClick={handleCreateProject} className="gap-1">
@@ -192,6 +166,7 @@ export function HomePage() {
             </Button>
           </div>
 
+          {projects.length > MAX_RECENT_PROJECTS && <div role="status" className="mb-4 rounded-lg border p-3 text-sm space-y-2"><p>Se han recuperado {projects.length} proyectos anteriores. Ninguno se ha eliminado. Guarda o descarta los más antiguos para conservar cinco recientes.</p><Button variant="outline" onClick={() => void trimRecentProjects()}>Revisar proyectos antiguos</Button></div>}
           {mounted ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {projects.map((p) => (
@@ -233,6 +208,7 @@ export function HomePage() {
                     <p className="text-xs text-muted-foreground mt-2">
                       {formatRelative(p.settings.updatedAt)}
                     </p>
+                    <p className="mt-2 text-xs">{hasExternalCopy(p, externalCopies) ? 'Copia guardada en tu equipo' : 'Sólo en este navegador · guarda una copia .scs'}</p>
                   </div>
 
                   <div className="absolute top-2 right-2">
@@ -249,6 +225,7 @@ export function HomePage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenuItem className="gap-2" onSelect={() => void saveProjectFile(p.id)}><FolderOpen className="h-4 w-4" />Guardar proyecto .scs</DropdownMenuItem>
                         <DropdownMenuItem className="gap-2" disabled={duplicating} onSelect={() => void handleDuplicate(p.id)}>
                           <Copy className="h-4 w-4" />Duplicar proyecto
                         </DropdownMenuItem>
@@ -293,9 +270,9 @@ export function HomePage() {
                   <Button
                     variant="destructive"
                     size="sm"
-                    onClick={() => {
-                      deleteProject(confirmId);
-                      setConfirmId(null);
+                    onClick={async () => {
+                      try { await deleteProject(confirmId); setConfirmId(null); }
+                      catch { toast.error('No se pudo actualizar el almacenamiento. El proyecto se conserva.'); }
                     }}
                   >
                     Eliminar

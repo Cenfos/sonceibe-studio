@@ -45,20 +45,41 @@ async function getAudioDataUrl(audioSrc?: string, audioBlob?: Blob | null): Prom
   }
 }
 
-export async function downloadCurrentProject(
+export async function createPortableProjectBlob(
   project: Project,
   audioSrc?: string,
   audioBlob?: Blob | null
-): Promise<void> {
-  const audioDataUrl = await getAudioDataUrl(audioSrc, audioBlob);
+): Promise<Blob> {
+  const audioDataUrl = await getAudioDataUrl(audioSrc ?? project.settings.audioUrl, audioBlob);
   if ((project.settings.audioName || project.settings.audioUrl) && !audioDataUrl) {
     throw new Error('No se pudo incluir el audio. Vuelve a cargarlo antes de descargar una copia del proyecto.');
   }
 
+  const resources = new Map<string, Promise<string>>();
+  const embedImage = (url: string): Promise<string> => {
+    if (!url || url.startsWith('data:image/')) return Promise.resolve(url);
+    if (!resources.has(url)) resources.set(url, (async () => {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('No se pudo incluir una foto en el proyecto. Vuelve a cargarla antes de guardar la copia.');
+      const image = await response.blob();
+      if (!image.type.startsWith('image/')) throw new Error('Uno de los recursos del proyecto no es una imagen válida');
+      return blobToDataUrl(image);
+    })());
+    return resources.get(url)!;
+  };
+  const background = project.settings.background;
+  const [imageUrl, images, imageClips, photoClips, coverUrl] = await Promise.all([
+    embedImage(background.imageUrl), Promise.all(background.images.map(embedImage)),
+    Promise.all(background.imageClips.map(async clip => ({ ...clip, url: await embedImage(clip.url) }))),
+    Promise.all((background.photoClips ?? []).map(async clip => ({ ...clip, url: await embedImage(clip.url) }))),
+    embedImage(project.settings.reel?.coverUrl ?? ''),
+  ]);
   const projectCopy: Project = {
     ...project,
     settings: {
       ...project.settings,
+      background: { ...background, imageUrl, images, imageClips, photoClips },
+      ...(project.settings.reel ? { reel: { ...project.settings.reel, coverUrl } } : {}),
       audioUrl:
         project.settings.audioUrl.startsWith('blob:') || project.settings.audioUrl.startsWith('sonceibe-local://')
           ? ''
@@ -74,9 +95,12 @@ export async function downloadCurrentProject(
     audioDataUrl,
   };
 
-  const blob = new Blob([JSON.stringify(payload)], {
+  return new Blob([JSON.stringify(payload)], {
     type: 'application/json;charset=utf-8',
   });
+}
+
+function downloadProjectBlob(project: Project, blob: Blob): void {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
@@ -85,6 +109,33 @@ export async function downloadCurrentProject(
   anchor.click();
   anchor.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+export async function downloadCurrentProject(project: Project, audioSrc?: string, audioBlob?: Blob | null): Promise<void> {
+  downloadProjectBlob(project, await createPortableProjectBlob(project, audioSrc, audioBlob));
+}
+
+interface SaveHandle {
+  createWritable(): Promise<{ write(data: Blob): Promise<void>; close(): Promise<void>; abort?(): Promise<void> }>;
+}
+
+/** Open the picker immediately, while the click still carries user activation. */
+export async function saveProjectToDevice(project: Project, loadAudio: () => Promise<Blob | null>): Promise<'file' | 'download'> {
+  const picker = (window as Window & { showSaveFilePicker?: (options: unknown) => Promise<SaveHandle> }).showSaveFilePicker;
+  let handle: SaveHandle | null = null;
+  if (picker) {
+    try { handle = await picker.call(window, {
+      suggestedName: `${safeFileName(project.settings.title)}.scs`,
+      types: [{ description: 'Proyecto SonCeibe Studio', accept: { 'application/json': ['.scs'] } }],
+    }); }
+    catch (error) { if (!(error instanceof DOMException && ['SecurityError', 'NotSupportedError'].includes(error.name))) throw error; }
+  }
+  const blob = await createPortableProjectBlob(project, undefined, await loadAudio());
+  if (!handle) { downloadProjectBlob(project, blob); return 'download'; }
+  const writable = await handle.createWritable();
+  try { await writable.write(blob); await writable.close(); }
+  catch (error) { await writable.abort?.().catch(() => {}); throw error; }
+  return 'file';
 }
 
 export async function readPortableProjectFile(file: File): Promise<ImportedPortableProject> {

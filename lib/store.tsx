@@ -2,12 +2,16 @@
 
 import React, { createContext, useContext, useReducer, useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { captureSnapshot, copyProject, deleteSnapshots, listSnapshots, restoreSnapshotAudio, type ProjectSnapshot } from './project-history';
-import { deleteProjectMedia } from './local-media-storage';
+import { deleteProjectMedia, getProjectAudio, saveProjectAudio, LOCAL_AUDIO_URL } from './local-media-storage';
 import { useStudioUserId } from './studio-user-context';
 import { toast } from 'sonner';
 import { hasProjectContent } from './project-content';
-import { loadProjectStorage, saveProjectStorage } from './project-storage';
-import { parseProjectList } from './project-validation';
+import { loadRecentProjects, saveRecentProjects, hasExternalCopy, MAX_RECENT_PROJECTS, type ExternalCopies, type RecentLibrary } from './recent-projects';
+import { validateProject } from './project-validation';
+import { saveProjectToDevice } from './project/download-current-project';
+import { deleteProjectLocalData } from './project-deletion';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 import type {
   Project,
   ProjectSettings,
@@ -22,6 +26,7 @@ import type {
 import { createDefaultProjectSettings } from './types';
 
 interface State {
+  externalCopies: ExternalCopies;
   draftProjectId: string | null;
   projects: Project[];
   currentProjectId: string | null;
@@ -35,6 +40,10 @@ interface State {
 }
 
 type Action =
+  | { type: 'LOAD_PROJECTS'; projects: Project[]; copies: ExternalCopies }
+  | { type: 'ADMIT_PROJECT'; project: Project; removeIds: string[]; draft?: boolean; external?: boolean; open?: boolean }
+  | { type: 'REMOVE_RECENTS'; ids: string[] }
+  | { type: 'MARK_EXTERNAL_COPY'; project: Project }
   | { type: 'ADD_PROJECT'; project: Project }
   | { type: 'RESTORE_PROJECT'; id: string; settings: ProjectSettings }
   | { type: 'SET_PAGE'; page: 'home' | 'studio' }
@@ -65,10 +74,15 @@ type Action =
   | { type: 'REDO' }
   | { type: 'MARK_SAVED' };
 
-const LEGACY_STORAGE_KEY = 'sonceibe-projects-v1';
 const MAX_UNDO = 50;
+let latestRevision = 0;
+function nextProjectRevision(previous: number): number {
+  latestRevision = Math.max(Date.now(), latestRevision + 1, previous + 1);
+  return latestRevision;
+}
 
 const initialState: State = {
+  externalCopies: {},
   draftProjectId: null,
   projects: [],
   currentProjectId: null,
@@ -93,7 +107,7 @@ function applyToSettings(state: State, fn: (s: ProjectSettings) => ProjectSettin
   if (!state.currentProjectId) return state;
   const current = getCurrentProject(state);
   if (!current) return state;
-  const newSettings = fn({ ...current.settings, updatedAt: Date.now() });
+  const newSettings = { ...fn({ ...current.settings }), updatedAt: nextProjectRevision(current.settings.updatedAt) };
   const undoStack = [...state.undoStack, { ...current.settings }].slice(-MAX_UNDO);
   return {
     ...state,
@@ -110,10 +124,20 @@ function applyToSettings(state: State, fn: (s: ProjectSettings) => ProjectSettin
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
+    case 'LOAD_PROJECTS': return { ...initialState, projects: action.projects, externalCopies: action.copies };
+    case 'ADMIT_PROJECT': {
+      const ids = new Set(action.removeIds);
+      const copies = Object.fromEntries(Object.entries(state.externalCopies).filter(([id]) => !ids.has(id)));
+      if (action.external) copies[action.project.id] = { updatedAt: action.project.settings.updatedAt, savedAt: Date.now() };
+      return { ...state, projects: [action.project, ...state.projects.filter(project => !ids.has(project.id))], externalCopies: copies,
+        ...(action.open === false ? {} : { draftProjectId: action.draft ? action.project.id : null, currentProjectId: action.project.id, currentPage: 'studio' as const, isDirty: false, undoStack: [], redoStack: [] }) };
+    }
+    case 'REMOVE_RECENTS': return { ...state, projects: state.projects.filter(project => !action.ids.includes(project.id)), externalCopies: Object.fromEntries(Object.entries(state.externalCopies).filter(([id]) => !action.ids.includes(id))) };
+    case 'MARK_EXTERNAL_COPY': return { ...state, externalCopies: { ...state.externalCopies, [action.project.id]: { updatedAt: action.project.settings.updatedAt, savedAt: Date.now() } } };
     case 'ADD_PROJECT':
       return { ...state, projects: [action.project, ...state.projects] };
     case 'RESTORE_PROJECT':
-      return { ...state, isDirty: true, undoStack: [], redoStack: [], projects: state.projects.map(p => p.id === action.id ? { ...p, settings: action.settings } : p) };
+      return { ...state, isDirty: true, undoStack: [], redoStack: [], projects: state.projects.map(p => p.id === action.id ? { ...p, settings: { ...action.settings, updatedAt: nextProjectRevision(p.settings.updatedAt) } } : p) };
     case 'SET_PAGE':
       return { ...state, currentPage: action.page };
 
@@ -369,7 +393,7 @@ interface StoreContextValue extends State {
   saveVersion: (reason?: string) => Promise<void>;
   getVersions: () => Promise<ProjectSnapshot[]>;
   restoreVersion: (id: string) => Promise<void>;
-  duplicateProject: (id: string) => Promise<void>;
+  duplicateProject: (id: string) => Promise<boolean>;
   currentProject: Project | null;
   autoSaveStatus: AutoSaveStatus;
   lastAutoSavedAt: number | null;
@@ -395,8 +419,11 @@ interface StoreContextValue extends State {
   markSaved: () => void;
   openProject: (id: string) => void;
   closeProject: () => void;
-  createProject: () => void;
-  deleteProject: (id: string) => void;
+  createProject: (title?: string) => Promise<boolean>;
+  importProject: (project: Project, audioFile: File | null, external?: boolean) => Promise<boolean>;
+  saveProjectFile: (id?: string) => Promise<boolean>;
+  trimRecentProjects: () => Promise<void>;
+  deleteProject: (id: string) => Promise<void>;
   setPage: (page: 'home' | 'studio') => void;
   setTab: (tab: State['activeTab']) => void;
   setExportOpen: (open: boolean) => void;
@@ -419,40 +446,36 @@ export function StoreProvider({ children, storageKey, migrateLegacy = false }: S
   const lastCapture = useRef<{ projectId: string; reason: string; at: number } | null>(null);
   const [autoSaveStatus, setAutoSaveStatus] = useState<AutoSaveStatus>('idle');
   const [lastAutoSavedAt, setLastAutoSavedAt] = useState<number | null>(null);
-  const [loaded] = useState(() => typeof window === 'undefined'
-    ? { projects: [], recovery: false, raw: null, backup: null }
-    : loadProjectStorage(localStorage, storageKey));
-  const [recovery, setRecovery] = useState(loaded.recovery);
+  const [loaded, setLoaded] = useState<RecentLibrary | null>(null);
+  const [hydrated, setHydrated] = useState(false);
+  const [recovery, setRecovery] = useState(false);
   const [recoveryDownloaded, setRecoveryDownloaded] = useState(false);
   const [recoveryError, setRecoveryError] = useState('');
-  const [state, rawDispatch] = useReducer(reducer, initialState, (init) => {
-    if (typeof window === 'undefined') return init;
-    if (loaded.recovery) return init;
-    if (loaded.raw !== null) return { ...init, projects: loaded.projects };
+  const [state, rawDispatch] = useReducer(reducer, initialState);
+  const persistenceQueue = useRef<Promise<void>>(Promise.resolve());
+  const persistedIds = useRef(new Set<string>());
+  const deletedIds = useRef(new Set<string>());
+  const admissionBusy = useRef(false);
+  const [persistenceEpoch, resumePersistence] = useReducer((value: number) => value + 1, 0);
+  const saveBusy = useRef(false);
+  const [savingFile, setSavingFile] = useState(false);
+  const [eviction, setEviction] = useState<{ project: Project; resolve: (remove: boolean) => void } | null>(null);
+  const [downloadConfirmation, setDownloadConfirmation] = useState<{ title: string; resolve: (saved: boolean) => void } | null>(null);
 
-    try {
-      const raw = localStorage.getItem(storageKey);
-      if (raw !== null) {
-        const projects = JSON.parse(raw) as Project[];
-        if (Array.isArray(projects)) return { ...init, projects };
-      }
-
-      if (migrateLegacy) {
-        const legacyRaw = localStorage.getItem(LEGACY_STORAGE_KEY);
-        if (legacyRaw) {
-          const legacyProjects = parseProjectList(legacyRaw);
-          if (Array.isArray(legacyProjects)) {
-            localStorage.setItem(storageKey, JSON.stringify(legacyProjects));
-            return { ...init, projects: legacyProjects };
-          }
-        }
-      }
-    } catch {
-      // Si un almacenamiento local está dañado, comenzamos con una lista vacía.
-    }
-
-    return init;
-  });
+  useEffect(() => {
+    let cancelled = false;
+    let legacy: Storage | undefined;
+    try { legacy = window.localStorage; } catch { /* IndexedDB may still be available. */ }
+    void loadRecentProjects(storageKey, legacy, migrateLegacy).then(result => {
+      if (cancelled) return;
+      persistedIds.current = new Set(result.projects.map(project => project.id));
+      rawDispatch({ type: 'LOAD_PROJECTS', projects: result.projects, copies: result.copies });
+      setLoaded(result); setRecovery(result.recovery); setHydrated(true);
+    }).catch(() => {
+      if (!cancelled) { setRecovery(true); setHydrated(true); setRecoveryError('No se puede acceder al almacenamiento. Tus datos no se han sobrescrito.'); }
+    });
+    return () => { cancelled = true; };
+  }, [storageKey, migrateLegacy]);
 
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -485,10 +508,6 @@ export function StoreProvider({ children, storageKey, migrateLegacy = false }: S
         });
       }
     }
-    if (action.type === 'DELETE_PROJECT') {
-      const task = historyQueue.current.then(() => deleteSnapshots(storageKey, action.id));
-      historyQueue.current = task.catch(() => { toast.error('No se pudo eliminar el historial local'); });
-    }
     rawDispatch(action);
   }, [queueVersion, storageKey]);
 
@@ -513,36 +532,141 @@ export function StoreProvider({ children, storageKey, migrateLegacy = false }: S
     setAudioRevision(revision => revision + 1);
     lastCapture.current = null;
   }, [queueVersion, storageKey, userId]);
+  const saveProjectFile = useCallback(async (id?: string) => {
+    if (saveBusy.current) return false;
+    const project = stateRef.current.projects.find(item => item.id === (id ?? stateRef.current.currentProjectId));
+    if (!project) return false;
+    saveBusy.current = true; setSavingFile(true);
+    const snapshot = structuredClone(project);
+    try {
+      const method = await saveProjectToDevice(snapshot, () => getProjectAudio(userId, snapshot.id));
+      if (method === 'download') {
+        const confirmed = await new Promise<boolean>(resolve => setDownloadConfirmation({ title: snapshot.settings.title, resolve }));
+        if (!confirmed) return false;
+      }
+      rawDispatch({ type: 'MARK_EXTERNAL_COPY', project: snapshot });
+      toast.success('Copia .scs guardada en tu equipo');
+      return true;
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === 'AbortError')) toast.error(error instanceof Error ? error.message : 'No se pudo guardar el proyecto');
+      return false;
+    } finally { saveBusy.current = false; setSavingFile(false); }
+  }, [userId]);
+
+  const requestCapacity = useCallback(async (limit: number): Promise<string[] | null> => {
+    let remaining = [...stateRef.current.projects];
+    const removeIds: string[] = [];
+    while (remaining.length > limit) {
+      const oldest = remaining[remaining.length - 1];
+      if (!hasExternalCopy(oldest, stateRef.current.externalCopies)) {
+        const approved = await new Promise<boolean>(resolve => setEviction({ project: oldest, resolve }));
+        if (!approved) return null;
+      }
+      removeIds.push(oldest.id);
+      remaining = remaining.filter(project => project.id !== oldest.id);
+    }
+    return removeIds;
+  }, []);
+
+  const commitAdmission = useCallback(async (project: Project, removeIds: string[], options: { draft?: boolean; external?: boolean; open?: boolean } = {}) => {
+    const projects = [project, ...stateRef.current.projects.filter(item => !removeIds.includes(item.id))];
+    const copies = { ...stateRef.current.externalCopies };
+    if (options.external) copies[project.id] = { updatedAt: project.settings.updatedAt, savedAt: Date.now() };
+    const retained = projects.filter(item => !(options.draft && item.id === project.id && !hasProjectContent(item.settings)));
+    const task = persistenceQueue.current.then(() => saveRecentProjects(storageKey, retained, copies));
+    persistenceQueue.current = task.catch(() => {});
+    await task;
+    // The new recent list is durable before the old item disappears from the UI.
+    rawDispatch({ type: 'ADMIT_PROJECT', project, removeIds, ...options });
+  }, [storageKey]);
+
+  const trimRecentProjects = useCallback(async () => {
+    if (admissionBusy.current) return;
+    admissionBusy.current = true;
+    try {
+      const ids = await requestCapacity(MAX_RECENT_PROJECTS);
+      if (ids) {
+        const projects = stateRef.current.projects.filter(project => !ids.includes(project.id));
+        const task = persistenceQueue.current.then(() => saveRecentProjects(storageKey, projects, stateRef.current.externalCopies));
+        persistenceQueue.current = task.catch(() => {});
+        await task;
+        rawDispatch({ type: 'REMOVE_RECENTS', ids });
+      }
+    } catch { toast.error('No se pudo actualizar recientes. Los proyectos se conservan.'); }
+    finally { admissionBusy.current = false; resumePersistence(); }
+  }, [requestCapacity, storageKey]);
+
+  const importProject = useCallback(async (input: Project, audioFile: File | null, external = true) => {
+    if (admissionBusy.current) return false;
+    const project = validateProject(input);
+    // Each opened file gets an independent cache entry and media keys.
+    project.id = genId();
+    admissionBusy.current = true;
+    try {
+      const ids = await requestCapacity(MAX_RECENT_PROJECTS - 1);
+      if (!ids) return false;
+      if (audioFile) { await saveProjectAudio(userId, project.id, audioFile); project.settings.audioUrl = LOCAL_AUDIO_URL; project.settings.audioName = audioFile.name; }
+      await commitAdmission(project, ids, { external: external && (!project.settings.audioName || !!audioFile) });
+      return true;
+    } catch (error) {
+      if (audioFile) await deleteProjectMedia(userId, project.id).catch(() => {});
+      throw error;
+    } finally { admissionBusy.current = false; resumePersistence(); }
+  }, [requestCapacity, commitAdmission, userId]);
+
   const duplicateProject = useCallback(async (id: string) => {
+    if (admissionBusy.current) return false;
     const project = stateRef.current.projects.find(item => item.id === id);
     if (!project) throw new Error('El proyecto ya no existe');
-    const copy = await copyProject(userId, project, stateRef.current.projects);
+    admissionBusy.current = true;
+    let copiedId: string | null = null;
     try {
-      saveProjectStorage(localStorage, storageKey, [copy, ...stateRef.current.projects]);
-      rawDispatch({ type: 'ADD_PROJECT', project: copy });
+      const ids = await requestCapacity(MAX_RECENT_PROJECTS - 1);
+      if (!ids) return false;
+      const copy = await copyProject(userId, project, stateRef.current.projects);
+      copiedId = copy.id;
+      await commitAdmission(copy, ids, { open: false });
+      return true;
     } catch (error) {
-      await deleteProjectMedia(userId, copy.id);
+      if (copiedId) await deleteProjectMedia(userId, copiedId).catch(() => {});
       throw error;
-    }
-  }, [storageKey, userId]);
+    } finally { admissionBusy.current = false; resumePersistence(); }
+  }, [requestCapacity, commitAdmission, userId]);
 
   const savedProjects = useMemo(() => state.projects.filter(
     (project) => project.id !== state.draftProjectId || hasProjectContent(project.settings)
   ), [state.projects, state.draftProjectId]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (!hydrated) return;
+    if (admissionBusy.current) return;
     if (recovery) { setAutoSaveStatus('error'); return; }
     setAutoSaveStatus('saving');
-    try {
-      saveProjectStorage(localStorage, storageKey, savedProjects);
-      setLastAutoSavedAt(Date.now());
-      setAutoSaveStatus('saved');
-    } catch {
-      setAutoSaveStatus('error');
-      // El guardado explícito sigue disponible si el navegador agota la cuota local.
-    }
-  }, [savedProjects, storageKey, recovery]);
+    let cancelled = false;
+    const task = persistenceQueue.current.then(async () => {
+      await saveRecentProjects(storageKey, savedProjects, state.externalCopies);
+      const ids = new Set(savedProjects.map(project => project.id));
+      const removed = [...persistedIds.current].filter(id => !ids.has(id));
+      persistedIds.current = ids;
+      await historyQueue.current;
+      for (const id of removed) {
+        if (stateRef.current.projects.some(project => project.id === id)) continue;
+        if (deletedIds.current.delete(id)) await deleteProjectLocalData(userId, id);
+        else await deleteProjectMedia(userId, id); // Cache eviction never touches a user's PC folder.
+        await deleteSnapshots(storageKey, id);
+      }
+    });
+    persistenceQueue.current = task.catch(() => {});
+    void task.then(() => { if (!cancelled) { setLastAutoSavedAt(Date.now()); setAutoSaveStatus('saved'); } }, () => { if (!cancelled) setAutoSaveStatus('error'); });
+    return () => { cancelled = true; };
+  }, [savedProjects, state.externalCopies, storageKey, recovery, hydrated, userId, persistenceEpoch]);
+
+  useEffect(() => {
+    if (!hydrated || (autoSaveStatus !== 'saving' && autoSaveStatus !== 'error')) return;
+    const protectPendingChanges = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
+    window.addEventListener('beforeunload', protectPendingChanges);
+    return () => window.removeEventListener('beforeunload', protectPendingChanges);
+  }, [hydrated, autoSaveStatus]);
 
   const currentProject =
     state.projects.find((p) => p.id === state.currentProjectId) ?? null;
@@ -620,10 +744,31 @@ export function StoreProvider({ children, storageKey, migrateLegacy = false }: S
     []
   );
   const closeProject = useCallback(() => dispatch({ type: 'CLOSE_PROJECT' }), []);
-  const createProject = useCallback(() => dispatch({ type: 'CREATE_PROJECT' }), []);
+  const createProject = useCallback(async (title?: string) => {
+    if (admissionBusy.current) return false;
+    admissionBusy.current = true;
+    try {
+      const ids = await requestCapacity(MAX_RECENT_PROJECTS - 1);
+      if (!ids) return false;
+      const project = { id: genId(), settings: { ...createDefaultProjectSettings(), ...(title ? { title } : {}) } };
+      await commitAdmission(project, ids, { draft: true });
+      return true;
+    } finally { admissionBusy.current = false; resumePersistence(); }
+  }, [requestCapacity, commitAdmission]);
   const deleteProject = useCallback(
-    (id: string) => dispatch({ type: 'DELETE_PROJECT', id }),
-    []
+    async (id: string) => {
+      if (admissionBusy.current) throw new Error('Espera a que termine la operación actual');
+      admissionBusy.current = true;
+      try {
+        const projects = stateRef.current.projects.filter(project => project.id !== id);
+        const task = persistenceQueue.current.then(() => saveRecentProjects(storageKey, projects, stateRef.current.externalCopies));
+        persistenceQueue.current = task.catch(() => {});
+        await task;
+        deletedIds.current.add(id);
+        dispatch({ type: 'DELETE_PROJECT', id });
+      } finally { admissionBusy.current = false; resumePersistence(); }
+    },
+    [storageKey, dispatch]
   );
   const setPage = useCallback(
     (page: 'home' | 'studio') => dispatch({ type: 'SET_PAGE', page }),
@@ -643,6 +788,9 @@ export function StoreProvider({ children, storageKey, migrateLegacy = false }: S
   );
 
   const value: StoreContextValue = {
+    importProject,
+    saveProjectFile,
+    trimRecentProjects,
     historyError,
     audioRevision,
     saveVersion,
@@ -684,27 +832,50 @@ export function StoreProvider({ children, storageKey, migrateLegacy = false }: S
     setSettingsOpen,
   };
 
+  if (!hydrated) return <main className="p-6" role="status">Cargando proyectos recientes…</main>;
   if (recovery) return <main className="mx-auto max-w-xl space-y-4 p-6" role="alert">
     <h1 className="text-xl font-semibold">Tus datos necesitan recuperación</h1>
     <p>No se pudieron leer los proyectos guardados. Hemos detenido el autoguardado para conservar el original.</p>
-    <p>{loaded.backup ? `Hay una copia válida con ${loaded.backup.length} proyectos. Descarga primero el original para conservarlo y después restaura la copia.` : 'Descarga el original para conservarlo. Después puedes iniciar una lista nueva e importar tus archivos .scs desde la portada.'}</p>
-    <button className="rounded border px-4 py-2" disabled={loaded.raw === null} onClick={() => {
-      const url = URL.createObjectURL(new Blob([loaded.raw!], { type: 'application/json' }));
+    <p>{loaded?.backup ? `Hay una copia válida con ${loaded.backup.length} proyectos. Descarga primero el original para conservarlo y después restaura la copia.` : 'Descarga el original para conservarlo. Después puedes iniciar una lista nueva y abrir tus archivos .scs desde la portada.'}</p>
+    <button className="rounded border px-4 py-2" disabled={!loaded?.raw} onClick={() => {
+      const url = URL.createObjectURL(new Blob([loaded!.raw!], { type: 'application/json' }));
       const link = document.createElement('a'); link.href = url; link.download = 'sonceibe-datos-para-recuperar.json'; link.click();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000); setRecoveryDownloaded(true);
     }}>Descargar datos originales</button>
-    <button className="ml-2 rounded border px-4 py-2" disabled={!recoveryDownloaded} onClick={() => {
+    <button className="ml-2 rounded border px-4 py-2" disabled={!recoveryDownloaded} onClick={async () => {
       try {
-        const projects = loaded.backup ?? [];
-        localStorage.setItem(storageKey, JSON.stringify(projects));
-        for (const project of [...projects].reverse()) rawDispatch({ type: 'ADD_PROJECT', project });
+        const projects = loaded?.backup ?? [];
+        await saveRecentProjects(storageKey, projects, {}, true);
+        localStorage.removeItem(storageKey); localStorage.removeItem(`${storageKey}:backup`);
+        persistedIds.current = new Set(projects.map(project => project.id));
+        rawDispatch({ type: 'LOAD_PROJECTS', projects, copies: {} });
         setRecovery(false);
       } catch { setRecoveryError('No se pudo recuperar el almacenamiento. El original sigue protegido. Libera espacio y vuelve a intentarlo.'); }
-    }}>{loaded.backup ? 'Restaurar copia válida' : 'Empezar con lista vacía'}</button>
+    }}>{loaded?.backup ? 'Restaurar copia válida' : 'Empezar con lista vacía'}</button>
     <button className="block underline" onClick={() => window.location.reload()}>Reintentar lectura</button>
     {recoveryError && <p>{recoveryError}</p>}
   </main>;
-  return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
+  return <StoreContext.Provider value={value}>{children}
+    <Dialog open={!!eviction} onOpenChange={open => { if (!open && eviction) { eviction.resolve(false); setEviction(null); } }}>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Conservar cinco proyectos recientes</DialogTitle><DialogDescription>«{eviction?.project.settings.title}» es el proyecto más antiguo y tiene cambios sin una copia externa confirmada. Guárdalo o descártalo antes de retirarlo del navegador. Sus archivos del PC se conservan.</DialogDescription></DialogHeader>
+        <Button disabled={savingFile} onClick={async () => {
+          if (!eviction) return;
+          const request = eviction;
+          if (await saveProjectFile(request.project.id)) { setEviction(null); request.resolve(true); }
+        }}>{savingFile ? 'Guardando…' : 'Guardar .scs y retirar de recientes'}</Button>
+        <Button variant="destructive" disabled={savingFile} onClick={() => { if (eviction) { eviction.resolve(true); setEviction(null); } }}>Descartar cambios y retirar de recientes</Button>
+        <Button variant="outline" onClick={() => { if (eviction) { eviction.resolve(false); setEviction(null); } }}>Cancelar</Button>
+      </DialogContent>
+    </Dialog>
+    <Dialog open={!!downloadConfirmation} onOpenChange={open => { if (!open && downloadConfirmation) { downloadConfirmation.resolve(false); setDownloadConfirmation(null); } }}>
+      <DialogContent className="z-[80]">
+        <DialogHeader><DialogTitle>Confirmar copia del proyecto</DialogTitle><DialogDescription>Se ha solicitado la descarga de «{downloadConfirmation?.title}». Comprueba que el archivo .scs está guardado en tu equipo antes de confirmar. Puedes volver a abrirlo desde Studio.</DialogDescription></DialogHeader>
+        <Button onClick={() => { if (downloadConfirmation) { downloadConfirmation.resolve(true); setDownloadConfirmation(null); } }}>Sí, guardé la copia</Button>
+        <Button variant="outline" onClick={() => { if (downloadConfirmation) { downloadConfirmation.resolve(false); setDownloadConfirmation(null); } }}>Volver sin confirmar</Button>
+      </DialogContent>
+    </Dialog>
+  </StoreContext.Provider>;
 }
 
 export function useStore() {

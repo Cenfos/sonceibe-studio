@@ -1,5 +1,10 @@
 # Versiones, copias y timeline
 
+- **Guardar proyecto .scs** crea una copia completa con ajustes, letra, fotos y audio. En navegadores compatibles abre «Guardar como»; en los demás descarga el archivo y pide confirmar que se ha guardado. Cancelar el selector, una escritura fallida o una descarga sin confirmar no cuentan como copia externa.
+- **Abrir proyecto .scs** recupera esa copia con un identificador de caché independiente. La portada conserva hasta **cinco recientes** en IndexedDB, incluidas las fotos. El autoguardado del navegador y la copia externa tienen indicadores distintos; editar después de guardar deja pendiente una nueva copia.
+- Al crear, abrir o duplicar el sexto, una copia externa actual permite retirar el más antiguo de recientes. Si no existe, Studio ofrece guardar, descartar expresamente o cancelar. La retirada libera medios e historial del navegador y **no borra carpetas del PC**. Los proyectos antiguos por encima de cinco se migran íntegros y se revisan de forma explícita.
+- La migración de localStorage a IndexedDB sólo elimina las cadenas antiguas después de completar la escritura. Los errores de lectura activan la recuperación; un fallo de cuota conserva la transacción anterior.
+
 - **Versiones locales** está en la barra del editor de PC y en la cabecera móvil. Guarda ajustes, letras, fotos y el audio local disponible antes de cambios importantes. Las ediciones continuas se agrupan; la resincronización conserva el estado previo al inicio. También permite guardar una versión manual.
 - El historial se guarda en IndexedDB, separado por usuario y proyecto, y sobrevive a recargas. Conserva hasta 20 versiones y aproximadamente 128 MB por proyecto. No se incluye en el archivo portátil `.scs` ni en la carpeta física. Borrar los datos del navegador borra también este historial. Los errores se muestran en Versiones locales.
 - Restaurar conserva primero una versión del estado actual y recarga el audio. **Duplicar proyecto**, en el menú de cada tarjeta de la portada, crea un identificador y una copia del audio independientes; conserva fotos, intervalos y encuadre, sin reutilizar el vídeo exportado.

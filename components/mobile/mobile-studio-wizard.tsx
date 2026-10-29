@@ -41,6 +41,7 @@ import { getExportPreflight, hasBlockingExportIssue } from '@/lib/export-preflig
 import { MobileAudioPlayer } from './mobile-audio-player';
 import { ReelDialog } from '@/components/studio/reel-dialog';
 import { emptyStyle } from '@/lib/reel';
+import { hasExternalCopy } from '@/lib/recent-projects';
 import { ProjectVersions } from '@/components/studio/project-versions';
 
 const steps = [
@@ -98,6 +99,7 @@ export function MobileStudioWizard() {
     autoSaveStatus,
     lastAutoSavedAt,
     saveVersion,
+    externalCopies,
   } = useStore();
   const audio = useAudioEngineContext();
   const userId = useStudioUserId();
@@ -122,13 +124,13 @@ export function MobileStudioWizard() {
 
   useEffect(() => {
     if (!currentProject) return;
-    updateExport({
+    if (settings?.exportConfig.orientation !== 'portrait' || settings.exportConfig.resolution !== '1080p' || settings.exportConfig.fps !== 30 || !settings.exportConfig.includeAudio) updateExport({
       orientation: 'portrait',
       resolution: '1080p',
       fps: 30,
       includeAudio: true,
     });
-    updateBackground({ imageFit: 'cover' });
+    if (settings?.background.imageFit !== 'cover') updateBackground({ imageFit: 'cover' });
     // Only apply the mobile defaults when entering this project in mobile mode.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentProject?.id]);
@@ -257,8 +259,9 @@ export function MobileStudioWizard() {
                   ? 'Guardando…'
                   : autoSaveStatus === 'error'
                     ? 'Error al guardar'
-                    : `✓ Guardado automático${lastAutoSavedAt ? ` · ${new Date(lastAutoSavedAt).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}` : ''}`}
+                    : `✓ Guardado en este navegador${lastAutoSavedAt ? ` · ${new Date(lastAutoSavedAt).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}` : ''}`}
               </div>
+              <div className="text-[10px] text-muted-foreground">{hasExternalCopy(currentProject, externalCopies) ? 'Copia guardada en tu equipo' : 'Guarda una copia .scs en tu equipo'}</div>
             </div>
             <ProjectVersions />
           </div>

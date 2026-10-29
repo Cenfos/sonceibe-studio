@@ -8,6 +8,7 @@ import { renderFrame, preloadBackgroundImage } from '../components/studio/previe
 import { settingsForVideoTarget, type VideoTarget } from '../lib/video-profiles';
 import { getProjectAudio, saveProjectAudio, LOCAL_AUDIO_URL } from '../lib/local-media-storage';
 import { listSnapshots } from '../lib/project-history';
+import { loadRecentProjects, saveRecentProjects } from '../lib/recent-projects';
 import { Input, BlobSource, MP4 } from 'mediabunny';
 
 export function wav(seconds: number): File {
@@ -125,7 +126,8 @@ function renderLongLyrics() {
   for (const time of [1, 121, 181, 299.5]) renderFrame(ctx, 192, 108, settings, time);
   return drawn;
 }
-const api = { seed, exportFixture, renderIntervals, renderLongLyrics, getProjectAudio, listSnapshots };
+const savedProjects = async () => (await loadRecentProjects('sonceibe-projects-v2:owner')).projects;
+const api = { seed, exportFixture, renderIntervals, renderLongLyrics, getProjectAudio, saveProjectAudio, listSnapshots, savedProjects, saveRecentProjects };
 declare global { interface Window { studioTest: typeof api } }
 window.studioTest = api;
 if (location.search.includes('ui')) createRoot(document.getElementById('root')!).render(<StudioClient userId="owner" />);

@@ -12,6 +12,7 @@ import {
   loadProjectsFromWorkspace,
   requestWorkspacePermission,
   saveProjectsToWorkspace,
+  getProjectAudioFromWorkspace,
   type WorkspaceInfo,
 } from '@/lib/local-workspace';
 import { filterDeletedProjects, purgeDeletedWorkspaceProjects } from '@/lib/project-deletion';
@@ -25,7 +26,7 @@ const initialInfo: WorkspaceInfo = {
 };
 
 export function WorkspaceControl() {
-  const { projects } = useStore();
+  const { projects, importProject } = useStore();
   const userId = useStudioUserId();
   const [info, setInfo] = useState<WorkspaceInfo>(initialInfo);
   const [busy, setBusy] = useState(false);
@@ -84,20 +85,15 @@ export function WorkspaceControl() {
         return;
       }
 
-      const merged = new Map(projects.map((project) => [project.id, project]));
+      let restored = 0;
       for (const project of recovered) {
-        const existing = merged.get(project.id);
-        if (!existing || (project.settings.updatedAt ?? 0) >= (existing.settings.updatedAt ?? 0)) {
-          merged.set(project.id, project);
-        }
+        const existing = projects.find(item => item.id === project.id);
+        if (existing && existing.settings.updatedAt >= project.settings.updatedAt) continue;
+        const audio = await getProjectAudioFromWorkspace(userId, project.id, project.settings.audioName);
+        if (!await importProject(project, audio, false)) break;
+        restored += 1;
       }
-
-      const nextProjects = Array.from(merged.values()).sort(
-        (a, b) => (b.settings.updatedAt ?? 0) - (a.settings.updatedAt ?? 0)
-      );
-      localStorage.setItem(`sonceibe-projects-v2:${userId}`, JSON.stringify(nextProjects));
-      toast.success(`${recovered.length} proyecto${recovered.length !== 1 ? 's' : ''} recuperado${recovered.length !== 1 ? 's' : ''} desde la carpeta del PC`);
-      window.setTimeout(() => window.location.reload(), 500);
+      if (restored) toast.success(`${restored} proyecto${restored !== 1 ? 's' : ''} recuperado${restored !== 1 ? 's' : ''} desde la carpeta del PC`);
     } catch (error) {
       console.error('Failed to recover workspace projects:', error);
       toast.error('No se pudieron recuperar los proyectos de la carpeta');

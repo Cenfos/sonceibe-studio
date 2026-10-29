@@ -27,14 +27,14 @@ test('damaged storage remains untouched until its original is downloaded and a v
 
 test('malformed imports leave the saved project unchanged', async ({ page }) => {
   await page.goto('/?ui');
-  const before = await page.evaluate(() => localStorage.getItem('sonceibe-projects-v2:owner'));
+  const before = await page.evaluate(() => window.studioTest.savedProjects());
   const rejected = page.waitForEvent('console', { predicate: message => message.type() === 'error' && message.text().includes('Project import failed:') });
   await page.locator('input[accept=".scs,application/json"]').setInputFiles({
     name: 'broken.scs', mimeType: 'application/json',
     buffer: Buffer.from(JSON.stringify({ format: 'sonceibe-studio', version: 1, project: { id: 'bad', settings: { title: 'Daño', lyrics: 'invalid' } } })),
   });
   expect((await rejected).text()).toContain('El proyecto contiene ajustes o recursos no válidos. El original se conserva.');
-  expect(await page.evaluate(() => localStorage.getItem('sonceibe-projects-v2:owner'))).toBe(before);
+  expect(await page.evaluate(() => window.studioTest.savedProjects())).toEqual(before);
 });
 
 test('export defaults to the selected Reel and full-song export requires choosing that scope', async ({ page }) => {

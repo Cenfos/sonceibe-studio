@@ -20,8 +20,8 @@ import {
 import { useStore } from '@/lib/store';
 import { useAudioEngineContext } from '@/lib/audio-engine-context';
 import { useStudioUserId } from '@/lib/studio-user-context';
-import { getProjectAudio, LOCAL_AUDIO_URL, saveProjectAudio } from '@/lib/local-media-storage';
-import { downloadCurrentProject } from '@/lib/project/download-current-project';
+import { LOCAL_AUDIO_URL, saveProjectAudio } from '@/lib/local-media-storage';
+import { hasExternalCopy } from '@/lib/recent-projects';
 import { isDefaultProjectTitle, PENDING_PROJECT_TITLE_KEY, titleFromAudioFilename } from '@/lib/project-title';
 import {
   cleanLyricsText,
@@ -62,6 +62,8 @@ export function TopBar() {
     autoSaveStatus,
     lastAutoSavedAt,
     saveVersion,
+    saveProjectFile,
+    externalCopies,
   } = useStore();
   const userId = useStudioUserId();
   const audio = useAudioEngineContext();
@@ -91,15 +93,8 @@ export function TopBar() {
 
   const handleSaveProject = useCallback(async () => {
     if (!currentProject) return;
-    try {
-      const audioFile = await getProjectAudio(userId, currentProject.id);
-      await downloadCurrentProject(currentProject, undefined, audioFile);
-      toast.success('Proyecto .scs guardado con su audio');
-    } catch (error) {
-      console.error('Failed to save project file:', error);
-      toast.error('No se pudo guardar el proyecto .scs');
-    }
-  }, [currentProject, userId]);
+    await saveProjectFile(currentProject.id);
+  }, [currentProject?.id, saveProjectFile]);
 
   useEffect(() => {
     const save = () => void handleSaveProject();
@@ -252,10 +247,10 @@ export function TopBar() {
             )}
             <span
               className="hidden xl:flex items-center gap-1 text-[11px] text-muted-foreground ml-1"
-              title="El proyecto y su audio se conservan en el almacenamiento local de este equipo"
+              title="El autoguardado del navegador es independiente del archivo .scs de tu equipo"
             >
               <HardDrive className="h-3 w-3" />
-              Proyecto local
+              {currentProject && hasExternalCopy(currentProject, externalCopies) ? 'Copia guardada en tu equipo' : 'Sólo en este navegador'}
             </span>
             <span
               className="hidden lg:flex items-center gap-1 text-[11px] text-muted-foreground ml-1"
@@ -274,7 +269,7 @@ export function TopBar() {
               ) : (
                 <>
                   <CheckCircle2 className="h-3 w-3 text-green-500" />
-                  Guardado automático
+                  Guardado en este navegador
                   {lastAutoSavedAt ? ` · ${new Date(lastAutoSavedAt).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}` : ''}
                 </>
               )}
@@ -304,6 +299,7 @@ export function TopBar() {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
+          <Button variant="outline" size="sm" onClick={() => void handleSaveProject()} aria-label="Guardar proyecto .scs" className="gap-1.5"><Save className="h-4 w-4" /><span className="studio-action-label">Guardar proyecto</span></Button>
           <ProjectVersions />
           <input
             ref={audioInputRef}

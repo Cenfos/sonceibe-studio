@@ -100,8 +100,8 @@ test('Reels saves the range and cover, exports only the fragment and preserves t
   await expect.poll(() => video.evaluate((el: HTMLVideoElement) => el.duration)).toBeGreaterThan(1.5);
   expect(await video.evaluate((el: HTMLVideoElement) => el.duration)).toBeLessThan(3);
   expect(await video.evaluate((el: HTMLVideoElement) => [el.videoWidth, el.videoHeight])).toEqual([1080, 1920]);
-  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('sonceibe-projects-v2:owner')!)[0].settings.reel?.end)).toBe(4);
-  const settings = await page.evaluate(() => JSON.parse(localStorage.getItem('sonceibe-projects-v2:owner')!)[0].settings);
+  await expect.poll(() => page.evaluate(async () => (await window.studioTest.savedProjects())[0].settings.reel?.end)).toBe(4);
+  const settings = await page.evaluate(async () => (await window.studioTest.savedProjects())[0].settings);
   expect(settings.audioDuration).toBe(120); expect(settings.lyrics[1].end).toBe(120);
   expect(settings.background.photoClips).toHaveLength(1);
   await page.reload(); await page.getByRole('heading', { name: 'Prueba Studio', exact: true }).click();
@@ -137,9 +137,9 @@ test('timeline Reel handles drag after scroll, support fine keys and undo', asyn
 
 test('clear preset produces an empty background and can be undone', async ({ page }) => {
   await page.getByRole('button', { name: 'Sin estilo · fondo vacío', exact: true }).click();
-  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('sonceibe-projects-v2:owner')!)[0].settings.background.type)).toBe('color');
+  await expect.poll(() => page.evaluate(async () => (await window.studioTest.savedProjects())[0].settings.background.type)).toBe('color');
   await page.keyboard.press('Control+z');
-  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('sonceibe-projects-v2:owner')!)[0].settings.background.type)).toBe('images');
+  await expect.poll(() => page.evaluate(async () => (await window.studioTest.savedProjects())[0].settings.background.type)).toBe('images');
 });
 
 test.describe('phone', () => {
@@ -149,7 +149,7 @@ test('mobile exposes Reels and does not restore a cleared style on export', asyn
   await page.getByRole('button', { name: /Fotos o estilo/ }).click();
   await page.getByRole('button', { name: 'Sin estilo · fondo vacío', exact: true }).click();
   await page.getByRole('button', { name: /Rock Galego/ }).click();
-  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('sonceibe-projects-v2:owner')!)[0].settings.visualStyle)).toBe('rock-galego');
+  await expect.poll(() => page.evaluate(async () => (await window.studioTest.savedProjects())[0].settings.visualStyle)).toBe('rock-galego');
   await page.getByRole('button', { name: 'Sin estilo · fondo vacío', exact: true }).click();
   await page.getByRole('button', { name: 'Vídeo', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Reels', exact: true })).toBeVisible();
@@ -157,7 +157,7 @@ test('mobile exposes Reels and does not restore a cleared style on export', asyn
   await page.screenshot({ path: 'test-results/reel-mobile.png', animations: 'disabled' });
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Crear MP4 para móvil', exact: true }).click();
-  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('sonceibe-projects-v2:owner')!)[0].settings.visualStyle)).toBe('default');
+  await expect.poll(() => page.evaluate(async () => (await window.studioTest.savedProjects())[0].settings.visualStyle)).toBe('default');
 });
 
 });
@@ -201,11 +201,11 @@ test('video guide allows manual editing and format selection', async ({ page }) 
 
 
 test('video guide offers optional lyrics between audio and format and imports TXT and timed LRC', async ({ page }) => {
-  await page.evaluate(() => {
+  await page.evaluate(async () => {
     const key = 'sonceibe-projects-v2:owner';
-    const projects = JSON.parse(localStorage.getItem(key)!);
+    const projects = await window.studioTest.savedProjects();
     projects[0].settings.lyrics = [];
-    localStorage.setItem(key, JSON.stringify(projects));
+    await window.studioTest.saveRecentProjects(key, projects);
   });
   await page.reload();
   await page.getByRole('heading', { name: 'Prueba Studio', exact: true }).click();
@@ -222,7 +222,7 @@ test('video guide offers optional lyrics between audio and format and imports TX
   await guide.getByRole('button', { name: '2. Letra', exact: true }).click();
   await guide.getByLabel('Archivo de letra de la guía').setInputFiles({ name: 'letra.lrc', mimeType: 'text/plain', buffer: Buffer.from('[00:02.00]Letra con tempo') });
   await expect(guide.getByRole('status')).toContainText('Letra cargada: 1 frase.');
-  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('sonceibe-projects-v2:owner')!)[0].settings.lyrics[0].start)).toBe(2);
+  await expect.poll(() => page.evaluate(async () => (await window.studioTest.savedProjects())[0].settings.lyrics[0].start)).toBe(2);
   await guide.getByRole('button', { name: 'Abrir editor de letra', exact: true }).click();
   await expect(page.getByRole('group', { name: 'Letra 1', exact: true })).toContainText('Letra con tempo');
 });
@@ -245,11 +245,11 @@ test('Reel lyrics sync only the selected audio and persist separately from proje
   await expect(dialog.getByRole('button', { name: 'Crear Reel MP4', exact: true })).toBeEnabled();
   await dialog.getByRole('button', { name: 'Crear Reel MP4', exact: true }).click();
   await expect(dialog.getByRole('link', { name: 'Descargar Reel', exact: true })).toBeVisible({ timeout: 30000 });
-  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('sonceibe-projects-v2:owner')!)[0].settings);
+  const saved = await page.evaluate(async () => (await window.studioTest.savedProjects())[0].settings);
   expect(saved.lyrics[0].text).toBe('Primera frase');
   expect(saved.lyrics[1].start).toBe(110);
-  expect(saved.reel.lyrics[0]).toMatchObject({ text: 'Frase exclusiva', end: 3 });
-  expect(saved.reel.lyrics[0].start).toBeLessThan(3);
+  expect(saved.reel!.lyrics![0]).toMatchObject({ text: 'Frase exclusiva', end: 3 });
+  expect(saved.reel!.lyrics![0].start).toBeLessThan(3);
   await page.reload(); await page.getByRole('heading', { name: 'Prueba Studio', exact: true }).click();
   await page.getByRole('button', { name: 'Reel', exact: true }).click();
   await dialog.getByRole('button', { name: '2. Diseño', exact: true }).click();
