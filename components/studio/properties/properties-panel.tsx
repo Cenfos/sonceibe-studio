@@ -29,13 +29,19 @@ interface PropertiesPanelProps {
 }
 
 export function PropertiesPanel({ mobileOpen = false, onMobileClose, onTabSelected }: PropertiesPanelProps) {
-  const { activeTab, updateSettings, currentProject } = useStore();
+  const { activeTab, setTab, updateSettings, currentProject } = useStore();
   const [width, setWidth] = useState(576);
   const [maxWidth, setMaxWidth] = useState(960);
   const [guided, setGuided] = useState(true);
+  const [guideStep, setGuideStep] = useState(0);
   const previousTab = useRef(activeTab);
   useEffect(() => { if (previousTab.current !== activeTab) setGuided(false); previousTab.current = activeTab; }, [activeTab]);
   const selectTool: NonNullable<PropertiesPanelProps['onTabSelected']> = tab => { setGuided(false); onTabSelected?.(tab); };
+  const openGuide = () => {
+    previousTab.current = 'text';
+    setTab('text');
+    setGuided(true);
+  };
   const drag = useRef<{ x: number; width: number } | null>(null);
   useEffect(() => {
     const maximum = () => Math.max(288, window.innerWidth - 480);
@@ -72,7 +78,7 @@ export function PropertiesPanel({ mobileOpen = false, onMobileClose, onTabSelect
         )}
       >
         {resizeHandle}
-        <EditingScope />
+        <EditingScope onOpenGuide={openGuide} guideOpen={false} />
         <SidebarRail onTabSelected={selectTool} />
         <div className="h-10 flex items-center justify-between px-4 border-b border-border">
           <span className="text-sm font-medium flex items-center gap-2">
@@ -89,11 +95,13 @@ export function PropertiesPanel({ mobileOpen = false, onMobileClose, onTabSelect
             <X className="h-4 w-4" />
           </Button>
         </div>
-        <div className="flex-1 flex items-center justify-center p-6 text-center">
-          <p className="text-sm text-muted-foreground">
-            El editor de letra se muestra en el centro. Usa los botones de arriba
-            para volver a las propiedades.
-          </p>
+        <div className="flex-1 overflow-auto p-6">
+          <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 space-y-4">
+            <p className="text-sm font-semibold">Continúa con tu vídeo, paso a paso</p>
+            <p className="text-sm text-muted-foreground">El editor de letra se muestra en el centro. Cuando termines, vuelve a la guía para añadir fotos, elegir un estilo y exportar el vídeo. Tus cambios se conservan.</p>
+            <Button className="w-full" onClick={openGuide}>Continuar con la guía paso a paso</Button>
+            <p className="text-xs text-muted-foreground">También puedes usar las herramientas de arriba para seguir con la edición manual.</p>
+          </div>
         </div>
       </aside>
     );
@@ -111,7 +119,7 @@ export function PropertiesPanel({ mobileOpen = false, onMobileClose, onTabSelect
       )}
     >
       {resizeHandle}
-        <EditingScope />
+        <EditingScope onOpenGuide={openGuide} guideOpen={guided} />
         <SidebarRail onTabSelected={selectTool} />
       <div className="h-10 flex items-center justify-between gap-2 px-4 border-b border-border">
         <div className="flex items-center gap-2 min-w-0">
@@ -131,7 +139,7 @@ export function PropertiesPanel({ mobileOpen = false, onMobileClose, onTabSelect
       <ScrollArea className="flex-1 min-h-0">
         <div className="p-4">
           {currentProject?.settings.reel && currentProject.settings.editingTarget !== 'full' && <div className="mb-3 rounded-lg border border-primary/30 p-3 text-xs space-y-2"><p>Editando el Reel: los ajustes visuales se comparten con el proyecto. El corte, la portada y su letra propia se ajustan en «Ajustes avanzados del Reel».</p>{currentProject.settings.reel.coverUrl && <><p>La portada del Reel sustituye al montaje de fondo en este fragmento.</p><Button variant="outline" size="sm" onClick={() => updateSettings({ reel: { ...currentProject.settings.reel!, coverUrl: '' } })}>Quitar portada y usar el montaje</Button></>}</div>}
-          <CreationGuide guided={guided} onGuidedChange={setGuided} />
+          <CreationGuide guided={guided} onGuidedChange={setGuided} step={guideStep} onStepChange={setGuideStep} />
           {!guided && <>
             {activeTab === 'text' && <TextTab />}
             {activeTab === 'background' && <FormatSection />}

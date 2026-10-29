@@ -6,7 +6,7 @@ import { ReelDialog } from './reel-dialog';
 import { usePreviewOptions } from './preview/preview-options';
 import { Maximize2, ZoomIn, ZoomOut, ShieldCheck } from 'lucide-react';
 
-export function EditingScope() {
+export function EditingScope({ onOpenGuide, guideOpen = false }: { onOpenGuide: () => void; guideOpen?: boolean }) {
   const { currentProject, updateSettings, updateExport } = useStore();
   const { zoom, setZoom, showSafeZone, setShowSafeZone } = usePreviewOptions();
   const audio = useAudioEngineContext();
@@ -28,6 +28,7 @@ export function EditingScope() {
       <Button size="sm" variant={!selected && !portrait ? 'default' : 'outline'} aria-pressed={!selected && !portrait} onClick={() => format('landscape')}>PC</Button>
       <Button size="sm" variant={!selected && portrait ? 'default' : 'outline'} aria-pressed={!selected && portrait} onClick={() => format('portrait')}>Móvil</Button>
       <ReelDialog label="Reel" triggerVariant={selected ? 'default' : 'outline'} />
+      <Button size="sm" variant={guideOpen ? 'default' : 'outline'} aria-pressed={guideOpen} onClick={onOpenGuide}>Guía paso a paso</Button>
       <span className="ml-auto text-[11px] text-muted-foreground">{portrait ? '1080×1920 · 9:16' : '1920×1080 · 16:9'}</span>
       <details className="relative ml-auto" onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) event.currentTarget.open = false; }} onKeyDown={event => { if (event.key === 'Escape') { event.currentTarget.open = false; event.stopPropagation(); } }}><summary className="cursor-pointer rounded border border-border px-2 py-1.5 text-xs">Vista y edición</summary><div className="absolute right-0 top-full z-50 mt-2 w-80 max-w-[85vw] space-y-3 rounded-lg border border-border bg-card p-3 shadow-xl">
     <div aria-label="Contenido en edición" className="flex flex-wrap items-center gap-1">

@@ -8,10 +8,9 @@ import { FormatSection, StyleSection } from './properties/design-sections';
 import { cleanParsedLyrics, parseLrcLyrics, parseTxtLyrics, readLyricsFile } from '@/lib/lyrics-utils';
 import { toast } from 'sonner';
 
-export function CreationGuide({ guided, onGuidedChange }: { guided: boolean; onGuidedChange: (guided: boolean) => void }) {
+export function CreationGuide({ guided, onGuidedChange, step, onStepChange: setStep }: { guided: boolean; onGuidedChange: (guided: boolean) => void; step: number; onStepChange: (step: number) => void }) {
   const { currentProject, updateSettings, setExportOpen, setLyrics, setTab } = useStore();
   const audio = useAudioEngineContext();
-  const [step, setStep] = useState(0);
   const [loadingLyrics, setLoadingLyrics] = useState(false);
   const lyricsInput = useRef<HTMLInputElement>(null);
   if (!currentProject) return null;

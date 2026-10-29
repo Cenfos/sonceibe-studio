@@ -56,3 +56,21 @@ test.describe('mobile design sections', () => {
     await expect(page.getByRole('button', { name: 'Crear MP4 para móvil', exact: true })).toBeVisible();
   });
 });
+
+
+test('fixed guide access returns from advanced lyrics and keeps the current step', async ({ page }) => {
+  const guide = page.getByRole('region', { name: 'Creación guiada de vídeo' });
+  const fixedGuide = page.getByRole('button', { name: 'Guía paso a paso', exact: true });
+  await guide.getByRole('button', { name: '2. Letra', exact: true }).click();
+  await guide.getByRole('button', { name: 'Abrir editor de letra', exact: true }).click();
+  await expect(guide).toHaveCount(0);
+  await expect(fixedGuide).toBeVisible();
+  await page.getByRole('button', { name: 'Continuar con la guía paso a paso', exact: true }).click();
+  await expect(guide.getByRole('button', { name: '2. Letra', exact: true })).toHaveAttribute('aria-current', 'step');
+  await expect(fixedGuide).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: 'Letra', exact: true }).click();
+  await fixedGuide.click();
+  await expect(guide.getByRole('button', { name: '2. Letra', exact: true })).toHaveAttribute('aria-current', 'step');
+  await guide.getByRole('button', { name: 'Continuar', exact: true }).click();
+  await expect(guide.getByRole('button', { name: '3. Formato', exact: true })).toHaveAttribute('aria-current', 'step');
+});
