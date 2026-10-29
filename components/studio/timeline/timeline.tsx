@@ -28,7 +28,7 @@ export function Timeline() {
   const [pxPerSec, setPxPerSec] = useState(20);
   const [viewportWidth, setViewportWidth] = useState(800);
   const [selection, setSelection] = useState<Selection | null>(null);
-  const [snap, setSnap] = useState(true);
+  const snap = true;
   const settings = currentProject?.settings;
   const reelEnabled = !!settings?.reel && settings.editingTarget !== 'full';
   const duration = audio.duration || settings?.audioDuration || 0;
@@ -163,14 +163,11 @@ export function Timeline() {
     <div className="studio-timeline-header flex flex-wrap items-center justify-between gap-2 px-3 py-1 border-b border-border">
       <div className="flex items-center gap-2 text-sm"><Music className="h-4 w-4 text-primary" />Línea de Tiempo <span className="text-xs font-mono text-muted-foreground">{formatTime(audio.currentTime)} / {formatTime(duration)}</span></div>
       <div className="flex items-center gap-1">
-        <Button size="sm" variant="ghost" className="h-7" onClick={() => document.querySelector('.studio-main-workspace')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>Vista previa ↑</Button>
         <Button size="sm" variant={reelEnabled ? "default" : "outline"} className="h-7" disabled={duration < 0.2} aria-pressed={reelEnabled} onClick={enableReel}>Seleccionar Reel</Button>
-        <Button size="sm" variant="ghost" className="h-7" aria-pressed={snap} onClick={() => setSnap(value => !value)} title="Ajustar los bordes al cursor de reproducción; Alt lo desactiva al arrastrar">Ajuste al cursor {snap ? '✓' : '—'}</Button>
         <Button size="icon" variant="ghost" className="h-7 w-7" aria-label="Alejar timeline" onClick={() => zoom(pxPerSec / 1.5)}><ZoomOut className="h-4 w-4" /></Button>
         <input type="range" min={0.25} max={200} step={0.25} value={pxPerSec} aria-label="Zoom horizontal" className="w-20" onChange={event => zoom(Number(event.target.value))} />
         <Button size="icon" variant="ghost" className="h-7 w-7" aria-label="Acercar timeline" onClick={() => zoom(pxPerSec * 1.5)}><ZoomIn className="h-4 w-4" /></Button>
         <Button size="sm" variant="ghost" className="h-7" onClick={() => { anchor.current = { time: 0, pixel: 0 }; setPxPerSec(Math.max(0.25, Math.min(200, (viewportWidth - 24) / visualDuration))); if (scrollRef.current) scrollRef.current.scrollLeft = 0; }}>Ver todo</Button>
-        <Button size="sm" variant="ghost" className="h-7" onClick={() => { if (scrollRef.current) scrollRef.current.scrollLeft = Math.max(0, audio.currentTime * pxPerSec - viewportWidth / 2); }}>Ir al cursor</Button>
         <Button size="icon" variant="ghost" className="h-7 w-7" aria-label="Añadir línea de letra" onClick={() => addLyric()}><Plus className="h-4 w-4" /></Button>
       </div>
     </div>

@@ -18,6 +18,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { useStore } from '@/lib/store';
+import { SONCEIBE_LOGO_DATA_URL } from '@/lib/sonceibe-logo-data';
 import { useAudioEngineContext } from '@/lib/audio-engine-context';
 import { useStudioUserId } from '@/lib/studio-user-context';
 import { LOCAL_AUDIO_URL, saveProjectAudio } from '@/lib/local-media-storage';
@@ -216,9 +217,9 @@ export function TopBar() {
           >
             <span className="flex h-7 w-7 overflow-hidden items-center justify-center rounded-lg bg-primary/20 ring-1 ring-primary/40">
               <img
-                src="https://www.sonceibe.es/son-ceibe-logo.png"
+                src={SONCEIBE_LOGO_DATA_URL}
                 alt=""
-                className="h-full w-full object-cover"
+                className="h-full w-full object-contain"
               />
             </span>
             <span className="hidden 2xl:inline">Inicio Studio</span>
