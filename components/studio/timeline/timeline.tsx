@@ -156,7 +156,7 @@ export function Timeline() {
   }
   const tickStep = pxPerSec < 2 ? 60 : pxPerSec < 10 ? 10 : pxPerSec < 40 ? 5 : 1;
   const ticks = Array.from({ length: Math.floor(visualDuration / tickStep) + 1 }, (_, index) => index * tickStep);
-  const labels = ['Audio', 'Letra', 'Fondo', ...(photoClips.length ? ['Fotos puntuales'] : []), 'Efectos'];
+  const labels = ['Audio', 'Letra', 'Fondo', ...(photoClips.length ? ['Fotos puntuales'] : [])];
   const rowHeight = Math.min(ROW_HEIGHT * 2, Math.max(ROW_HEIGHT, (tracksHeight - 28) / labels.length));
 
   return <section aria-label="Línea de tiempo" style={{ minHeight: 'var(--timeline-min-height, 0px)', '--timeline-row-height': rowHeight + 'px' } as React.CSSProperties} className="studio-timeline shrink-0 flex flex-col border-t border-border bg-card/30">
@@ -234,7 +234,6 @@ export function Timeline() {
               : <p className="px-2 py-1 text-xs text-muted-foreground">{settings?.background.type === 'images' ? `Automático · ${settings.background.images.length} imágenes · ${settings.background.imageDuration}s` : settings?.background.type === 'image' ? 'Imagen fija' : settings?.background.type === 'gradient' ? 'Gradiente animado' : settings?.background.type === 'video' ? 'Vídeo' : 'Color sólido'}</p>}
           </div></TrackRow>
           {photoClips.length > 0 && <TrackRow>{renderClips('photoClips')}</TrackRow>}
-          <TrackRow><p className="px-2 py-1 text-xs text-muted-foreground">{[settings?.effects.vignette && 'Viñeta', settings?.effects.particles && 'Partículas', settings?.effects.lightleaks && 'Fugas de luz'].filter(Boolean).join(' · ')}</p></TrackRow>
           <div className="absolute top-0 bottom-0 w-0.5 bg-primary pointer-events-none z-20" style={{ left: audio.currentTime * pxPerSec }}><div className="absolute left-[-5px] w-3 h-3 bg-primary rotate-45" /></div>
         </div>
       </div>
