@@ -30,6 +30,12 @@ export function TextTab() {
   const { currentProject, updateText, updateSettings } = useStore();
   if (!currentProject) return null;
   const settings = currentProject.settings;
+  const editingReel = !!settings.reel && settings.editingTarget !== 'full';
+  const showTitle = editingReel ? settings.reel!.showTitle : settings.showTitle !== false;
+  const setTitleVisibility = (visible: boolean, title?: string) => updateSettings({
+    ...(title !== undefined ? { title } : {}),
+    ...(editingReel ? { reel: { ...settings.reel!, showTitle: visible } } : { showTitle: visible }),
+  });
   const t = settings.text;
   const activePreset = visualPresets.find((preset) => preset.id === settings.visualStyle);
   const titleBase = { ...defaultTitleStyle, ...(activePreset?.title ?? {}) };
@@ -67,13 +73,13 @@ export function TextTab() {
           </Button>
         </div>
 
-        <ToggleRow label="Mostrar título en el vídeo" checked={settings.showTitle !== false} onChange={(showTitle) => updateSettings({ showTitle })} />
+        <ToggleRow label="Mostrar título en el vídeo" checked={showTitle} onChange={setTitleVisibility} />
 
         <ControlRow label="Texto del título">
           <Input
-            value={settings.showTitle === false ? '' : settings.title}
-            onChange={(e) => updateSettings({ title: e.target.value, showTitle: true })}
-            placeholder={settings.showTitle === false ? '(Sin título)' : 'Título de la canción'}
+            value={showTitle ? settings.title : ''}
+            onChange={(e) => setTitleVisibility(true, e.target.value)}
+            placeholder={showTitle ? 'Título de la canción' : '(Sin título)'}
             className="h-9 placeholder:italic placeholder:text-muted-foreground/60"
           />
         </ControlRow>

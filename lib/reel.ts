@@ -30,7 +30,8 @@ export function reelSettings(settings: ProjectSettings, start: number, end: numb
       imageClips.push({ id: `reel-${i}`, url: bg.images[i % bg.images.length], start: i * interval, end: (i + 1) * interval });
     }
   }
-  const base = coverUrl ? { ...settings, ...emptyStyle() } : settings;
+  // A cover replaces the background and preset decorations, not the user's text design.
+  const base = coverUrl ? { ...settings, ...emptyStyle(), text: settings.text, titleStyle: settings.titleStyle, animation: settings.animation } : settings;
   return {
     ...base, audioDuration: end - start, showTitle,
     lyrics: !showLyrics ? [] : settings.reel?.lyricsMode === 'custom'

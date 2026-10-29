@@ -5,6 +5,45 @@ test.beforeEach(async ({ page }) => {
   await page.getByRole('heading', { name: 'Prueba Studio', exact: true }).click();
 });
 
+test('advanced Reel text changes reach the canvas with a cover and title visibility stays in sync', async ({ page }) => {
+  await page.getByRole('button', { name: 'Reel', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByLabel('Inicio (segundos)').fill('2');
+  await dialog.getByLabel('Fin (segundos)').fill('6');
+  await dialog.getByRole('button', { name: '2. Diseño', exact: true }).click();
+  await dialog.getByLabel('Portada del Reel').setInputFiles({ name: 'cover.svg', mimeType: 'image/svg+xml', buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="108" height="192"><rect width="108" height="192" fill="black"/></svg>') });
+  await expect(dialog.getByRole('link', { name: 'Descargar portada' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => {
+    const original = CanvasRenderingContext2D.prototype.fillText;
+    (window as any).reelDraws = [];
+    CanvasRenderingContext2D.prototype.fillText = function(text, x, y, maxWidth) {
+      (window as any).reelDraws.push({ text, color: this.fillStyle, font: this.font });
+      if (maxWidth === undefined) original.call(this, text, x, y);
+      else original.call(this, text, x, y, maxWidth);
+    };
+  });
+  await page.getByRole('slider', { name: 'Posición del reproductor', exact: true }).fill('3');
+  await page.getByRole('button', { name: 'Texto', exact: true }).click();
+  await page.getByText('Color de texto', { exact: true }).locator('..').locator('input[type=color]').fill('#00ff00');
+  // The fourth select is the lyric font, after the title font, weight and shape.
+  await page.getByRole('combobox').nth(3).click();
+  await page.getByRole('option', { name: 'Georgia', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => (window as any).reelDraws.some((draw: any) => draw.text.includes('Primera') && draw.color === '#00ff00' && draw.font.includes('Georgia')))).toBe(true);
+  await page.getByRole('switch', { name: 'Mostrar título en el vídeo' }).click();
+  await expect(page.getByRole('switch', { name: 'Mostrar título en el vídeo' })).toHaveAttribute('aria-checked', 'false');
+  await page.evaluate(() => { (window as any).reelDraws = []; });
+  await page.getByRole('slider', { name: 'Posición del reproductor', exact: true }).fill('3.2');
+  await expect.poll(() => page.evaluate(() => (window as any).reelDraws.length)).toBeGreaterThan(0);
+  expect(await page.evaluate(() => (window as any).reelDraws.some((draw: any) => draw.text.includes('Prueba Studio')))).toBe(false);
+  await page.getByText('Vista y edición', { exact: true }).click();
+  await page.getByRole('button', { name: 'Ajustes avanzados del Reel', exact: true }).click();
+  await expect(dialog.getByLabel('Título', { exact: true })).not.toBeChecked();
+  await dialog.getByLabel('Título', { exact: true }).check();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('switch', { name: 'Mostrar título en el vídeo' })).toHaveAttribute('aria-checked', 'true');
+});
+
 test('Reels saves the range and cover, exports only the fragment and preserves the original', async ({ page }) => {
   await page.getByRole('button', { name: 'Seleccionar Reel', exact: true }).click();
   const ruler = page.getByRole('slider', { name: 'Cursor de reproducción', exact: true });

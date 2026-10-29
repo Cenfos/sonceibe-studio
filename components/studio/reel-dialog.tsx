@@ -42,7 +42,7 @@ export function ReelDialog({ fromTimeline = false, onRequestAudio, onManualDesig
     patch({ [key]: time });
   };
   useEffect(() => () => { if (result) URL.revokeObjectURL(result.url); }, [result]);
-  useEffect(() => { setResult(null); }, [project?.reel]);
+  useEffect(() => { setResult(null); }, [project]);
   useEffect(() => { if (!open || !previewing) return;
     if (audio.currentTime >= reel.end || audio.currentTime < reel.start - 0.1) { audio.pause(); setPreviewing(false); }
   }, [audio, open, previewing, reel.start, reel.end]);
