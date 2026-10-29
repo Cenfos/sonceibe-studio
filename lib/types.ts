@@ -20,6 +20,7 @@ export type VisualStyleId =
   | 'taberna-galega'
   | 'noite-estrelada'
   | 'papel-e-tinta'
+  | 'rustico-ramas'
   // Legacy values kept so projects saved before the redesign still load.
   | 'karaoke-pop'
   | 'minimal'

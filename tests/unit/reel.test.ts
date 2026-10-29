@@ -14,7 +14,7 @@ it('clips overlapping lines, words and photos without mutating the full project'
   expect(JSON.stringify(settings)).toBe(before);
 });
 
-it('preserves the phase of automatic photo sequences and isolates a cover from presets', () => {
+it('preserves automatic photo sequences and the chosen style over a cover', () => {
   const settings = createDefaultProjectSettings(); settings.audioDuration = 60;
   settings.background = { ...settings.background, type: 'images', images: ['a', 'b'], imageDuration: 5 };
   expect(reelSettings(settings, 8, 12).background.imageClips).toEqual([{ id: 'reel-1', url: 'b', start: 0, end: 2 }, { id: 'reel-2', url: 'a', start: 2, end: 4 }]);
@@ -23,7 +23,7 @@ it('preserves the phase of automatic photo sequences and isolates a cover from p
   settings.titleStyle = { ...settings.titleStyle!, color: '#ff00ff' };
   const cover = reelSettings(settings, 8, 12, 'cover', false, false);
   expect(cover.background).toMatchObject({ type: 'image', imageUrl: 'cover', imageFit: 'cover', photoClips: [] });
-  expect(cover.visualStyle).toBe('default'); expect(cover.showTitle).toBe(false); expect(cover.lyrics).toEqual([]); expect(cover.effects.particles).toBe(false);
+  expect(cover.visualStyle).toBe('sonceibe'); expect(cover.showTitle).toBe(false); expect(cover.lyrics).toEqual([]); expect(cover.effects.particles).toBe(true);
   expect(cover.text).toEqual(settings.text);
   expect(cover.titleStyle).toEqual(settings.titleStyle);
   expect(cover.animation).toEqual(settings.animation);

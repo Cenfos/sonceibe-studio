@@ -4,15 +4,14 @@ import { useRef, useState } from 'react';
 import { useStore } from '@/lib/store';
 import { useAudioEngineContext } from '@/lib/audio-engine-context';
 import { Button } from '@/components/ui/button';
-import { VisualPresetPicker } from './properties/visual-preset-picker';
+import { FormatSection, StyleSection } from './properties/design-sections';
 import { cleanParsedLyrics, parseLrcLyrics, parseTxtLyrics, readLyricsFile } from '@/lib/lyrics-utils';
 import { toast } from 'sonner';
 
-export function CreationGuide() {
-  const { currentProject, updateExport, updateSettings, setExportOpen, setLyrics, setTab } = useStore();
+export function CreationGuide({ guided, onGuidedChange }: { guided: boolean; onGuidedChange: (guided: boolean) => void }) {
+  const { currentProject, updateSettings, setExportOpen, setLyrics, setTab } = useStore();
   const audio = useAudioEngineContext();
   const [step, setStep] = useState(0);
-  const [guided, setGuided] = useState(true);
   const [loadingLyrics, setLoadingLyrics] = useState(false);
   const lyricsInput = useRef<HTMLInputElement>(null);
   if (!currentProject) return null;
@@ -38,7 +37,7 @@ export function CreationGuide() {
   return <section aria-label="Creación guiada de vídeo" className="mb-4 rounded-xl border border-primary/30 bg-primary/5 p-3 space-y-3">
     <div className="flex flex-wrap items-center justify-between gap-2">
       <span className="text-sm font-semibold">Tu vídeo, paso a paso</span>
-      <Button size="sm" variant="ghost" onClick={() => setGuided(!guided)}>{guided ? 'Editar manualmente' : 'Abrir guía'}</Button>
+      <Button size="sm" variant="ghost" onClick={() => onGuidedChange(!guided)}>{guided ? 'Editar manualmente' : 'Abrir guía'}</Button>
     </div>
     {guided && <>
       <nav aria-label="Pasos para crear un vídeo" className="flex flex-wrap gap-1">
@@ -54,11 +53,11 @@ export function CreationGuide() {
           <Button variant="outline" disabled={loadingLyrics} onClick={() => { updateSettings({ editingTarget: 'full' }); setTab('lyrics'); }}>Abrir editor de letra</Button>
         </div>
       </>}
-      {step === 2 && <><p className="text-sm">Para un fragmento vertical, abre Reels en la barra superior. Para el vídeo completo, elige:</p><div className="flex flex-wrap gap-2">{(['portrait', 'landscape'] as const).map(orientation => <Button key={orientation} variant={settings.exportConfig.orientation === orientation ? 'default' : 'outline'} aria-pressed={settings.exportConfig.orientation === orientation} onClick={() => updateExport({ orientation, resolution: '1080p', fps: 30 })}>{orientation === 'portrait' ? 'Vertical · 9:16' : 'Horizontal · 16:9'}</Button>)}</div></>}
-      {step === 3 && <><p className="text-xs text-muted-foreground">Puedes conservar tu diseño o aplicar una plantilla. Después podrás ajustar cada detalle en los controles de abajo.</p><VisualPresetPicker /></>}
+      {step === 2 && <FormatSection />}
+      {step === 3 && <StyleSection />}
       {step === 4 && <><p className="text-sm">Vídeo completo · {settings.audioDuration.toFixed(1)} s · {settings.exportConfig.orientation === 'portrait' ? 'Vertical 9:16' : 'Horizontal 16:9'}. Revisa la vista previa y confirma los detalles al exportar.</p><Button disabled={!hasAudio} onClick={() => { updateSettings({ editingTarget: 'full' }); setExportOpen(true); }}>Revisar y exportar vídeo</Button>{!hasAudio && <p className="text-xs text-muted-foreground">Carga el audio para exportar.</p>}</>}
       {step < 4 && <Button size="sm" disabled={loadingLyrics || (step === 0 && !hasAudio)} onClick={() => setStep(step + 1)}>{step === 1 && !lyricCount ? 'Continuar sin letra' : 'Continuar'}</Button>}
     </>}
-    <p className="text-xs text-muted-foreground">Edición manual siempre disponible debajo: texto, fondo, animación y efectos. Puedes saltar entre los pasos.</p>
+    <p className="text-xs text-muted-foreground">Formato: orientación y fotos. Estilo: estilos preparados. Usa las herramientas de arriba para la edición manual.</p>
   </section>;
 }

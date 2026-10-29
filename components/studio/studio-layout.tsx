@@ -79,7 +79,7 @@ export function StudioLayout() {
     return () => window.removeEventListener('keydown', handler);
   }, [undo, redo, setExportOpen, setSettingsOpen, setTab, audio]);
 
-  const handleTabSelected = (tab: 'text' | 'background' | 'animation' | 'effects' | 'lyrics') => {
+  const handleTabSelected = (tab: 'text' | 'background' | 'style' | 'animation' | 'effects' | 'lyrics') => {
     if (tab === 'lyrics') {
       setMobilePropertiesOpen(false);
       return;

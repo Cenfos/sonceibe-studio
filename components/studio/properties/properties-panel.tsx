@@ -1,15 +1,13 @@
 'use client';
 
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { emptyStyle } from '@/lib/reel';
 import { useStore } from '@/lib/store';
 import { TextTab } from './text-tab';
-import { BackgroundTab } from './background-tab';
+import { FormatSection, StyleSection } from './design-sections';
 import { AnimationTab } from './animation-tab';
 import { EffectsTab } from './effects-tab';
-import { VisualPresetPicker } from './visual-preset-picker';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Type, Image, Sparkles, Wand2, FileText, X } from 'lucide-react';
+import { Type, Image, Palette, Sparkles, Wand2, FileText, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { EditingScope } from '../editing-scope';
@@ -18,13 +16,14 @@ import { SidebarRail } from '../sidebar-rail';
 
 const tabMeta = [
   { id: 'text', label: 'Texto', icon: Type },
-  { id: 'background', label: 'Fondo', icon: Image },
+  { id: 'background', label: 'Formato y fotos', icon: Image },
+  { id: 'style', label: 'Estilos preparados', icon: Palette },
   { id: 'animation', label: 'Animación', icon: Sparkles },
   { id: 'effects', label: 'Efectos', icon: Wand2 },
 ] as const;
 
 interface PropertiesPanelProps {
-  onTabSelected?: (tab: 'text' | 'background' | 'animation' | 'effects' | 'lyrics') => void;
+  onTabSelected?: (tab: 'text' | 'background' | 'style' | 'animation' | 'effects' | 'lyrics') => void;
   mobileOpen?: boolean;
   onMobileClose?: () => void;
 }
@@ -33,6 +32,10 @@ export function PropertiesPanel({ mobileOpen = false, onMobileClose, onTabSelect
   const { activeTab, updateSettings, currentProject } = useStore();
   const [width, setWidth] = useState(576);
   const [maxWidth, setMaxWidth] = useState(960);
+  const [guided, setGuided] = useState(true);
+  const previousTab = useRef(activeTab);
+  useEffect(() => { if (previousTab.current !== activeTab) setGuided(false); previousTab.current = activeTab; }, [activeTab]);
+  const selectTool: NonNullable<PropertiesPanelProps['onTabSelected']> = tab => { setGuided(false); onTabSelected?.(tab); };
   const drag = useRef<{ x: number; width: number } | null>(null);
   useEffect(() => {
     const maximum = () => Math.max(288, window.innerWidth - 480);
@@ -70,7 +73,7 @@ export function PropertiesPanel({ mobileOpen = false, onMobileClose, onTabSelect
       >
         {resizeHandle}
         <EditingScope />
-        <SidebarRail onTabSelected={onTabSelected} />
+        <SidebarRail onTabSelected={selectTool} />
         <div className="h-10 flex items-center justify-between px-4 border-b border-border">
           <span className="text-sm font-medium flex items-center gap-2">
             <FileText className="h-4 w-4" />
@@ -109,7 +112,7 @@ export function PropertiesPanel({ mobileOpen = false, onMobileClose, onTabSelect
     >
       {resizeHandle}
         <EditingScope />
-        <SidebarRail onTabSelected={onTabSelected} />
+        <SidebarRail onTabSelected={selectTool} />
       <div className="h-10 flex items-center justify-between gap-2 px-4 border-b border-border">
         <div className="flex items-center gap-2 min-w-0">
           <Icon className="h-4 w-4 text-primary shrink-0" />
@@ -128,13 +131,14 @@ export function PropertiesPanel({ mobileOpen = false, onMobileClose, onTabSelect
       <ScrollArea className="flex-1 min-h-0">
         <div className="p-4">
           {currentProject?.settings.reel && currentProject.settings.editingTarget !== 'full' && <div className="mb-3 rounded-lg border border-primary/30 p-3 text-xs space-y-2"><p>Editando el Reel: los ajustes visuales se comparten con el proyecto. El corte, la portada y su letra propia se ajustan en «Ajustes avanzados del Reel».</p>{currentProject.settings.reel.coverUrl && <><p>La portada del Reel sustituye al montaje de fondo en este fragmento.</p><Button variant="outline" size="sm" onClick={() => updateSettings({ reel: { ...currentProject.settings.reel!, coverUrl: '' } })}>Quitar portada y usar el montaje</Button></>}</div>}
-          <CreationGuide />
-          <Button variant="outline" size="sm" className="mb-3 w-full" onClick={() => updateSettings(emptyStyle())}>Sin estilo · fondo vacío</Button>
-          <details className="mb-4 rounded-lg border border-border p-3"><summary className="cursor-pointer text-sm font-medium">Estilos preparados · elegir o cambiar</summary><div className="pt-3"><VisualPresetPicker /></div></details>
-          {activeTab === 'text' && <TextTab />}
-          {activeTab === 'background' && <BackgroundTab />}
-          {activeTab === 'animation' && <AnimationTab />}
-          {activeTab === 'effects' && <EffectsTab />}
+          <CreationGuide guided={guided} onGuidedChange={setGuided} />
+          {!guided && <>
+            {activeTab === 'text' && <TextTab />}
+            {activeTab === 'background' && <FormatSection />}
+            {activeTab === 'style' && <StyleSection />}
+            {activeTab === 'animation' && <AnimationTab />}
+            {activeTab === 'effects' && <EffectsTab />}
+          </>}
         </div>
       </ScrollArea>
     </aside>

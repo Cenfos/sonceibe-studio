@@ -257,6 +257,7 @@ export function BackgroundTab() {
                 {bg.type === 'images' ? 'Añadir imágenes' : 'Subir imagen'}
                 <input
                   type="file"
+                  aria-label={bg.type === 'images' ? 'Fotos múltiples' : 'Foto fija'}
                   accept="image/*"
                   multiple={bg.type === 'images'}
                   className="hidden"

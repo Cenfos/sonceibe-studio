@@ -59,7 +59,7 @@ test('export defaults to the selected Reel and full-song export requires choosin
 test('unfinished video upload and fabricated preferences are absent', async ({ page }) => {
   await page.goto('/?ui');
   await page.getByRole('heading', { name: 'Prueba Studio', exact: true }).click();
-  await page.getByRole('button', { name: 'Fondo', exact: true }).click();
+  await page.getByRole('button', { name: 'Formato', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Subir video', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Más opciones', exact: true }).click();
   await page.getByRole('menuitem', { name: 'Ajustes', exact: true }).click();

@@ -2,11 +2,18 @@
 
 import { Palette } from 'lucide-react';
 import { useStore } from '@/lib/store';
-import { SONCEIBE_LOGO_URL, visualPresets } from '@/lib/visual-presets';
+import { SONCEIBE_LOGO_URL, visualPresets, presetBackground } from '@/lib/visual-presets';
 import { preloadVisualBranding } from '@/lib/visual-branding';
 import { defaultTitleStyle, type VisualStyleId } from '@/lib/types';
 
-function ThemePreviewDecoration({ id }: { id: VisualStyleId }) {
+export function ThemePreviewDecoration({ id }: { id: VisualStyleId }) {
+  if (id === 'rustico-ramas') return <svg className="absolute inset-0 h-full w-full" viewBox="0 0 160 100" preserveAspectRatio="none" aria-hidden="true">
+    <rect x="4" y="4" width="152" height="92" fill="none" stroke="#b69868" strokeOpacity=".3" />
+    {[[8, 8, 1, 1], [152, 8, -1, 1], [8, 92, 1, -1], [152, 92, -1, -1]].map(([x, y, sx, sy], index) => <g key={index} transform={`translate(${x} ${y}) scale(${sx} ${sy})`} fill="none" stroke="#b69868" strokeWidth="1.1" strokeLinecap="round">
+      <path d="M0 1 Q20 -2 48 2 M1 0 Q-1 18 3 37 M10 1 l7 6 M23 1 l6 8 M35 1 l6 6 M1 10 l7 6 M2 23 l7 5" />
+      <g fill="#94996a" stroke="none"><ellipse cx="18" cy="7" rx="4" ry="1.7" transform="rotate(35 18 7)" /><ellipse cx="30" cy="9" rx="4" ry="1.7" transform="rotate(35 30 9)" /><ellipse cx="9" cy="16" rx="3.5" ry="1.5" /><ellipse cx="10" cy="28" rx="3.5" ry="1.5" /></g>
+    </g>)}
+  </svg>;
   if (id === 'rock-galego') {
     return (
       <>
@@ -103,7 +110,7 @@ export function VisualPresetPicker() {
       visualStyle: preset.id,
       titleStyle: { ...defaultTitleStyle, ...preset.title },
     });
-    updateBackground(preset.background);
+    updateBackground(presetBackground(currentProject.settings.background, preset));
     updateText(preset.text);
     updateAnimation(preset.animation);
     updateEffects(preset.effects);
@@ -118,7 +125,7 @@ export function VisualPresetPicker() {
         <div>
           <div className="text-xs font-semibold">Estilos preparados</div>
           <p className="mt-0.5 text-[10px] leading-4 text-muted-foreground">
-            Todos incluyen el logo de Son Ceibe, fondo, marco, título y letra.
+            Marco, título y letra. Si has cargado fotos en Formato, se conservan; sin fotos se utiliza el fondo del estilo.
           </p>
         </div>
       </div>

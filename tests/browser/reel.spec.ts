@@ -136,6 +136,7 @@ test('timeline Reel handles drag after scroll, support fine keys and undo', asyn
 });
 
 test('clear preset produces an empty background and can be undone', async ({ page }) => {
+  await page.getByRole('button', { name: 'Estilo', exact: true }).click();
   await page.getByRole('button', { name: 'Sin estilo · fondo vacío', exact: true }).click();
   await expect.poll(() => page.evaluate(async () => (await window.studioTest.savedProjects())[0].settings.background.type)).toBe('color');
   await page.keyboard.press('Control+z');
@@ -146,7 +147,7 @@ test.describe('phone', () => {
   test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
 
 test('mobile exposes Reels and does not restore a cleared style on export', async ({ page }) => {
-  await page.getByRole('button', { name: /Fotos o estilo/ }).click();
+  await page.getByRole('button', { name: 'Estilo', exact: true }).click();
   await page.getByRole('button', { name: 'Sin estilo · fondo vacío', exact: true }).click();
   await page.getByRole('button', { name: /Rock Galego/ }).click();
   await expect.poll(() => page.evaluate(async () => (await window.studioTest.savedProjects())[0].settings.visualStyle)).toBe('rock-galego');
@@ -188,7 +189,7 @@ test('video guide allows manual editing and format selection', async ({ page }) 
   const guide = page.getByRole('region', { name: 'Creación guiada de vídeo' });
   await guide.getByRole('button', { name: 'Editar manualmente' }).click();
   await expect(guide.getByRole('button', { name: '1. Audio' })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Fondo', exact: true }).click();
+  await page.getByRole('button', { name: 'Estilo', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Sin estilo · fondo vacío', exact: true })).toBeVisible();
   await guide.getByRole('button', { name: 'Abrir guía' }).click();
   await guide.getByRole('button', { name: '3. Formato', exact: true }).click();
@@ -371,7 +372,7 @@ test.describe('mobile music player', () => {
     await player.getByRole('button', { name: 'Escuchar', exact: true }).click();
     await expect(player.getByRole('button', { name: 'Pausar', exact: true })).toBeVisible();
     await expect.poll(() => player.getByLabel('Tiempo de escucha').innerText()).not.toBe('0:00');
-    await page.getByRole('button', { name: /Fotos o estilo/ }).click();
+    await page.getByRole('button', { name: 'Estilo', exact: true }).click();
     await expect(player.getByRole('button', { name: 'Pausar', exact: true })).toBeVisible();
     await player.getByRole('button', { name: 'Pausar', exact: true }).click();
     await expect(player.getByRole('button', { name: 'Escuchar', exact: true })).toBeVisible();

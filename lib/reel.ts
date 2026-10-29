@@ -30,15 +30,15 @@ export function reelSettings(settings: ProjectSettings, start: number, end: numb
       imageClips.push({ id: `reel-${i}`, url: bg.images[i % bg.images.length], start: i * interval, end: (i + 1) * interval });
     }
   }
-  // A cover replaces the background and preset decorations, not the user's text design.
-  const base = coverUrl ? { ...settings, ...emptyStyle(), text: settings.text, titleStyle: settings.titleStyle, animation: settings.animation } : settings;
+  // The cover replaces the photo montage; the selected frame and typography remain.
+  const base = settings;
   return {
     ...base, audioDuration: end - start, showTitle,
     lyrics: !showLyrics ? [] : settings.reel?.lyricsMode === 'custom'
       ? (settings.reel.lyrics || []).filter(line => line.text.trim() && line.end > line.start && line.end > 0 && line.start < end - start).map(line => ({ ...line, start: Math.max(0, line.start), end: Math.min(end - start, line.end) }))
       : trim(settings.lyrics).map(line => ({ ...line, words: line.words ? trim(line.words) : undefined })),
     background: coverUrl
-      ? { ...base.background, type: 'image', imageUrl: coverUrl, imageFit: 'cover' }
+      ? { ...base.background, type: 'image', imageUrl: coverUrl, imageFit: 'cover', images: [], imageClips: [], photoClips: [] }
       : { ...bg, imageMode: bg.type === 'images' ? 'manual' : bg.imageMode, imageClips: trim(imageClips), photoClips: trim(bg.photoClips || []) },
     exportConfig: { ...settings.exportConfig, orientation: 'portrait', resolution: '1080p', fps: 30, includeAudio: true },
   };

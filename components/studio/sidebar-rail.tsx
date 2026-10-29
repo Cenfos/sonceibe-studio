@@ -6,13 +6,15 @@ import {
   Sparkles,
   Wand2,
   FileText,
+  Palette,
 } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 
 const tabs = [
   { id: 'text', label: 'Texto', icon: Type },
-  { id: 'background', label: 'Fondo', icon: Image },
+  { id: 'background', label: 'Formato', icon: Image },
+  { id: 'style', label: 'Estilo', icon: Palette },
   { id: 'animation', label: 'Animación', icon: Sparkles },
   { id: 'effects', label: 'Efectos', icon: Wand2 },
   { id: 'lyrics', label: 'Letra', icon: FileText },
@@ -28,7 +30,7 @@ export function SidebarRail({ onTabSelected }: SidebarRailProps) {
   const { activeTab, setTab } = useStore();
 
   return (
-    <nav aria-label="Herramientas del editor" className="studio-tools grid grid-cols-5 shrink-0 gap-1 border-b border-border bg-card/30 p-2">
+    <nav aria-label="Herramientas del editor" className="studio-tools grid grid-cols-6 shrink-0 gap-1 border-b border-border bg-card/30 p-2">
       {tabs.map((tab) => {
         const Icon = tab.icon;
         const active = activeTab === tab.id;

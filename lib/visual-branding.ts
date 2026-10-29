@@ -669,6 +669,8 @@ export function drawVisualBranding(
     drawGaliciaTheme(ctx, w, h, minSide);
   } else if (style === 'taberna-galega') {
     drawTabernaTheme(ctx, w, h, minSide, time);
+  } else if (style === 'rustico-ramas') {
+    drawRusticBranches(ctx, w, h);
   }
 
   if (style === 'noite-estrelada' || style === 'papel-e-tinta') {
@@ -678,6 +680,51 @@ export function drawVisualBranding(
   if (themed || showBranding) {
     drawBrandSignature(ctx, w, h, inset, borderWidth, isSonCeibeStyle, style === 'papel-e-tinta');
   }
+}
+
+function drawRusticBranches(ctx: CanvasRenderingContext2D, w: number, h: number) {
+  const s = Math.min(w, h);
+  const inset = s * 0.026;
+  ctx.save();
+  const rim = s * 0.018;
+  ctx.fillStyle = '#3e3021';
+  ctx.fillRect(0, 0, w, rim); ctx.fillRect(0, h - rim, w, rim);
+  ctx.fillRect(0, 0, rim, h); ctx.fillRect(w - rim, 0, rim, h);
+  ctx.strokeStyle = 'rgba(200,164,107,0.28)'; ctx.lineWidth = s * 0.001;
+  for (let i = 1; i < 6; i++) {
+    const d = rim * i / 7;
+    for (const y of [d, h - d]) { ctx.beginPath(); ctx.moveTo(0, y); ctx.bezierCurveTo(w * 0.27, y + 2, w * 0.65, y - 2, w, y); ctx.stroke(); }
+    for (const x of [d, w - d]) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.bezierCurveTo(x + 2, h * 0.35, x - 2, h * 0.68, x, h); ctx.stroke(); }
+  }
+  // Thin, irregular wood grain at the outer edge, with no texture over the lyrics.
+  ctx.strokeStyle = 'rgba(182,152,104,0.18)'; ctx.lineWidth = s * 0.0012;
+  for (let i = 0; i < 5; i++) {
+    const d = inset + i * s * 0.003;
+    ctx.strokeRect(d, d, w - d * 2, h - d * 2);
+  }
+  const twig = (length: number, angle: number) => {
+    ctx.save(); ctx.rotate(angle);
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#b0966a'; ctx.lineWidth = s * 0.0032;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.bezierCurveTo(length * 0.3, -s * 0.012, length * 0.6, s * 0.014, length, 0); ctx.stroke();
+    for (let i = 1; i <= 6; i++) {
+      const x = length * i / 8, sign = i % 2 ? -1 : 1;
+      const tipX = x + s * 0.023, tipY = sign * s * (0.021 + (i % 3) * 0.007);
+      ctx.strokeStyle = '#9b7d52'; ctx.lineWidth = s * 0.0018;
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.quadraticCurveTo(x + s * 0.016, tipY * 0.25, tipX, tipY); ctx.stroke();
+      ctx.save(); ctx.translate(tipX, tipY); ctx.rotate(sign * 0.65);
+      ctx.fillStyle = i % 2 ? '#8e9562' : '#aaa279';
+      ctx.beginPath(); ctx.ellipse(0, 0, s * 0.011, s * 0.0045, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+    ctx.restore();
+  };
+  for (const [x, y, sx, sy] of [[inset, inset, 1, 1], [w - inset, inset, -1, 1], [inset, h - inset, 1, -1], [w - inset, h - inset, -1, -1]]) {
+    ctx.save(); ctx.translate(x, y); ctx.scale(sx, sy); ctx.translate(s * 0.018, s * 0.018);
+    twig(w * 0.26, 0.015); twig(h * 0.19, Math.PI / 2 - 0.035);
+    ctx.restore();
+  }
+  ctx.restore();
 }
 
 function drawNewTheme(ctx: CanvasRenderingContext2D, w: number, h: number, style: VisualStyleId, time: number) {

@@ -429,6 +429,16 @@ export const visualPresets: VisualPreset[] = [
 const base = visualPresets.find(preset => preset.id === 'folk-atlantico')!;
 visualPresets.push(
   {
+    ...base, id: 'rustico-ramas', label: 'Rústico · Ramas',
+    description: 'Madera envejecida, tonos tierra y pequeñas ramas alrededor. Centro libre para la letra.',
+    previewFrom: '#30271e', previewTo: '#131c14', accent: '#b69868',
+    background: { ...base.background, gradientFrom: '#30271e', gradientTo: '#131c14', gradientAngle: 135, overlay: 0.08 },
+    text: { ...base.text, fontFamily: 'Georgia', color: '#f3e5c8', outlineColor: '#20190f', shadowColor: '#100e09', outlineWidth: 2, shadow: true, glow: false, lineHeight: 1.28 },
+    title: { ...base.title, fontFamily: 'Georgia', color: '#ead7ad', fontStyle: 'normal', outlineColor: '#20190f', shadowColor: '#100e09', glow: false, uppercase: false, topOffset: 18 },
+    animation: { ...base.animation, in: 'fade', out: 'fade', duration: 0.65, karaokeColor: '#c6b877' },
+    effects: { ...base.effects, particles: false, lightleaks: false, overlay: 0.04, overlayColor: '#17130d', vignette: true, vignetteIntensity: 0.25, kenburns: false },
+  },
+  {
     ...base, id: 'noite-estrelada', label: 'Noite Estrelada',
     description: 'Azul noite, estrelas suaves e detalles de prata. Para cancións íntimas.',
     previewFrom: '#080e26', previewTo: '#28375b', accent: '#b9c9ef',
@@ -453,4 +463,10 @@ visualPresets.push(
 export function getVisualPreset(id: VisualStyleId | undefined): VisualPreset | null {
   if (!id || id === 'default') return null;
   return visualPresets.find((preset) => preset.id === id) ?? null;
+}
+
+/** A style decorates the selected photos instead of replacing their montage. */
+export function presetBackground(current: BackgroundConfig, preset: VisualPreset): Partial<BackgroundConfig> {
+  const hasPhotos = (current.type === 'image' && !!current.imageUrl) || (current.type === 'images' && (current.images.length > 0 || current.imageClips.length > 0));
+  return { ...preset.background, ...(hasPhotos ? { type: current.type } : {}) };
 }

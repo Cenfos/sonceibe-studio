@@ -34,8 +34,9 @@ import { saveProjectAudioToWorkspace } from '@/lib/local-workspace';
 import { LyricsSyncDialog } from '@/components/studio/lyrics/lyrics-sync-dialog';
 import { MobileOrientationGate } from '@/components/studio/mobile-orientation-gate';
 import { MobileExportDialog } from '@/components/mobile/mobile-export-dialog';
-import { SONCEIBE_LOGO_URL, getVisualPreset, visualPresets } from '@/lib/visual-presets';
-import type { VisualStyleId } from '@/lib/types';
+import { SONCEIBE_LOGO_URL, getVisualPreset, visualPresets, presetBackground } from '@/lib/visual-presets';
+import { ThemePreviewDecoration } from '@/components/studio/properties/visual-preset-picker';
+import { defaultTitleStyle, type VisualStyleId } from '@/lib/types';
 import { toast } from 'sonner';
 import { getExportPreflight, hasBlockingExportIssue } from '@/lib/export-preflight';
 import { MobileAudioPlayer } from './mobile-audio-player';
@@ -47,7 +48,8 @@ import { ProjectVersions } from '@/components/studio/project-versions';
 const steps = [
   { id: 'music', label: 'Música', icon: Music },
   { id: 'lyrics', label: 'Letra', icon: FileText },
-  { id: 'photos', label: 'Fotos o estilo', icon: Images },
+  { id: 'photos', label: 'Formato', icon: Images },
+  { id: 'style', label: 'Estilo', icon: Palette },
   { id: 'finish', label: 'Vídeo', icon: Film },
 ] as const;
 
@@ -143,15 +145,8 @@ export function MobileStudioWizard() {
   const applyVisualPreset = (styleId: VisualStyleId) => {
     const preset = getVisualPreset(styleId);
     if (!preset) return;
-    updateSettings({ visualStyle: preset.id });
-    updateBackground({
-      ...preset.background,
-      imageUrl: '',
-      images: [],
-      imageClips: [],
-      imageMode: 'auto',
-      imageFit: 'cover',
-    });
+    updateSettings({ visualStyle: preset.id, titleStyle: { ...defaultTitleStyle, ...preset.title } });
+    updateBackground(presetBackground(currentProject!.settings.background, preset));
     updateText(preset.text);
     updateAnimation(preset.animation);
     updateEffects(preset.effects);
@@ -265,7 +260,7 @@ export function MobileStudioWizard() {
             </div>
             <ProjectVersions />
           </div>
-          <div className="grid grid-cols-4 border-t border-border/60">
+          <div className="grid grid-cols-5 border-t border-border/60">
             {steps.map((item, index) => {
               const Icon = item.icon;
               const active = index === step;
@@ -378,17 +373,19 @@ export function MobileStudioWizard() {
                   <div className="text-xs text-muted-foreground">Las fotos se repartirán automáticamente a lo largo de la canción.</div>
                 )}
               </Card>
-
+            </div>
+          )}
+          {step === 3 && (
+            <div className="space-y-4">
               <Button variant="outline" className="w-full" onClick={() => updateSettings(emptyStyle())}>Sin estilo · fondo vacío</Button>
-              {!hasPhotos && (
                 <Card className="p-5 space-y-4">
                   <div className="flex items-start gap-3">
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
                       <Palette className="h-4 w-4" />
                     </div>
                     <div>
-                      <h2 className="font-medium">O usa un estilo preparado</h2>
-                      <p className="mt-1 text-sm text-muted-foreground">Puedes elegir un fondo preparado o dejar el fondo vacío.</p>
+                      <h2 className="font-medium">Estilos preparados</h2>
+                      <p className="mt-1 text-sm text-muted-foreground">Elige el marco y la letra. Las fotos añadidas en Formato se conservan.</p>
                     </div>
                   </div>
 
@@ -411,6 +408,7 @@ export function MobileStudioWizard() {
                               className="absolute inset-2 rounded-lg border"
                               style={{ borderColor: `${preset.accent}99`, boxShadow: `inset 0 0 18px ${preset.accent}22` }}
                             />
+                            <ThemePreviewDecoration id={preset.id} />
                             {(
                               // eslint-disable-next-line @next/next/no-img-element
                               <img
@@ -432,11 +430,10 @@ export function MobileStudioWizard() {
                     })}
                   </div>
                 </Card>
-              )}
             </div>
           )}
 
-          {step === 3 && (
+          {step === 4 && (
             <Card className="p-5 space-y-4">
               <div>
                 <h2 className="font-medium">Listo para crear el vídeo</h2>

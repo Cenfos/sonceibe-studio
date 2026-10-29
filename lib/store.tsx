@@ -33,7 +33,7 @@ interface State {
   currentPage: 'home' | 'studio';
   isExportOpen: boolean;
   isSettingsOpen: boolean;
-  activeTab: 'text' | 'background' | 'animation' | 'effects' | 'lyrics';
+  activeTab: 'text' | 'background' | 'style' | 'animation' | 'effects' | 'lyrics';
   isDirty: boolean;
   undoStack: ProjectSettings[];
   redoStack: ProjectSettings[];
