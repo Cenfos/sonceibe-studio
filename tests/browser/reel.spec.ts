@@ -5,6 +5,41 @@ test.beforeEach(async ({ page }) => {
   await page.getByRole('heading', { name: 'Prueba Studio', exact: true }).click();
 });
 
+for (const closeWith of ['button', 'x'] as const) {
+  test(`cancel full video generation with ${closeWith} and retry as a Reel`, async ({ page }) => {
+    const downloads: string[] = [];
+    page.on('download', download => downloads.push(download.suggestedFilename()));
+    await page.getByRole('button', { name: 'Exportar', exact: true }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('button', { name: 'Crear MP4 móvil 9:16', exact: true }).click();
+    await expect(dialog.getByRole('button', { name: 'Cancelar creación', exact: true })).toBeVisible();
+    await expect.poll(() => page.locator('canvas').count()).toBeGreaterThan(1);
+    await dialog.getByRole('button', { name: closeWith === 'x' ? 'Close' : 'Cancelar creación', exact: true }).click();
+    await expect(dialog).not.toBeVisible();
+    await expect.poll(() => page.locator('canvas').count()).toBe(1);
+    await expect(page.getByRole('button', { name: 'Reproducir', exact: true })).toBeVisible();
+    expect(downloads).toEqual([]);
+    await page.getByRole('button', { name: 'Reel', exact: true }).click();
+    await dialog.getByLabel('Fin (segundos)').fill('2');
+    await dialog.getByRole('button', { name: '3. Exportar', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Crear Reel MP4', exact: true }).click();
+    await expect(dialog.getByRole('link', { name: 'Descargar Reel', exact: true })).toBeVisible({ timeout: 30000 });
+  });
+}
+
+test('cancel Reel generation and reopen its settings', async ({ page }) => {
+  await page.getByRole('button', { name: 'Reel', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('button', { name: '3. Exportar', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Crear Reel MP4', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Cancelar creación', exact: true }).click();
+  await expect(dialog).not.toBeVisible();
+  await expect.poll(() => page.locator('canvas').count()).toBe(1);
+  await page.getByRole('button', { name: 'Reel', exact: true }).click();
+  await expect(dialog.getByLabel('Fin (segundos)')).toHaveValue('30');
+  await expect(dialog.getByRole('button', { name: 'Continuar', exact: true })).toBeEnabled();
+});
+
 test('advanced Reel text changes reach the canvas with a cover and title visibility stays in sync', async ({ page }) => {
   await page.getByRole('button', { name: 'Reel', exact: true }).click();
   const dialog = page.getByRole('dialog');

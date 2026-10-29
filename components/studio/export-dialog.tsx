@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Check, CheckCircle2, Download, FileText, Film, Loader2, Monitor, Smartphone, XCircle } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { useAudioEngineContext } from '@/lib/audio-engine-context';
@@ -72,6 +72,8 @@ export function ExportDialog() {
   const [progress, setProgress] = useState(0);
   const [done, setDone] = useState(false);
   const [doneText, setDoneText] = useState('');
+  const exportController = useRef<AbortController | null>(null);
+  useEffect(() => () => exportController.current?.abort(), []);
 
   useEffect(() => {
     if (!isExportOpen || !currentProject) return;
@@ -112,7 +114,7 @@ export function ExportDialog() {
   };
 
   const exportVideo = async () => {
-    if (exporting) return;
+    if (exporting || exportController.current) return;
 
     const audioEl = audio.audioEl as CapturableAudioElement | null;
     if (!audioEl || duration <= 0) {
@@ -124,6 +126,8 @@ export function ExportDialog() {
     setProgress(0);
     setDone(false);
     setDoneText('');
+    const controller = new AbortController();
+    exportController.current = controller;
 
     try {
       const result = await createProjectMp4({
@@ -133,7 +137,9 @@ export function ExportDialog() {
         target,
         includeAudio,
         onProgress: setProgress,
+        signal: controller.signal,
       });
+      if (controller.signal.aborted) return;
 
       const filename = `${safeFilename(title)}${profile.filenameSuffix}.mp4`;
       downloadBlob(filename, result.blob);
@@ -146,9 +152,11 @@ export function ExportDialog() {
         `MP4 comprobado · ${result.width}×${result.height} · ${target === 'mobile' ? '9:16' : '16:9'}`
       );
     } catch (error) {
+      if (controller.signal.aborted) return;
       console.error('Video export failed:', error);
       toast.error(error instanceof Error ? error.message : 'No se pudo crear el MP4');
     } finally {
+      exportController.current = null;
       setExporting(false);
     }
   };
@@ -164,7 +172,7 @@ export function ExportDialog() {
   };
 
   const closeDialog = () => {
-    if (exporting) return;
+    exportController.current?.abort();
     setDone(false);
     setDoneText('');
     setProgress(0);
@@ -206,6 +214,7 @@ export function ExportDialog() {
                 ? '9:16 vertical · pantalla completa · 30 FPS'
                 : '16:9 horizontal · pantalla completa · 30 FPS'}
             </div>
+            <Button variant="outline" className="w-full" onClick={closeDialog}>Cancelar creación</Button>
           </div>
         ) : (
           <div className="space-y-5">

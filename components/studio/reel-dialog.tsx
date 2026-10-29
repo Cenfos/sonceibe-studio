@@ -26,6 +26,8 @@ export function ReelDialog({ fromTimeline = false, onRequestAudio, onManualDesig
   const [result, setResult] = useState<{ url: string; blob: Blob } | null>(null);
   const [previewing, setPreviewing] = useState(false);
   const canvas = useRef<HTMLCanvasElement>(null);
+  const exportController = useRef<AbortController | null>(null);
+  useEffect(() => () => exportController.current?.abort(), []);
   const project = currentProject?.settings;
   const duration = audio.audioBuffer?.duration || audio.duration || project?.audioDuration || 0;
   const reel: NonNullable<ProjectSettings['reel']> = project?.reel || { start: 0, end: Math.min(30, duration), coverUrl: '', showLyrics: true, showTitle: true };
@@ -64,7 +66,7 @@ export function ReelDialog({ fromTimeline = false, onRequestAudio, onManualDesig
 
   if (!project) return null;
   const name = `${project.title || 'SonCeibe'}-reel`.replace(/[\\/:*?"<>|]/g, '-');
-  const close = (value: boolean) => { if (busy) return; audio.pause(); setPreviewing(false); setOpen(value); if (value) { setStep(0); setManual(!simple && initialManual); if (duration >= 0.2) updateSettings({ editingTarget: 'reel', reel }); } };
+  const close = (value: boolean) => { if (busy && !exportController.current) return; if (!value) exportController.current?.abort(); audio.pause(); setPreviewing(false); setOpen(value); if (value) { setStep(0); setManual(!simple && initialManual); if (duration >= 0.2) updateSettings({ editingTarget: 'reel', reel }); } };
   const uploadCover = async (file?: File) => {
     if (!file) return;
     setBusy(true); setError('');
@@ -80,25 +82,31 @@ export function ReelDialog({ fromTimeline = false, onRequestAudio, onManualDesig
     finally { URL.revokeObjectURL(url); setBusy(false); }
   };
   const exportReel = async () => {
+    if (exportController.current) return;
     if (lyricsIssue) { setError(lyricsIssue); return; }
     if (!audio.audioBuffer) { setError('Espera a que termine de cargar la canción.'); return; }
     setBusy(true); setError(''); setResult(null); setProgress(0); audio.pause(); setPreviewing(false);
+    const controller = new AbortController();
+    exportController.current = controller;
     let url = ''; const clip = new Audio();
     try {
       const wav = sliceAudioWav(audio.audioBuffer, reel.start, reel.end);
       url = URL.createObjectURL(wav); clip.preload = 'auto';
       await new Promise<void>((resolve, reject) => {
         const timeout = window.setTimeout(() => { cleanup(); reject(new Error('No se pudo cargar el fragmento de audio.')); }, 15000);
-        const cleanup = () => { clearTimeout(timeout); clip.oncanplay = null; clip.onerror = null; };
+        const abort = () => { cleanup(); reject(new DOMException('Creación cancelada', 'AbortError')); };
+        const cleanup = () => { clearTimeout(timeout); clip.oncanplay = null; clip.onerror = null; controller.signal.removeEventListener('abort', abort); };
+        controller.signal.addEventListener('abort', abort, { once: true });
         clip.oncanplay = () => { cleanup(); resolve(); };
         clip.onerror = () => { cleanup(); reject(new Error('No se pudo leer el fragmento de audio.')); };
         clip.src = url; clip.load();
       });
       const settings = reelSettings({ ...project, audioDuration: duration }, reel.start, reel.end, reel.coverUrl, reel.showLyrics, reel.showTitle);
-      const exported = await createProjectMp4({ audioEl: clip, duration: clip.duration, settings, target: 'mobile', onProgress: setProgress });
+      const exported = await createProjectMp4({ audioEl: clip, duration: clip.duration, settings, target: 'mobile', onProgress: setProgress, signal: controller.signal });
+      if (controller.signal.aborted) return;
       setResult({ url: URL.createObjectURL(exported.blob), blob: exported.blob });
-    } catch (err) { setError(err instanceof Error ? err.message : 'No se pudo crear el Reel.'); }
-    finally { clip.pause(); clip.removeAttribute('src'); clip.load(); if (url) URL.revokeObjectURL(url); setBusy(false); }
+    } catch (err) { if (!controller.signal.aborted) setError(err instanceof Error ? err.message : 'No se pudo crear el Reel.'); }
+    finally { exportController.current = null; clip.pause(); clip.removeAttribute('src'); clip.load(); if (url) URL.revokeObjectURL(url); setBusy(false); }
   };
 
   return <>
@@ -148,6 +156,7 @@ export function ReelDialog({ fromTimeline = false, onRequestAudio, onManualDesig
           {!fromTimeline && !manual && <div className="flex justify-between gap-2"><Button variant="outline" disabled={step === 0} onClick={() => setStep(step - 1)}>Anterior</Button>{step < 2 && <Button disabled={!valid || !audio.audioBuffer} onClick={() => setStep(step + 1)}>Continuar</Button>}</div>}
         </fieldset>
         {busy && <p role="status">Preparando Reel… {Math.round(progress)} % · Mantén esta ventana abierta.</p>}
+        {busy && exportController.current && <Button variant="outline" onClick={() => close(false)}>Cancelar creación</Button>}
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         {result && <div className="space-y-3"><video src={result.url} controls className="mx-auto max-h-72 rounded" /><a className="block rounded bg-primary p-3 text-center text-primary-foreground" href={result.url} download={`${name}.mp4`}>Descargar Reel</a>
           {typeof navigator !== 'undefined' && navigator.canShare?.({ files: [new File([result.blob], `${name}.mp4`, { type: 'video/mp4' })] }) && <Button className="w-full" variant="outline" onClick={() => { void navigator.share({ files: [new File([result.blob], `${name}.mp4`, { type: 'video/mp4' })] }).catch(err => { if (err.name !== 'AbortError') setError('No se pudo compartir. Puedes descargar el Reel.'); }); }}>Compartir Reel</Button>}

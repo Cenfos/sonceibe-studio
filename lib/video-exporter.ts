@@ -39,6 +39,7 @@ export interface Mp4ExportOptions {
   internalWidth?: number;
   internalHeight?: number;
   onProgress?: (progress: number) => void;
+  signal?: AbortSignal;
 }
 
 export interface Mp4ExportResult {
@@ -46,6 +47,16 @@ export interface Mp4ExportResult {
   width: number;
   height: number;
   mimeType: string;
+}
+
+function abortable<T>(work: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return work;
+  return new Promise((resolve, reject) => {
+    const abort = () => reject(new DOMException('Creación cancelada', 'AbortError'));
+    signal.addEventListener('abort', abort, { once: true });
+    work.then(resolve, reject).finally(() => signal.removeEventListener('abort', abort));
+    if (signal.aborted) abort();
+  });
 }
 
 function supportedMp4MimeType(): string | null {
@@ -70,7 +81,7 @@ function supportedMp4MimeType(): string | null {
   return null;
 }
 
-function readVideoDimensions(blob: Blob): Promise<{ width: number; height: number }> {
+function readVideoDimensions(blob: Blob, signal?: AbortSignal): Promise<{ width: number; height: number }> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(blob);
     const video = document.createElement('video');
@@ -79,10 +90,14 @@ function readVideoDimensions(blob: Blob): Promise<{ width: number; height: numbe
     video.playsInline = true;
 
     const cleanup = () => {
+      signal?.removeEventListener('abort', abort);
       video.removeAttribute('src');
       video.load();
       URL.revokeObjectURL(url);
     };
+    const abort = () => { cleanup(); reject(new DOMException('Creación cancelada', 'AbortError')); };
+    signal?.addEventListener('abort', abort, { once: true });
+    if (signal?.aborted) { abort(); return; }
 
     video.onloadedmetadata = () => {
       const dimensions = { width: video.videoWidth, height: video.videoHeight };
@@ -99,7 +114,8 @@ function readVideoDimensions(blob: Blob): Promise<{ width: number; height: numbe
 
 async function makeStandardSeekableMp4(
   blob: Blob,
-  onProgress?: (progress: number) => void
+  onProgress?: (progress: number) => void,
+  signal?: AbortSignal
 ): Promise<Blob> {
   // MediaRecorder writes fragmented MP4 (moof/mdat fragments). That is valid
   // for streaming but Windows Media Player and some social apps handle it
@@ -117,6 +133,7 @@ async function makeStandardSeekableMp4(
   });
 
   const conversion = await Conversion.init({ input, output });
+  if (signal?.aborted) { await conversion.cancel(); input.dispose(); signal.throwIfAborted(); }
   if (!conversion.isValid) {
     throw new Error('No se pudo finalizar el MP4 en un formato compatible');
   }
@@ -125,7 +142,14 @@ async function makeStandardSeekableMp4(
     onProgress?.(95 + Math.round(progress * 5));
   };
 
-  await conversion.execute();
+  const cancel = () => { void conversion.cancel().catch(() => {}); };
+  signal?.addEventListener('abort', cancel, { once: true });
+  try {
+    await abortable(conversion.execute(), signal);
+  } finally {
+    signal?.removeEventListener('abort', cancel);
+    input.dispose();
+  }
   const buffer = target.buffer;
   if (!buffer || buffer.byteLength === 0) {
     throw new Error('La finalización del MP4 produjo un archivo vacío');
@@ -148,6 +172,7 @@ async function preloadProjectVisuals(settings: ProjectSettings): Promise<void> {
 }
 
 export async function createProjectMp4(options: Mp4ExportOptions): Promise<Mp4ExportResult> {
+  options.signal?.throwIfAborted();
   const {
     audioEl,
     duration,
@@ -155,6 +180,7 @@ export async function createProjectMp4(options: Mp4ExportOptions): Promise<Mp4Ex
     target,
     includeAudio = true,
     onProgress,
+    signal,
   } = options;
 
   if (!Number.isFinite(duration) || duration <= 0) {
@@ -178,7 +204,7 @@ export async function createProjectMp4(options: Mp4ExportOptions): Promise<Mp4Ex
   const videoBitrate = options.videoBitrate ?? profile.videoBitrate;
   const audioBitrate = options.audioBitrate ?? profile.audioBitrate;
 
-  await preloadProjectVisuals(renderSettings);
+  await abortable(preloadProjectVisuals(renderSettings), signal);
 
   const previousTime = audioEl.currentTime;
   const wasPlaying = !audioEl.paused;
@@ -318,13 +344,13 @@ export async function createProjectMp4(options: Mp4ExportOptions): Promise<Mp4Ex
     activeRecorder.start(1000);
     timer = setInterval(renderTick, Math.max(10, Math.round(1000 / profile.fps)));
     renderTick();
-    await audioEl.play();
+    await abortable(audioEl.play(), signal);
 
-    const recordedBlob = await finished;
+    const recordedBlob = await abortable(finished, signal);
     if (!recordedBlob.size) throw new Error('El MP4 generado está vacío');
 
-    const blob = await makeStandardSeekableMp4(recordedBlob, onProgress);
-    const dimensions = await readVideoDimensions(blob);
+    const blob = await makeStandardSeekableMp4(recordedBlob, onProgress, signal);
+    const dimensions = await readVideoDimensions(blob, signal);
     if (!matchesVideoProfile(dimensions.width, dimensions.height, target)) {
       throw new Error(
         `El MP4 final quedó en ${dimensions.width}×${dimensions.height}; debía ser exactamente ${profile.width}×${profile.height}. No se ha guardado.`
@@ -346,11 +372,11 @@ export async function createProjectMp4(options: Mp4ExportOptions): Promise<Mp4Ex
     if (timer) clearInterval(timer);
     if (endedHandler) audioEl.removeEventListener('ended', endedHandler);
     if (recorder && recorder.state !== 'inactive') recorder.stop();
-    outputStream?.getVideoTracks().forEach((track) => track.stop());
+    outputStream?.getTracks().forEach((track) => track.stop());
     outputCanvas?.remove();
 
     audioEl.pause();
     audioEl.currentTime = Math.min(previousTime, duration);
-    if (wasPlaying) audioEl.play().catch(() => {});
+    if (wasPlaying && !signal?.aborted) audioEl.play().catch(() => {});
   }
 }
