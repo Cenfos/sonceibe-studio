@@ -21,6 +21,7 @@ import { readPortableProjectFile } from '@/lib/project/download-current-project'
 import { visualPresets } from '@/lib/visual-presets';
 import { toast } from 'sonner';
 import { MAX_RECENT_PROJECTS, hasExternalCopy } from '@/lib/recent-projects';
+import { WorkspaceControl } from './workspace-control';
 
 export function HomePage() {
   const { projects, openProject, createProject, deleteProject, duplicateProject, importProject, saveProjectFile, externalCopies, trimRecentProjects } = useStore();
@@ -152,6 +153,7 @@ export function HomePage() {
       </div>
 
       <div className="px-8 py-8 md:px-16 space-y-12">
+        <WorkspaceControl />
         <section>
           <div className="flex items-center justify-between mb-6">
             <div>

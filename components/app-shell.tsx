@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '@/lib/store';
 import { HomePage } from '@/components/home/home-page';
-import { WorkspaceControl } from '@/components/home/workspace-control';
 import { StudioLayout } from '@/components/studio/studio-layout';
 import { MobileStudioWizard } from '@/components/mobile/mobile-studio-wizard';
 import { MobilePreviewLauncher } from '@/components/mobile/mobile-preview-launcher';
@@ -82,7 +81,6 @@ export function AppShell() {
       {onHome ? (
         <>
           <HomePage />
-          <WorkspaceControl />
         </>
       ) : isPhone === null ? (
         <div className="h-full w-full bg-background" />

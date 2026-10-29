@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { FolderOpen, HardDrive, RefreshCw, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { useStore } from '@/lib/store';
 import { useStudioUserId } from '@/lib/studio-user-context';
 import {
@@ -19,7 +18,7 @@ import { filterDeletedProjects, purgeDeletedWorkspaceProjects } from '@/lib/proj
 import { toast } from 'sonner';
 
 const initialInfo: WorkspaceInfo = {
-  supported: true,
+  supported: false,
   configured: false,
   folderName: '',
   permission: 'prompt',
@@ -107,16 +106,17 @@ export function WorkspaceControl() {
   const connected = info.configured && info.permission === 'granted';
 
   return (
-    <Card className="fixed right-5 bottom-5 z-30 max-w-md border-border bg-card/95 backdrop-blur p-3 shadow-lg">
-      <div className="flex items-center gap-3">
+    <details className="rounded-lg border border-border bg-card/50 p-3">
+      <summary className="cursor-pointer text-sm font-medium">Carpeta local · opcional</summary>
+      <div className="mt-3 flex flex-wrap items-center gap-3">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/15">
           <HardDrive className="h-4 w-4 text-primary" />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-medium">Carpeta de trabajo del PC</div>
-          <div className="text-[11px] text-muted-foreground truncate">
+          <div className="text-sm font-medium">Copias en una carpeta local</div>
+          <div className="text-xs text-muted-foreground break-words">
             {connected
-              ? `${info.folderName} / SonCeibe Studio · sincronización automática`
+              ? `Carpeta elegida: ${info.folderName} · copias locales automáticas`
               : info.configured
                 ? `${info.folderName} · necesita permiso`
                 : 'Opcional: guarda también una copia física de tus proyectos y audios'}
@@ -143,6 +143,6 @@ export function WorkspaceControl() {
           </Button>
         )}
       </div>
-    </Card>
+    </details>
   );
 }
