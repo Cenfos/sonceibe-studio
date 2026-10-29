@@ -191,14 +191,41 @@ test('video guide allows manual editing and format selection', async ({ page }) 
   await page.getByRole('button', { name: 'Fondo', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Sin estilo · fondo vacío', exact: true })).toBeVisible();
   await guide.getByRole('button', { name: 'Abrir guía' }).click();
-  await guide.getByRole('button', { name: '2. Formato', exact: true }).click();
+  await guide.getByRole('button', { name: '3. Formato', exact: true }).click();
   await guide.getByRole('button', { name: 'Horizontal · 16:9' }).click();
   await expect(guide.getByRole('button', { name: 'Horizontal · 16:9' })).toHaveAttribute('aria-pressed', 'true');
-  await guide.getByRole('button', { name: '4. Exportar', exact: true }).click();
+  await guide.getByRole('button', { name: '5. Exportar', exact: true }).click();
   await guide.getByRole('button', { name: 'Revisar y exportar vídeo' }).click();
   await expect(page.getByRole('dialog')).toContainText('Duración completa');
 });
 
+
+test('video guide offers optional lyrics between audio and format and imports TXT and timed LRC', async ({ page }) => {
+  await page.evaluate(() => {
+    const key = 'sonceibe-projects-v2:owner';
+    const projects = JSON.parse(localStorage.getItem(key)!);
+    projects[0].settings.lyrics = [];
+    localStorage.setItem(key, JSON.stringify(projects));
+  });
+  await page.reload();
+  await page.getByRole('heading', { name: 'Prueba Studio', exact: true }).click();
+  const guide = page.getByRole('region', { name: 'Creación guiada de vídeo' });
+  await guide.getByRole('button', { name: 'Continuar', exact: true }).click();
+  await expect(guide.getByRole('button', { name: '2. Letra', exact: true })).toHaveAttribute('aria-current', 'step');
+  await guide.getByRole('button', { name: 'Continuar sin letra', exact: true }).click();
+  await expect(guide.getByRole('button', { name: '3. Formato', exact: true })).toHaveAttribute('aria-current', 'step');
+  await guide.getByRole('button', { name: '2. Letra', exact: true }).click();
+  await guide.getByLabel('Archivo de letra de la guía').setInputFiles({ name: 'letra.txt', mimeType: 'text/plain', buffer: Buffer.from('[Am] Unha frase\nOutra frase') });
+  await expect(guide.getByRole('status')).toContainText('Letra cargada: 2 frases');
+  await guide.getByRole('button', { name: 'Continuar', exact: true }).click();
+  await expect(guide.getByRole('button', { name: '3. Formato', exact: true })).toHaveAttribute('aria-current', 'step');
+  await guide.getByRole('button', { name: '2. Letra', exact: true }).click();
+  await guide.getByLabel('Archivo de letra de la guía').setInputFiles({ name: 'letra.lrc', mimeType: 'text/plain', buffer: Buffer.from('[00:02.00]Letra con tempo') });
+  await expect(guide.getByRole('status')).toContainText('Letra cargada: 1 frase.');
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('sonceibe-projects-v2:owner')!)[0].settings.lyrics[0].start)).toBe(2);
+  await guide.getByRole('button', { name: 'Abrir editor de letra', exact: true }).click();
+  await expect(page.getByRole('group', { name: 'Letra 1', exact: true })).toContainText('Letra con tempo');
+});
 
 test('Reel lyrics sync only the selected audio and persist separately from project lyrics', async ({ page }) => {
   await page.getByRole('button', { name: 'Reel', exact: true }).click();
