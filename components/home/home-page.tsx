@@ -1,6 +1,6 @@
 'use client';
 
-import { ExternalLink, Plus, Clock, MoreVertical, Trash2, Film, Sparkles, LogOut, HardDrive, FolderOpen, Copy } from 'lucide-react';
+import { Download, ExternalLink, Plus, Clock, MoreVertical, Trash2, Film, Sparkles, LogOut, HardDrive, FolderOpen, Copy } from 'lucide-react';
 import Image from 'next/image';
 import { SONCEIBE_LOGO_DATA_URL } from '@/lib/sonceibe-logo-data';
 import { useStore } from '@/lib/store';
@@ -126,6 +126,9 @@ export function HomePage() {
             Guarda tus proyectos .scs en tu equipo y ábrelos para continuar. Studio conserva hasta cinco recientes en este navegador como recuperación.
           </p>
           <div className="flex flex-wrap gap-3">
+            <Button size="lg" variant="outline" className="gap-2" asChild>
+              <a href="/download/windows"><Download className="h-5 w-5" /> Descargar para Windows</a>
+            </Button>
             <Button size="lg" variant="outline" className="gap-2" asChild>
               <a href="https://www.sonceibe.es"><ExternalLink className="h-5 w-5" /> Volver a SonCeibe.es</a>
             </Button>

@@ -58,12 +58,19 @@ export async function middleware(request: NextRequest) {
     : false;
 
   if (isAccessPage) {
-    if (authenticated) return NextResponse.redirect(new URL('/', request.url));
+    if (authenticated) {
+      const next = request.nextUrl.searchParams.get('next');
+      return NextResponse.redirect(new URL(next === '/download/windows' ? next : '/', request.url));
+    }
     return NextResponse.next();
   }
 
   if (!authenticated) {
-    return NextResponse.redirect(new URL('/access', request.url));
+    const login = new URL('/access', request.url);
+    if (request.nextUrl.pathname === '/download/windows') login.searchParams.set('next', '/download/windows');
+    const response = NextResponse.redirect(login);
+    response.headers.set('Cache-Control', 'private, no-store');
+    return response;
   }
 
   return NextResponse.next();
