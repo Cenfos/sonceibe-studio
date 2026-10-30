@@ -468,5 +468,5 @@ export function getVisualPreset(id: VisualStyleId | undefined): VisualPreset | n
 /** A style decorates the selected photos instead of replacing their montage. */
 export function presetBackground(current: BackgroundConfig, preset: VisualPreset): Partial<BackgroundConfig> {
   const hasPhotos = (current.type === 'image' && !!current.imageUrl) || (current.type === 'images' && (current.images.length > 0 || current.imageClips.length > 0));
-  return { ...preset.background, ...(hasPhotos ? { type: current.type } : {}) };
+  return { ...preset.background, ...(hasPhotos || (current.type === 'video' && current.videoUrl) ? { type: current.type } : {}) };
 }

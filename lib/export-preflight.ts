@@ -31,14 +31,14 @@ export function getExportPreflight(
       ? {
           id: 'audio',
           level: 'ok',
-          label: 'Música',
+          label: settings.background.type === 'video' ? 'Vídeo y sonido' : 'Música',
           detail: `${Math.round(duration)} s cargados`,
         }
       : {
           id: 'audio',
           level: 'error',
-          label: 'Música',
-          detail: 'Falta cargar una canción',
+          label: settings.background.type === 'video' ? 'Vídeo y sonido' : 'Música',
+          detail: settings.background.type === 'video' ? 'Falta preparar el vídeo y su sonido' : 'Falta cargar una canción',
         },
     {
       id: 'format',

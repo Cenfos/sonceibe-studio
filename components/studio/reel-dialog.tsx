@@ -59,10 +59,10 @@ export function ReelDialog({ fromTimeline = false, onRequestAudio, onManualDesig
     ]).then(() => {
       if (cancelled || !canvas.current) return;
       const ctx = canvas.current.getContext('2d');
-      if (ctx) renderFrame(ctx, 270, 480, settings, Math.max(0, Math.min(reel.end - reel.start, audio.currentTime - reel.start)));
+      if (ctx) renderFrame(ctx, 270, 480, settings, Math.max(0, Math.min(reel.end - reel.start, audio.currentTime - reel.start)), audio.videoEl);
     }).catch(() => { if (!cancelled) setError('No se pudo cargar una imagen para la vista previa.'); });
     return () => { cancelled = true; };
-  }, [open, project, valid, duration, reel.start, reel.end, reel.coverUrl, reel.showLyrics, reel.showTitle, audio.currentTime]);
+  }, [open, project, valid, duration, reel.start, reel.end, reel.coverUrl, reel.showLyrics, reel.showTitle, audio.currentTime, audio.videoEl]);
 
   if (!project) return null;
   const name = `${project.title || 'SonCeibe'}-reel`.replace(/[\\/:*?"<>|]/g, '-');
@@ -83,6 +83,7 @@ export function ReelDialog({ fromTimeline = false, onRequestAudio, onManualDesig
   };
   const exportReel = async () => {
     if (exportController.current) return;
+    if (audio.mediaBusy || audio.mediaError) { setError(audio.mediaError || 'Espera a que termine de preparar el vídeo y sonido'); return; }
     if (lyricsIssue) { setError(lyricsIssue); return; }
     if (!audio.audioBuffer) { setError('Espera a que termine de cargar la canción.'); return; }
     setBusy(true); setError(''); setResult(null); setProgress(0); audio.pause(); setPreviewing(false);

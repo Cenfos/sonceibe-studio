@@ -1,3 +1,4 @@
+import { videoFrameRect } from '@/lib/source-video';
 import { defaultTitleStyle, type AnimationType, type ImageFitMode, type ImagePlacement, type LyricLine, type ProjectSettings } from '@/lib/types';
 import { drawVisualBranding } from '@/lib/visual-branding';
 import { getVisualPreset } from '@/lib/visual-presets';
@@ -152,7 +153,8 @@ function drawBackground(
   w: number,
   h: number,
   settings: ProjectSettings,
-  time: number
+  time: number,
+  video?: HTMLVideoElement | null
 ) {
   const bg = settings.background;
   const fx = settings.effects;
@@ -207,6 +209,10 @@ function drawBackground(
   } else if (bg.type === 'video') {
     ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, w, h);
+    if (video && video.readyState >= 2 && video.videoWidth) {
+      const rect = videoFrameRect(w, h, video.videoWidth, video.videoHeight, { scale: 100, x: 50, y: 50, fit: 'cover', ...bg.videoPlacement });
+      ctx.drawImage(video, rect.x, rect.y, rect.width, rect.height);
+    }
   } else {
     ctx.fillStyle = bg.color;
     ctx.fillRect(0, 0, w, h);
@@ -521,12 +527,13 @@ export function renderFrame(
   w: number,
   h: number,
   settings: ProjectSettings,
-  time: number
+  time: number,
+  video?: HTMLVideoElement | null
 ) {
   ctx.clearRect(0, 0, w, h);
   ctx.filter = 'none';
   ctx.globalAlpha = 1;
-  drawBackground(ctx, w, h, settings, time);
+  drawBackground(ctx, w, h, settings, time, video);
   // Photos replace only the chosen interval; the main background remains unchanged.
   const photo = [...(settings.background.photoClips ?? [])].reverse().find(clip => time >= clip.start && time < clip.end);
   if (photo) {

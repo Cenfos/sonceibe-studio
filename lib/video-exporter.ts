@@ -1,5 +1,6 @@
 'use client';
 
+import { openSourceVideo, releaseVideo, seekSourceVideo, sourceVideoUrls } from './source-video';
 import type { ProjectSettings } from './types';
 import {
   VIDEO_PROFILES,
@@ -30,6 +31,7 @@ type CanvasCaptureTrack = MediaStreamTrack & {
 
 export interface Mp4ExportOptions {
   audioEl: CapturableAudioElement;
+  backgroundVideoUrl?: string;
   duration: number;
   settings: ProjectSettings;
   target: VideoTarget;
@@ -216,10 +218,18 @@ export async function createProjectMp4(options: Mp4ExportOptions): Promise<Mp4Ex
   let videoTrack: CanvasCaptureTrack | null = null;
   let endedHandler: (() => void) | null = null;
   let renderFailures = 0;
+  let backgroundVideo: HTMLVideoElement | null = null;
 
   try {
     audioEl.pause();
     audioEl.currentTime = 0;
+
+    if (renderSettings.background.type === 'video') {
+      const url = options.backgroundVideoUrl || sourceVideoUrls.get(renderSettings.background.videoUrl);
+      if (!url) throw new Error('El vídeo de fondo no está preparado. Vuelve a cargarlo antes de exportar.');
+      backgroundVideo = await abortable(openSourceVideo(url), signal);
+      await abortable(seekSourceVideo(backgroundVideo, renderSettings.background.videoStart || 0), signal);
+    }
 
     const renderCanvas = document.createElement('canvas');
     renderCanvas.width = renderWidth;
@@ -245,7 +255,7 @@ export async function createProjectMp4(options: Mp4ExportOptions): Promise<Mp4Ex
 
     const drawFrame = (time: number): boolean => {
       try {
-        renderFrame(renderCtx, renderWidth, renderHeight, renderSettings, time);
+        renderFrame(renderCtx, renderWidth, renderHeight, renderSettings, time, backgroundVideo);
         outputCtx.setTransform(1, 0, 0, 1, 0, 0);
         outputCtx.globalAlpha = 1;
         outputCtx.filter = 'none';
@@ -315,6 +325,10 @@ export async function createProjectMp4(options: Mp4ExportOptions): Promise<Mp4Ex
 
       const rawTime = Number.isFinite(audioEl.currentTime) ? audioEl.currentTime : 0;
       const time = Math.min(duration, Math.max(0, rawTime));
+      if (backgroundVideo && !backgroundVideo.seeking) {
+        const expected = Math.min(backgroundVideo.duration - 0.001, (renderSettings.background.videoStart || 0) + time);
+        if (Math.abs(backgroundVideo.currentTime - expected) > 0.15) backgroundVideo.currentTime = expected;
+      }
 
       if (time - lastRendered >= frameInterval * 0.82 || time >= duration) {
         if (drawFrame(time)) lastRendered = time;
@@ -344,7 +358,7 @@ export async function createProjectMp4(options: Mp4ExportOptions): Promise<Mp4Ex
     activeRecorder.start(1000);
     timer = setInterval(renderTick, Math.max(10, Math.round(1000 / profile.fps)));
     renderTick();
-    await abortable(audioEl.play(), signal);
+    await abortable(Promise.all([audioEl.play(), ...(backgroundVideo ? [backgroundVideo.play()] : [])]), signal);
 
     const recordedBlob = await abortable(finished, signal);
     if (!recordedBlob.size) throw new Error('El MP4 generado está vacío');
@@ -374,6 +388,7 @@ export async function createProjectMp4(options: Mp4ExportOptions): Promise<Mp4Ex
     if (recorder && recorder.state !== 'inactive') recorder.stop();
     outputStream?.getTracks().forEach((track) => track.stop());
     outputCanvas?.remove();
+    if (backgroundVideo) releaseVideo(backgroundVideo);
 
     audioEl.pause();
     audioEl.currentTime = Math.min(previousTime, duration);

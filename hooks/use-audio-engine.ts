@@ -4,6 +4,9 @@ import { useRef, useState, useEffect, useCallback } from 'react';
 
 export interface AudioEngine {
   audioEl: HTMLAudioElement | null;
+  videoEl?: HTMLVideoElement | null;
+  mediaBusy?: boolean;
+  mediaError?: string;
   audioBuffer: AudioBuffer | null;
   isPlaying: boolean;
   currentTime: number;
@@ -20,6 +23,7 @@ export interface AudioEngine {
 }
 
 export function useAudioEngine(): AudioEngine {
+  const loadGeneration = useRef(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioBufferRef = useRef<AudioBuffer | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -102,13 +106,17 @@ export function useAudioEngine(): AudioEngine {
   const loadFile = useCallback(
     async (file: File) => {
       if (!audioRef.current) return;
+      const generation = ++loadGeneration.current;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
       const url = URL.createObjectURL(file);
       setObjectUrl(url);
+      audioRef.current.pause();
+      audioBufferRef.current = null; setAudioBuffer(null);
       audioRef.current.src = url;
       audioRef.current.load();
       try {
         const buffer = await decodeAudio(file);
+        if (generation !== loadGeneration.current) return;
         audioBufferRef.current = buffer;
         setAudioBuffer(buffer);
       } catch (err) {
@@ -150,6 +158,7 @@ export function useAudioEngine(): AudioEngine {
   );
 
   const clear = useCallback(() => {
+    loadGeneration.current += 1;
     const el = audioRef.current;
     if (el) {
       el.pause();

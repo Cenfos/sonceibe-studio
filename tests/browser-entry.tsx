@@ -1,3 +1,4 @@
+import { videoMixFixture, videoExportFixture, videoPersistenceFixture, seedVideo } from './video-fixture';
 import React from 'react';
 import { reelSettings, sliceAudioWav } from '../lib/reel';
 import { createRoot } from 'react-dom/client';
@@ -127,7 +128,7 @@ function renderLongLyrics() {
   return drawn;
 }
 const savedProjects = async () => (await loadRecentProjects('sonceibe-projects-v2:owner')).projects;
-const api = { seed, exportFixture, renderIntervals, renderLongLyrics, getProjectAudio, saveProjectAudio, listSnapshots, savedProjects, saveRecentProjects };
+const api = { videoMixFixture, videoExportFixture, videoPersistenceFixture, seedVideo, seed, exportFixture, renderIntervals, renderLongLyrics, getProjectAudio, saveProjectAudio, listSnapshots, savedProjects, saveRecentProjects };
 declare global { interface Window { studioTest: typeof api } }
 window.studioTest = api;
 if (location.search.includes('ui')) createRoot(document.getElementById('root')!).render(<StudioClient userId="owner" />);

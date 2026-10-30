@@ -6,7 +6,7 @@ const MEDIA_STORE = 'media';
 
 export const LOCAL_AUDIO_URL = 'sonceibe-local://audio';
 
-export type MediaKind = 'audio' | 'video';
+export type MediaKind = 'audio' | 'video' | `source-video/${string}`;
 
 interface MediaRecord {
   key: string;
@@ -177,4 +177,36 @@ export async function deleteProjectMedia(userId: string, projectId: string): Pro
   } finally {
     db.close();
   }
+}
+
+/** Source footage is separate from the generated MP4 cache. Immutable keys keep undo/history safe. */
+export async function saveSourceVideo(userId: string, projectId: string, file: File): Promise<string> {
+  const kind: MediaKind = `source-video/${crypto.randomUUID()}`;
+  const db = await openDb();
+  try {
+    const tx = db.transaction(MEDIA_STORE, 'readwrite');
+    tx.objectStore(MEDIA_STORE).put({ key: mediaKey(userId, projectId, kind), userId, projectId, kind, name: file.name, type: file.type || 'video/mp4', blob: file, updatedAt: Date.now() } satisfies MediaRecord);
+    await transactionDone(tx);
+    return `sonceibe-local://${kind}`;
+  } finally { db.close(); }
+}
+export async function getSourceVideo(userId: string, projectId: string, url: string): Promise<File | null> {
+  if (!url.startsWith('sonceibe-local://source-video/')) {
+    if (!url) return null;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error('No se pudo leer el vídeo de fondo');
+    const blob = await response.blob();
+    return new File([blob], 'video.mp4', { type: blob.type || 'video/mp4' });
+  }
+  const db = await openDb();
+  try {
+    const tx = db.transaction(MEDIA_STORE, 'readonly');
+    const record = await requestToPromise(tx.objectStore(MEDIA_STORE).get(mediaKey(userId, projectId, url.slice('sonceibe-local://'.length) as MediaKind)) as IDBRequest<MediaRecord | undefined>);
+    return record?.blob ? new File([record.blob], record.name, { type: record.type }) : null;
+  } finally { db.close(); }
+}
+export async function deleteProjectAudio(userId: string, projectId: string): Promise<void> {
+  const db = await openDb();
+  try { const tx = db.transaction(MEDIA_STORE, 'readwrite'); tx.objectStore(MEDIA_STORE).delete(mediaKey(userId, projectId, 'audio')); await transactionDone(tx); }
+  finally { db.close(); }
 }

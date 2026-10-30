@@ -1,4 +1,5 @@
 'use client';
+import { VideoBackgroundControls } from '@/components/studio/properties/video-background-controls';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -291,16 +292,17 @@ export function MobileStudioWizard() {
             </div>
             <div>
               <h1 className="text-xl font-semibold">{steps[step].label}</h1>
-              <p className="text-xs text-muted-foreground">Todo es opcional salvo la música para crear el MP4</p>
+              <p className="text-xs text-muted-foreground">Empieza con una canción o con un vídeo del móvil</p>
             </div>
           </div>
 
           {step === 0 && (
             <Card className="p-5 space-y-4">
               <div>
-                <h2 className="font-medium">Añade la canción</h2>
+                <h2 className="font-medium">Añade una canción o un vídeo</h2>
                 <p className="mt-1 text-sm text-muted-foreground">Quedará guardada localmente con este proyecto para no tener que buscarla de nuevo.</p>
               </div>
+              <VideoBackgroundControls />
               <input ref={audioInputRef} type="file" accept=".mp3,audio/*" className="hidden" onChange={loadAudio} />
               <Button className="w-full gap-2 h-12" onClick={() => audioInputRef.current?.click()} disabled={busy}>
                 <Upload className="h-4 w-4" />

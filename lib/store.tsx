@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useReducer, useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { captureSnapshot, copyProject, deleteSnapshots, listSnapshots, restoreSnapshotAudio, type ProjectSnapshot } from './project-history';
-import { deleteProjectMedia, getProjectAudio, saveProjectAudio, LOCAL_AUDIO_URL } from './local-media-storage';
+import { deleteProjectMedia, getSourceVideo, saveSourceVideo, getProjectAudio, saveProjectAudio, LOCAL_AUDIO_URL } from './local-media-storage';
 import { useStudioUserId } from './studio-user-context';
 import { toast } from 'sonner';
 import { hasProjectContent } from './project-content';
@@ -539,7 +539,7 @@ export function StoreProvider({ children, storageKey, migrateLegacy = false }: S
     saveBusy.current = true; setSavingFile(true);
     const snapshot = structuredClone(project);
     try {
-      const method = await saveProjectToDevice(snapshot, () => getProjectAudio(userId, snapshot.id));
+      const method = await saveProjectToDevice(snapshot, () => getProjectAudio(userId, snapshot.id), userId);
       if (method === 'download') {
         const confirmed = await new Promise<boolean>(resolve => setDownloadConfirmation({ title: snapshot.settings.title, resolve }));
         if (!confirmed) return false;
@@ -605,11 +605,16 @@ export function StoreProvider({ children, storageKey, migrateLegacy = false }: S
     try {
       const ids = await requestCapacity(MAX_RECENT_PROJECTS - 1);
       if (!ids) return false;
+      if (project.settings.background.videoUrl) {
+        const footage = await getSourceVideo(userId, input.id, project.settings.background.videoUrl);
+        if (!footage) throw new Error('Falta el vídeo original. Guarda una copia .scs que incluya el vídeo.');
+        project.settings.background.videoUrl = await saveSourceVideo(userId, project.id, footage);
+      }
       if (audioFile) { await saveProjectAudio(userId, project.id, audioFile); project.settings.audioUrl = LOCAL_AUDIO_URL; project.settings.audioName = audioFile.name; }
       await commitAdmission(project, ids, { external: external && (!project.settings.audioName || !!audioFile) });
       return true;
     } catch (error) {
-      if (audioFile) await deleteProjectMedia(userId, project.id).catch(() => {});
+      await deleteProjectMedia(userId, project.id).catch(() => {});
       throw error;
     } finally { admissionBusy.current = false; resumePersistence(); }
   }, [requestCapacity, commitAdmission, userId]);

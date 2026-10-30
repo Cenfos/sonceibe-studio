@@ -1,5 +1,5 @@
 import type { Project, ProjectSettings } from './types';
-import { getProjectAudio, LOCAL_AUDIO_URL, saveProjectAudio, deleteProjectMedia } from './local-media-storage';
+import { getProjectAudio, LOCAL_AUDIO_URL, saveProjectAudio, deleteProjectAudio, getSourceVideo, saveSourceVideo } from './local-media-storage';
 
 export interface ProjectSnapshot {
   id: string;
@@ -67,7 +67,7 @@ export async function captureSnapshot(scope: string, userId: string, project: Pr
 
 export async function restoreSnapshotAudio(userId: string, projectId: string, snapshot: ProjectSnapshot): Promise<void> {
   if (snapshot.audio) await saveProjectAudio(userId, projectId, snapshot.audio);
-  else if (!snapshot.settings.audioName && !snapshot.settings.audioUrl) await deleteProjectMedia(userId, projectId);
+  else if (!snapshot.settings.audioName && !snapshot.settings.audioUrl) await deleteProjectAudio(userId, projectId);
 }
 
 export async function copyProject(userId: string, source: Project, existing: Project[]): Promise<Project> {
@@ -84,6 +84,11 @@ export async function copyProject(userId: string, source: Project, existing: Pro
   if (audio) {
     await saveProjectAudio(userId, copy.id, audio);
     copy.settings.audioUrl = LOCAL_AUDIO_URL;
+  }
+  if (source.settings.background.videoUrl) {
+    const footage = await getSourceVideo(userId, source.id, source.settings.background.videoUrl);
+    if (!footage) throw new Error('No se encuentra el vídeo original. Cárgalo antes de duplicar.');
+    copy.settings.background.videoUrl = await saveSourceVideo(userId, copy.id, footage);
   }
   return copy;
 }

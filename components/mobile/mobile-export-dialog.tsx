@@ -110,6 +110,7 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
   const exportVideo = async () => {
     if (exporting) return;
 
+    if (audio.mediaBusy || audio.mediaError) { toast.error(audio.mediaError || 'Espera a que termine de preparar el vídeo y sonido'); return; }
     const audioEl = audio.audioEl as CapturableAudioElement | null;
     if (!audioEl || duration <= 0) {
       toast.error('Añade primero una canción');
