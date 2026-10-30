@@ -43,7 +43,8 @@ export default function AccessPage() {
         setError(data.error || 'No se pudo validar el código de acceso.');
         return;
       }
-      window.location.replace('/');
+      const next = new URLSearchParams(window.location.search).get('next');
+      window.location.replace(next === '/download/windows' ? next : '/');
     } catch {
       setError('No se pudo conectar con el servicio de acceso.');
     } finally {

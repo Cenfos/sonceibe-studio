@@ -10,7 +10,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:browser": "playwright test",
-    "check": "npm run typecheck && npm test && npm run build && npm run test:browser"
+    "check": "npm run typecheck && npm test && npm run build && npm run test:browser",
+    "desktop:dev": "node scripts/desktop.mjs dev",
+    "desktop:build": "node scripts/desktop.mjs build"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
@@ -45,6 +47,7 @@
     "@supabase/supabase-js": "^2.58.0",
     "@types/react": "18.2.22",
     "@types/react-dom": "18.2.7",
+    "@vercel/blob": "^2.8.2",
     "autoprefixer": "10.4.15",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",

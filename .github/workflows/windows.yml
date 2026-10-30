@@ -1,0 +1,31 @@
+name: Windows installer
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/windows-desktop]
+    paths: ['src-tauri/**', 'scripts/desktop.mjs', '.github/workflows/windows.yml']
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      STUDIO_DESKTOP_URL: https://sonceibe-studio.vercel.app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Prepare desktop configuration
+        shell: pwsh
+        run: |
+          @{ build = @{ frontendDist = $env:STUDIO_DESKTOP_URL } } | ConvertTo-Json -Depth 3 | Set-Content -Encoding utf8 src-tauri/desktop.generated.json
+      - name: Build Windows installer
+        run: npm exec --yes --package=@tauri-apps/cli@2 -- tauri build --config src-tauri/desktop.generated.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SonCeibe-Studio-Windows
+          path: src-tauri/target/release/bundle/nsis/*-setup.exe
+          if-no-files-found: error
+          retention-days: 14
