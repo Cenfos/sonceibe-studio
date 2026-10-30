@@ -64,7 +64,7 @@ export function PreviewPanel() {
     if (!ctx) return;
 
     try {
-      renderFrame(ctx, canvas.width, canvas.height, safeSettings, editingReel && reel ? Math.max(0, time - reel.start) : time);
+      renderFrame(ctx, canvas.width, canvas.height, safeSettings, editingReel && reel ? Math.max(0, time - reel.start) : time, audio.videoEl);
     } catch (error) {
       console.error('Preview render error:', error);
       ctx.save();
@@ -78,7 +78,7 @@ export function PreviewPanel() {
       ctx.fillText('No se pudo mostrar este fotograma', canvas.width / 2, canvas.height / 2);
       ctx.restore();
     }
-  }, [safeSettings, editingReel, reel]);
+  }, [safeSettings, editingReel, reel, audio.videoEl]);
 
   useEffect(() => {
     let cancelled = false;
@@ -138,6 +138,14 @@ export function PreviewPanel() {
     };
   }, [audio.isPlaying, audio.audioEl, draw]);
 
+  useEffect(() => {
+    const video = audio.videoEl;
+    if (!video) return;
+    const redraw = () => draw(audio.audioEl?.currentTime ?? 0);
+    video.addEventListener('seeked', redraw); video.addEventListener('loadeddata', redraw); redraw();
+    return () => { video.removeEventListener('seeked', redraw); video.removeEventListener('loadeddata', redraw); };
+  }, [audio.videoEl, audio.audioEl, draw]);
+
   const togglePlay = () => {
     if (editingReel && reel && (audio.currentTime < reel.start || audio.currentTime >= reel.end)) audio.seek(reel.start);
     else if (audio.currentTime >= duration) audio.seek(0);
@@ -180,6 +188,7 @@ export function PreviewPanel() {
             height={canvasHeight}
             className="w-full h-full block"
           />
+          {(audio.mediaBusy || audio.mediaError) && <div role="status" className="absolute inset-0 z-30 flex items-center justify-center bg-black/80 p-6 text-center text-sm text-white">{audio.mediaError || 'Preparando vídeo y sonido…'}</div>}
           {showSafeZone ? (
             <div className="pointer-events-none absolute inset-0 z-20 text-[9px] font-medium text-white/90">
               <div className="absolute inset-[5%] rounded border border-dashed border-cyan-300/80">
@@ -208,7 +217,7 @@ export function PreviewPanel() {
 
       <aside aria-label="Reproductor" className="studio-preview-controls flex w-20 shrink-0 flex-col items-center gap-2 overflow-y-auto rounded-xl border border-border bg-card/50 px-2 py-3">
         <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" aria-label="Retroceder 5 segundos" onClick={skipBack}><SkipBack className="h-4 w-4" /></Button>
-        <Button size="icon" className="h-10 w-10 shrink-0 rounded-full" aria-label={audio.isPlaying ? 'Pausar' : 'Reproducir'} onClick={togglePlay}>{audio.isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5 ml-0.5" />}</Button>
+        <Button size="icon" className="h-10 w-10 shrink-0 rounded-full" disabled={audio.mediaBusy || !!audio.mediaError} aria-label={audio.isPlaying ? 'Pausar' : 'Reproducir'} onClick={togglePlay}>{audio.isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5 ml-0.5" />}</Button>
         <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" aria-label="Detener" onClick={stop}><Square className="h-4 w-4" /></Button>
         <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" aria-label="Avanzar 5 segundos" onClick={skipForward}><SkipForward className="h-4 w-4" /></Button>
         <output aria-label="Tiempo de reproducción" className="text-[10px] font-mono text-muted-foreground tabular-nums">{formatTimecode(audio.currentTime)}</output>

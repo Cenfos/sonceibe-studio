@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import { useStore } from '@/lib/store';
 import { useAudioEngineContext } from '@/lib/audio-engine-context';
+import { VideoBackgroundControls } from './properties/video-background-controls';
 import { Button } from '@/components/ui/button';
 import { FormatSection, StyleSection } from './properties/design-sections';
 import { cleanParsedLyrics, parseLrcLyrics, parseTxtLyrics, readLyricsFile } from '@/lib/lyrics-utils';
@@ -42,7 +43,7 @@ export function CreationGuide({ guided, onGuidedChange, step, onStepChange: setS
       <nav aria-label="Pasos para crear un vídeo" className="flex flex-wrap gap-1">
         {['Audio', 'Letra', 'Formato', 'Estilo', 'Exportar'].map((label, index) => <Button key={label} className="flex-1 basis-24" size="sm" variant={step === index ? 'default' : 'outline'} aria-current={step === index ? 'step' : undefined} onClick={() => setStep(index)}>{index + 1}. {label}</Button>)}
       </nav>
-      {step === 0 && <><p className="text-sm">{hasAudio ? `Audio listo: ${settings.audioName || 'Canción cargada'}` : 'Carga tu canción para empezar.'}</p><Button variant="outline" onClick={() => window.dispatchEvent(new Event('sonceibe:upload-audio'))}>{hasAudio ? 'Cambiar audio' : 'Elegir audio'}</Button></>}
+      {step === 0 && <><VideoBackgroundControls /><p className="text-sm">{hasAudio ? `Audio listo: ${settings.audioName || 'Canción cargada'}` : 'Carga una canción o un vídeo para empezar.'}</p><Button variant="outline" onClick={() => window.dispatchEvent(new Event('sonceibe:upload-audio'))}>{hasAudio ? 'Cambiar audio' : 'Elegir audio'}</Button></>}
       {step === 1 && <>
         <p className="text-sm">La letra es opcional. Puedes cargar un archivo, escribirla en el editor o continuar sin letra.</p>
         <p className="text-xs text-muted-foreground" role="status">{lyricCount ? `Letra cargada: ${lyricCount} ${lyricCount === 1 ? 'frase' : 'frases'}. Revisa su sincronización antes de exportar.` : 'Todavía no has añadido letra.'}</p>

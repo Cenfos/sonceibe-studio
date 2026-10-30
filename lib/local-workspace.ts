@@ -1,5 +1,6 @@
 'use client';
 
+import { getSourceVideo } from './local-media-storage';
 import type { Project } from './types';
 
 const DB_NAME = 'sonceibe-studio-workspace-v1';
@@ -225,6 +226,7 @@ export async function saveProjectSnapshotToWorkspace(userId: string, project: Pr
 
   const projectDir = await getProjectDirectory(handle, userId, project.id, true);
   const fileHandle = await projectDir.getFileHandle('project.json', { create: true });
+  await saveWorkspaceVideo(userId, project, projectDir);
   const payload = JSON.stringify({
     format: 'sonceibe-studio-project',
     version: 1,
@@ -243,6 +245,7 @@ export async function saveProjectsToWorkspace(userId: string, projects: Project[
   for (const project of projects) {
     const projectDir = await getProjectDirectory(handle, userId, project.id, true);
     const fileHandle = await projectDir.getFileHandle('project.json', { create: true });
+    await saveWorkspaceVideo(userId, project, projectDir);
     const payload = JSON.stringify({
       format: 'sonceibe-studio-project',
       version: 1,
@@ -271,7 +274,15 @@ export async function loadProjectsFromWorkspace(userId: string): Promise<Project
         const file = await projectFileHandle.getFile();
         const parsed = JSON.parse(await file.text()) as { project?: unknown } | Project;
         const candidate = 'project' in parsed ? parsed.project : parsed;
-        if (isValidProject(candidate)) recovered.push(candidate);
+        if (isValidProject(candidate)) {
+          const bg = candidate.settings.background;
+          if (bg.videoUrl) {
+            const video = await (await entry.getFileHandle('source-video.bin', { create: false })).getFile();
+            const typed = new Blob([video], { type: 'video/mp4' });
+            bg.videoUrl = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = reject; reader.readAsDataURL(typed); });
+          }
+          recovered.push(candidate);
+        }
       } catch {
         // Ignore damaged or incomplete project folders and continue with the rest.
       }
@@ -313,4 +324,18 @@ export async function getProjectAudioFromWorkspace(
   } catch {
     return null;
   }
+}
+
+async function saveWorkspaceVideo(userId: string, project: Project, directory: DirectoryHandleLike) {
+  const url = project.settings.background.videoUrl;
+  if (!url) return;
+  try {
+    const marker = await (await directory.getFileHandle('source-video.key')).getFile();
+    const existing = await (await directory.getFileHandle('source-video.bin')).getFile();
+    if (await marker.text() === url && existing.size > 0) return;
+  } catch { /* First copy or an incomplete previous write. */ }
+  const file = await getSourceVideo(userId, project.id, url);
+  if (!file) throw new Error('No se encuentra el vídeo para la copia de la carpeta');
+  await writeFile(await directory.getFileHandle('source-video.bin', { create: true }), file);
+  await writeFile(await directory.getFileHandle('source-video.key', { create: true }), url);
 }

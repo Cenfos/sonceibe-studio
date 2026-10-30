@@ -88,6 +88,15 @@ export interface BackgroundConfig {
   imageFit: ImageFitMode;
   imagePlacement?: ImagePlacement;
   videoUrl: string;
+  videoName?: string;
+  videoDuration?: number;
+  videoStart?: number;
+  videoEnd?: number;
+  videoMuted?: boolean;
+  videoVolume?: number;
+  songVolume?: number;
+  songOffset?: number;
+  videoPlacement?: ImagePlacement;
   blur: number;
   overlay: number;
 }

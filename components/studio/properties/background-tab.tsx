@@ -1,5 +1,6 @@
 'use client';
 
+import { VideoBackgroundControls } from './video-background-controls';
 import { ImageFramingControls } from './image-framing-controls';
 import { PhotoInserts } from './photo-inserts';
 import { useStore } from '@/lib/store';
@@ -226,6 +227,7 @@ export function BackgroundTab() {
 
   return (
     <div className="space-y-5">
+      <VideoBackgroundControls />
       <PhotoInserts prepareImage={prepareImage} />
       <ControlRow label="Tipo de fondo">
         <div className="grid grid-cols-5 gap-1.5">

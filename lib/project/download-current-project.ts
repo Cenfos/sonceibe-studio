@@ -1,3 +1,4 @@
+import { getSourceVideo } from '@/lib/local-media-storage';
 import type { Project } from '@/lib/types';
 import { validateProject } from '@/lib/project-validation';
 
@@ -48,7 +49,8 @@ async function getAudioDataUrl(audioSrc?: string, audioBlob?: Blob | null): Prom
 export async function createPortableProjectBlob(
   project: Project,
   audioSrc?: string,
-  audioBlob?: Blob | null
+  audioBlob?: Blob | null,
+  userId = 'owner'
 ): Promise<Blob> {
   const audioDataUrl = await getAudioDataUrl(audioSrc ?? project.settings.audioUrl, audioBlob);
   if ((project.settings.audioName || project.settings.audioUrl) && !audioDataUrl) {
@@ -68,6 +70,12 @@ export async function createPortableProjectBlob(
     return resources.get(url)!;
   };
   const background = project.settings.background;
+  let videoUrl = background.videoUrl;
+  if (videoUrl) {
+    const file = await getSourceVideo(userId, project.id, videoUrl);
+    if (!file) throw new Error('No se pudo incluir el vídeo de fondo. Vuelve a cargarlo antes de guardar la copia.');
+    videoUrl = await blobToDataUrl(file);
+  }
   const [imageUrl, images, imageClips, photoClips, coverUrl] = await Promise.all([
     embedImage(background.imageUrl), Promise.all(background.images.map(embedImage)),
     Promise.all(background.imageClips.map(async clip => ({ ...clip, url: await embedImage(clip.url) }))),
@@ -78,7 +86,7 @@ export async function createPortableProjectBlob(
     ...project,
     settings: {
       ...project.settings,
-      background: { ...background, imageUrl, images, imageClips, photoClips },
+      background: { ...background, imageUrl, images, imageClips, photoClips, videoUrl },
       ...(project.settings.reel ? { reel: { ...project.settings.reel, coverUrl } } : {}),
       audioUrl:
         project.settings.audioUrl.startsWith('blob:') || project.settings.audioUrl.startsWith('sonceibe-local://')
@@ -95,9 +103,9 @@ export async function createPortableProjectBlob(
     audioDataUrl,
   };
 
-  return new Blob([JSON.stringify(payload)], {
-    type: 'application/json;charset=utf-8',
-  });
+  const blob = new Blob([JSON.stringify(payload)], { type: 'application/json;charset=utf-8' });
+  if (blob.size > 256 * 1024 * 1024) throw new Error('La copia .scs supera los 256 MB. Reduce el vídeo o el audio antes de guardarla. El proyecto local se conserva.');
+  return blob;
 }
 
 function downloadProjectBlob(project: Project, blob: Blob): void {
@@ -120,7 +128,7 @@ interface SaveHandle {
 }
 
 /** Open the picker immediately, while the click still carries user activation. */
-export async function saveProjectToDevice(project: Project, loadAudio: () => Promise<Blob | null>): Promise<'file' | 'download'> {
+export async function saveProjectToDevice(project: Project, loadAudio: () => Promise<Blob | null>, userId = 'owner'): Promise<'file' | 'download'> {
   const picker = (window as Window & { showSaveFilePicker?: (options: unknown) => Promise<SaveHandle> }).showSaveFilePicker;
   let handle: SaveHandle | null = null;
   if (picker) {
@@ -130,7 +138,7 @@ export async function saveProjectToDevice(project: Project, loadAudio: () => Pro
     }); }
     catch (error) { if (!(error instanceof DOMException && ['SecurityError', 'NotSupportedError'].includes(error.name))) throw error; }
   }
-  const blob = await createPortableProjectBlob(project, undefined, await loadAudio());
+  const blob = await createPortableProjectBlob(project, undefined, await loadAudio(), userId);
   if (!handle) { downloadProjectBlob(project, blob); return 'download'; }
   const writable = await handle.createWritable();
   try { await writable.write(blob); await writable.close(); }

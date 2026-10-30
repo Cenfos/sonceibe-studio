@@ -39,7 +39,7 @@ export function reelSettings(settings: ProjectSettings, start: number, end: numb
       : trim(settings.lyrics).map(line => ({ ...line, words: line.words ? trim(line.words) : undefined })),
     background: coverUrl
       ? { ...base.background, type: 'image', imageUrl: coverUrl, imageFit: 'cover', images: [], imageClips: [], photoClips: [] }
-      : { ...bg, imageMode: bg.type === 'images' ? 'manual' : bg.imageMode, imageClips: trim(imageClips), photoClips: trim(bg.photoClips || []) },
+      : { ...bg, ...(bg.type === 'video' ? { videoStart: (bg.videoStart || 0) + start, videoEnd: (bg.videoStart || 0) + end } : {}), imageMode: bg.type === 'images' ? 'manual' : bg.imageMode, imageClips: trim(imageClips), photoClips: trim(bg.photoClips || []) },
     exportConfig: { ...settings.exportConfig, orientation: 'portrait', resolution: '1080p', fps: 30, includeAudio: true },
   };
 }

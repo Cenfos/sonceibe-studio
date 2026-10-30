@@ -112,6 +112,7 @@ export function ExportDialog() {
   const exportVideo = async () => {
     if (exporting || exportController.current) return;
 
+    if (audio.mediaBusy || audio.mediaError) { toast.error(audio.mediaError || 'Espera a que termine de preparar el vídeo y sonido'); return; }
     const audioEl = audio.audioEl as CapturableAudioElement | null;
     if (!audioEl || duration <= 0) {
       toast.error('Carga primero el MP3');
