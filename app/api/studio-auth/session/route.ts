@@ -1,23 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
-import {
-  STUDIO_SESSION_COOKIE,
-  isStudioAccessConfigured,
-  readStudioSession,
-} from '@/lib/studio-auth-server';
-
+import { NextResponse } from 'next/server';
+import { currentStudioUser } from '@/lib/studio-auth-server';
 export const runtime = 'nodejs';
-
-export function GET(request: NextRequest) {
-  if (!isStudioAccessConfigured() && process.env.NODE_ENV !== 'production') {
-    return NextResponse.json({ authenticated: true, userId: 'owner' });
-  }
-
-  const token = request.cookies.get(STUDIO_SESSION_COOKIE)?.value;
-  const session = readStudioSession(token);
-
-  if (!session) {
-    return NextResponse.json({ authenticated: false }, { status: 401 });
-  }
-
-  return NextResponse.json({ authenticated: true, userId: session.u });
+export async function GET() {
+  const user = await currentStudioUser();
+  return NextResponse.json(user ? { authenticated: true, userId: user.id, name: user.user_metadata.name } : { authenticated: false }, {
+    status: user ? 200 : 401, headers: { 'Cache-Control': 'private, no-store' },
+  });
 }
+
