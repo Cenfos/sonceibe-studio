@@ -9,7 +9,7 @@ El registro usa Supabase Auth con nombre, correo y contraseña. El nombre se gua
 3. En Authentication activa Email, el registro de usuarios y Confirm email. Configura un mínimo de 8 caracteres para las contraseñas.
 4. En URL Configuration configura Site URL como https://www.sonceibe.es/studio (sin barra final). Las plantillas añaden /access y no necesitan cambios.
 5. Configura SMTP propio para enviar a usuarios reales. El remitente integrado de Supabase es para pruebas y restringe destinatarios y frecuencia.
-6. En Email Templates cambia los enlaces de Confirm signup y Reset password como se indica abajo. Las plantillas por defecto no corresponden con el flujo token_hash de esta aplicación.
+6. Puedes usar las plantillas predeterminadas de Supabase o personalizarlas con los enlaces token_hash indicados abajo. Studio admite tanto la sesión devuelta en el fragmento de las plantillas predeterminadas como los enlaces token_hash.
 7. Revisa los límites de frecuencia del proveedor. La aplicación conserva las respuestas 429; no usa contadores locales en una instancia de Vercel.
 
 Confirm signup:

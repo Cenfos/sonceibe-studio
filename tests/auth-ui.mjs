@@ -29,6 +29,7 @@ try {
   await page.getByRole('status').waitFor();
   await page.goto(base + '/studio/access?token_hash=test-token&type=recovery');
   await page.getByRole('button', { name: 'Continuar', exact: true }).waitFor();
+  await page.waitForURL(url => url.pathname === '/studio/access' && !url.search);
   assert.equal(new URL(page.url()).search, '');
   await page.route('**/studio/api/studio-auth/confirm', route => route.fulfill({ json: { ok: true, recovery: true } }));
   await page.getByRole('button', { name: 'Continuar', exact: true }).click();
@@ -38,6 +39,25 @@ try {
   await page.route('**/studio/api/studio-auth/update-password', route => route.fulfill({ json: { ok: true, message: 'Contraseña actualizada.' } }));
   await page.getByRole('button', { name: 'Guardar nueva contraseña' }).click();
   await page.getByRole('heading', { name: 'Entra en tu Studio' }).waitFor();
+  // Supabase's default email template returns a session in the URL fragment.
+  await page.route('**/studio/api/studio-auth/complete-session', async route => {
+    const body = route.request().postDataJSON();
+    assert.equal(body.access_token, 'test-access');
+    assert.equal(body.refresh_token, 'test-refresh');
+    assert.equal(body.type, 'recovery');
+    await route.fulfill({ json: { ok: true, recovery: true } });
+  });
+  await page.goto(base + '/studio#access_token=test-access&refresh_token=test-refresh&type=recovery');
+  await page.getByRole('heading', { name: 'Elige una nueva contraseña' }).waitFor();
+  assert.equal(new URL(page.url()).hash, '');
+  await page.getByLabel('Nueva contraseña', { exact: true }).fill('changed-password123');
+  await page.getByLabel('Repite la contraseña').fill('changed-password123');
+  await page.getByRole('button', { name: 'Guardar nueva contraseña' }).click();
+  await page.getByRole('status').filter({ hasText: 'actualizada' }).waitFor();
+  await page.goto(base + '/studio/access#error=access_denied&error_code=otp_expired');
+  await page.getByRole('alert').filter({ hasText: 'caducado' }).waitFor();
+  assert.equal(new URL(page.url()).hash, '');
+  await page.getByRole('button', { name: 'Volver a entrar' }).click();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole('button', { name: /Aún no tienes cuenta/ }).click();
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));

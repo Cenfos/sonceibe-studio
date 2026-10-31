@@ -101,10 +101,29 @@ it('preserves download destinations and rejects external return URLs', async () 
   }
 });
 it('keeps confirmation and password update pages reachable when already signed in', async () => {
-  for (const query of ['?token_hash=token&type=recovery', '?mode=update']) {
+  for (const query of ['?token_hash=token&type=recovery', '?mode=update', '?mode=callback']) {
     const response = await proxy(new NextRequest('https://studio.example/studio/access' + query, { headers: { cookie: 'studio-access=valid-access' } }));
     expect(response.headers.get('location')).toBeNull();
   }
+});
+
+it('validates standard email callback tokens with Supabase before creating cookies', async () => {
+  expect((await handleAuth(request({ access_token: 'access-only' }), 'complete-session')).status).toBe(400);
+  expect(auth.setSession).not.toHaveBeenCalled();
+  auth.setSession.mockResolvedValue({ data: { session }, error: null });
+  const response = await handleAuth(request({ access_token: 'email-access', refresh_token: 'email-refresh', type: 'recovery' }), 'complete-session');
+  expect(auth.getUser).toHaveBeenCalledWith(session.access_token);
+  expect((await response.json()).recovery).toBe(true);
+  expect(response.cookies.get(ACCESS_COOKIE)?.value).toBe(session.access_token);
+  expect(response.cookies.get(ACCESS_COOKIE)?.path).toBe('/studio');
+});
+
+it('rejects a forged standard-email session even if its payload claims recovery', async () => {
+  auth.setSession.mockResolvedValue({ data: { session }, error: null });
+  auth.getUser.mockResolvedValue({ data: { user: null }, error: { status: 401 } });
+  const response = await handleAuth(request({ access_token: 'forged', refresh_token: 'forged', type: 'recovery' }), 'complete-session');
+  expect(response.status).toBe(401);
+  expect(response.cookies.get(ACCESS_COOKIE)).toBeUndefined();
 });
 it('clears both cookies and revokes the current session on logout', async () => {
   jar.set(ACCESS_COOKIE, session.access_token);

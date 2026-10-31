@@ -13,7 +13,7 @@ function diagnostic(action: string, failure: ProviderFailure, fallback = 'unknow
   return reference;
 }
 export async function handleAuth(request: Request, action: string) {
-  if (!['login', 'signup', 'recover', 'confirm', 'update-password', 'logout'].includes(action)) return reply({ error: 'Acción desconocida.' }, 404);
+  if (!['login', 'signup', 'recover', 'confirm', 'complete-session', 'update-password', 'logout'].includes(action)) return reply({ error: 'Acción desconocida.' }, 404);
   const origin = request.headers.get('origin');
   const host = request.headers.get('host') || new URL(request.url).host;
   let sameOrigin = false;
@@ -36,6 +36,24 @@ export async function handleAuth(request: Request, action: string) {
     const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
     const password = typeof body.password === 'string' ? body.password : '';
     const name = typeof body.name === 'string' ? body.name.trim() : '';
+    if (action === 'complete-session') {
+      if (typeof body.access_token !== 'string' || !body.access_token || body.access_token.length > 16384 ||
+          typeof body.refresh_token !== 'string' || !body.refresh_token || body.refresh_token.length > 4096) {
+        return reply({ error: 'El enlace está incompleto. Solicita un nuevo correo.' }, 400);
+      }
+      // Standard Supabase email links return tokens in a browser-only fragment.
+      // Validate them with the provider before creating any server cookies.
+      const { data, error } = await client.auth.setSession({ access_token: body.access_token, refresh_token: body.refresh_token });
+      if (error || !data.session) {
+        const reference = diagnostic(action, error || {}, 'invalid_email_session');
+        return reply({ error: `El enlace ha caducado o ya no es válido. Solicita uno nuevo. Referencia: ${reference}.` }, 401);
+      }
+      const verified = await client.auth.getUser(data.session.access_token);
+      if (verified.error || !verified.data.user?.email_confirmed_at) return reply({ error: 'No se pudo confirmar la cuenta. Solicita un nuevo enlace.' }, 401);
+      const response = reply({ ok: true, recovery: body.type === 'recovery' });
+      setAuthCookies(response, data.session);
+      return response;
+    }
     if (['login', 'signup', 'recover'].includes(action) && (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254)) return reply({ error: 'Introduce un correo válido.' }, 400);
     if (['signup', 'update-password'].includes(action) && (password.length < 8 || password.length > 128)) return reply({ error: 'La contraseña debe tener entre 8 y 128 caracteres.' }, 400);
     if (action === 'signup' && (!name || name.length > 80)) return reply({ error: 'El nombre debe tener entre 1 y 80 caracteres.' }, 400);

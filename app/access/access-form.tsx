@@ -26,6 +26,43 @@ export default function AccessForm({ initialToken, initialType, initialMode, des
     if (initialToken) window.history.replaceState(null, '', studioPath('/access'));
   }, [initialToken]);
 
+  useEffect(() => {
+    let active = true;
+    const handleFragment = () => {
+      const fragment = new URLSearchParams(window.location.hash.slice(1));
+      if (!fragment.has('access_token') && !fragment.has('error')) return;
+    // Defer to avoid issuing the exchange twice during React's development replay.
+    void Promise.resolve().then(async () => {
+      if (!active) return;
+      window.history.replaceState(null, '', studioPath('/access?mode=callback'));
+      setLoading(true); setError('');
+      try {
+        if (fragment.has('error')) {
+          setMode('recover');
+          setError('El enlace ha caducado o ya se ha utilizado. Solicita un nuevo correo de recuperación.');
+          return;
+        }
+        const response = await fetch(studioPath('/api/studio-auth/complete-session'), {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ access_token: fragment.get('access_token'), refresh_token: fragment.get('refresh_token'), type: fragment.get('type') }),
+        });
+        const data = await response.json();
+        if (!active) return;
+        if (!response.ok || !data.ok) { setMode('recover'); setError(data.error || 'Solicita un nuevo enlace de recuperación.'); return; }
+        if (data.recovery) {
+          setMode('update'); setPassword(''); setRepeat('');
+          window.history.replaceState(null, '', studioPath('/access?mode=update'));
+        } else window.location.replace(next);
+      } catch {
+        if (active) setError('No se pudo comprobar el enlace. Solicita un nuevo correo y vuelve a intentarlo.');
+      } finally { if (active) setLoading(false); }
+      });
+    };
+    handleFragment();
+    window.addEventListener('hashchange', handleFragment);
+    return () => { active = false; window.removeEventListener('hashchange', handleFragment); };
+  }, [next]);
+
   function changeMode(value: Mode) {
     setMode(value); setError(''); setMessage(''); setPassword(''); setRepeat('');
   }

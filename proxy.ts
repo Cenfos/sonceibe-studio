@@ -27,7 +27,7 @@ export async function proxy(request: NextRequest) {
     const url = new URL(studioPath('/access'), studioRequestOrigin(request));
     if (path === '/download/windows') url.searchParams.set('next', path);
     response = NextResponse.redirect(url);
-  } else if (path === '/access' && authenticated && !request.nextUrl.searchParams.has('token_hash') && request.nextUrl.searchParams.get('mode') !== 'update') {
+  } else if (path === '/access' && authenticated && !request.nextUrl.searchParams.has('token_hash') && !['update', 'callback'].includes(request.nextUrl.searchParams.get('mode') || '')) {
     response = NextResponse.redirect(new URL(safeDestination(request.nextUrl.searchParams.get('next')), studioRequestOrigin(request)));
   } else response = NextResponse.next({ request: { headers: request.headers } });
   if (session) setAuthCookies(response, session);
