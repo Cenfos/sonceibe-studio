@@ -26,6 +26,7 @@ export function ReelDialog({ fromTimeline = false, onRequestAudio, onManualDesig
   const [result, setResult] = useState<{ url: string; blob: Blob } | null>(null);
   const [previewing, setPreviewing] = useState(false);
   const canvas = useRef<HTMLCanvasElement>(null);
+  const resultPanel = useRef<HTMLDivElement>(null);
   const exportController = useRef<AbortController | null>(null);
   useEffect(() => () => exportController.current?.abort(), []);
   const project = currentProject?.settings;
@@ -51,6 +52,7 @@ export function ReelDialog({ fromTimeline = false, onRequestAudio, onManualDesig
   };
   useEffect(() => () => { if (result) URL.revokeObjectURL(result.url); }, [result]);
   useEffect(() => { setResult(null); }, [project]);
+  useEffect(() => { if (result) resultPanel.current?.scrollIntoView({ block: 'start' }); }, [result]);
   useEffect(() => { if (!open || !previewing) return;
     if (audio.currentTime >= reel.end || audio.currentTime < reel.start - 0.1) { audio.pause(); setPreviewing(false); }
   }, [audio, open, previewing, reel.start, reel.end]);
@@ -165,7 +167,7 @@ export function ReelDialog({ fromTimeline = false, onRequestAudio, onManualDesig
         {busy && <p role="status">Preparando Reel… {Math.round(progress)} % · Mantén esta ventana abierta.</p>}
         {busy && exportController.current && <Button variant="outline" onClick={() => close(false)}>Cancelar creación</Button>}
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-        {result && <div className="space-y-3"><video src={result.url} controls className="mx-auto max-h-72 rounded" /><a className="block rounded bg-primary p-3 text-center text-primary-foreground" href={result.url} download={`${name}.mp4`}>Descargar Reel</a>
+        {result && <div ref={resultPanel} className="space-y-3"><p role="status" className="text-sm font-medium">Reel listo. Descarga el MP4 para guardarlo.</p><a className="block rounded bg-primary p-3 text-center text-primary-foreground" href={result.url} download={`${name}.mp4`}>Descargar Reel</a><video src={result.url} controls className="mx-auto max-h-72 rounded" />
           {typeof navigator !== 'undefined' && navigator.canShare?.({ files: [new File([result.blob], `${name}.mp4`, { type: 'video/mp4' })] }) && <Button className="w-full" variant="outline" onClick={() => { void navigator.share({ files: [new File([result.blob], `${name}.mp4`, { type: 'video/mp4' })] }).catch(err => { if (err.name !== 'AbortError') setError('No se pudo compartir. Puedes descargar el Reel.'); }); }}>Compartir Reel</Button>}
         </div>}
       </DialogContent>

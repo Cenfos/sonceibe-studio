@@ -145,6 +145,7 @@ test.describe('phone video Reel regression', () => {
     await expect(dialog.getByRole('link', { name: 'Descargar Reel', exact: true })).toBeVisible({ timeout: 25000 });
     const soundUrl = await dialog.locator('video').getAttribute('src');
     expect(await page.evaluate(url => window.studioTest.videoSoundRms(url!), soundUrl)).toBeGreaterThan(0.025);
+    await expect(dialog.getByRole('link', { name: 'Descargar Reel', exact: true })).toBeInViewport();
     await page.screenshot({ path: 'test-results/video-reel-phone-export.png' });
     const download = page.waitForEvent('download'); await dialog.getByRole('link', { name: 'Descargar Reel', exact: true }).click();
     expect((await download).suggestedFilename()).toMatch(/reel.*\.mp4$/);
