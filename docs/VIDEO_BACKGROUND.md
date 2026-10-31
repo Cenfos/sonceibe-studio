@@ -11,3 +11,11 @@ El encuadre admite ver completo, llenar recortando, posición horizontal y verti
 El material original se guarda en IndexedDB con claves inmutables, separado de los MP4 exportados. Esto permite deshacer cambios de vídeo y recuperar versiones anteriores. Se incluye dentro de la copia .scs y se copia al duplicar el proyecto; en la carpeta local se guarda junto a project.json. El .scs mantiene el límite total de 256 MB para poder reabrirse.
 
 Los proyectos antiguos con solo audio conservan su funcionamiento. La app Windows de Tauri carga la web actualizada y recibe esta función al reabrirla; no requiere otro instalador.
+
+## Estilos sobre vídeo y exportación de Reels
+
+Los estilos preparados sobre una grabación añaden únicamente el marco y la marca Son Ceibe: no sustituyen la fuente, su recorte o encuadre, el sonido ni los textos del usuario. El centro queda transparente, sin fondos de color, velos, partículas o viñetas del estilo. Al abrir proyectos que ya tenían esos efectos se aplica la misma protección en el renderizado. Con fotos y fondos sin vídeo se conserva el comportamiento completo de las plantillas.
+
+La exportación usa una pista de Web Audio cuando el navegador no ofrece captura del elemento de audio. El final del fragmento también se comprueba por el reloj de reproducción; una reproducción bloqueada devuelve un error recuperable en lugar de mantener la creación indefinidamente. Las pruebas generan y descargan Reels con vídeo y sonido original tanto en PC como en vista móvil, incluyendo la captura alternativa.
+
+El Reel espera a que el sonido del vídeo esté preparado antes de abrirse. Los intervalos 0–0 guardados al abrir demasiado pronto se reinicializan al rango válido del vídeo al volver al diálogo.

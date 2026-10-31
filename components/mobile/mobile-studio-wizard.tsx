@@ -35,9 +35,9 @@ import { saveProjectAudioToWorkspace } from '@/lib/local-workspace';
 import { LyricsSyncDialog } from '@/components/studio/lyrics/lyrics-sync-dialog';
 import { MobileOrientationGate } from '@/components/studio/mobile-orientation-gate';
 import { MobileExportDialog } from '@/components/mobile/mobile-export-dialog';
-import { SONCEIBE_LOGO_URL, getVisualPreset, visualPresets, presetBackground } from '@/lib/visual-presets';
+import { SONCEIBE_LOGO_URL, getVisualPreset, visualPresets, settingsWithVisualPreset } from '@/lib/visual-presets';
 import { ThemePreviewDecoration } from '@/components/studio/properties/visual-preset-picker';
-import { defaultTitleStyle, type VisualStyleId } from '@/lib/types';
+import { type VisualStyleId } from '@/lib/types';
 import { toast } from 'sonner';
 import { getExportPreflight, hasBlockingExportIssue } from '@/lib/export-preflight';
 import { MobileAudioPlayer } from './mobile-audio-player';
@@ -146,11 +146,7 @@ export function MobileStudioWizard() {
   const applyVisualPreset = (styleId: VisualStyleId) => {
     const preset = getVisualPreset(styleId);
     if (!preset) return;
-    updateSettings({ visualStyle: preset.id, titleStyle: { ...defaultTitleStyle, ...preset.title } });
-    updateBackground(presetBackground(currentProject!.settings.background, preset));
-    updateText(preset.text);
-    updateAnimation(preset.animation);
-    updateEffects(preset.effects);
+    updateSettings(settingsWithVisualPreset(currentProject!.settings, preset));
   };
 
   const loadAudio = async (event: React.ChangeEvent<HTMLInputElement>) => {

@@ -78,9 +78,51 @@ export async function videoPersistenceFixture() {
   const copied = await getSourceVideo('owner', copy.id, copy.settings.background.videoUrl);
   return { sourceSize: file.size, restoredSize: restored?.size, copiedSize: copied?.size, sourceKey: videoUrl, copyKey: copy.settings.background.videoUrl, bg: imported.project.settings.background, audio: imported.audioFile };
 }
-export async function seedVideo() {
+export async function seedVideo(emptyReel = false) {
   const file = await sourceFixture(), settings = createDefaultProjectSettings();
   settings.title = 'Vídeo del móvil'; settings.showTitle = false;
+  if (emptyReel) settings.reel = { start: 0, end: 0, coverUrl: '', showLyrics: true, showTitle: false };
   settings.background = { ...settings.background, type: 'video', videoUrl: await saveSourceVideo('owner', 'video-ui', file), videoName: file.name, videoDuration: 3.4, videoStart: 0.5, videoEnd: 2.8 };
   localStorage.setItem('sonceibe-projects-v2:owner', JSON.stringify([{ id: 'video-ui', settings }]));
+}
+
+export async function videoStylesFixture() {
+  const { visualPresets, settingsWithVisualPreset } = await import('../lib/visual-presets');
+  const { preloadVisualBranding } = await import('../lib/visual-branding');
+  const { renderFrame } = await import('../components/studio/preview/canvas-renderer');
+  const file = await sourceFixture(), url = URL.createObjectURL(file), video = await openSourceVideo(url);
+  try {
+    const canvas = document.createElement('canvas'); canvas.width = 270; canvas.height = 480; const ctx = canvas.getContext('2d')!;
+    const settings = createDefaultProjectSettings(); settings.showTitle = false; settings.showSonCeibeBranding = false;
+    settings.background = { ...settings.background, type: 'video', videoUrl: url, videoName: file.name, videoStart: 0.5, videoEnd: 2.8, videoDuration: 3.4, overlay: 0 };
+    const reports = [];
+    for (const preset of visualPresets) {
+      const themed = { ...settings, ...settingsWithVisualPreset(settings, preset) };
+      await preloadVisualBranding(preset.id, true);
+      let logos = 0; const draw = ctx.drawImage;
+      ctx.drawImage = ((...args: unknown[]) => { if (args[0] instanceof HTMLImageElement) logos++; Reflect.apply(draw, ctx, args); }) as typeof ctx.drawImage;
+      const centers: number[][] = [];
+      for (const time of [0.5, 2.1]) { await seekSourceVideo(video, time); renderFrame(ctx, 270, 480, themed, time, video); centers.push(Array.from(ctx.getImageData(135, 200, 1, 1).data)); }
+      const image = ctx.getImageData(0, 0, 270, 480).data; let edgeDifferences = 0;
+      for (let y = 0; y < 55; y++) for (let x = 0; x < 270; x++) { const index = (y * 270 + x) * 4; if ([0, 1, 2].some(channel => Math.abs(image[index + channel] - centers[1][channel]) > 10)) edgeDifferences++; }
+      ctx.drawImage = draw;
+      // Previously saved overlays must not cover a video when its preset is restored.
+      renderFrame(ctx, 270, 480, { ...themed, background: { ...themed.background, overlay: 1 }, effects: { ...themed.effects, overlay: 1, lightleaks: true } }, 2.1, video);
+      reports.push({ id: preset.id, videoUrl: themed.background.videoUrl === url, centers, edgeDifferences, logos, legacyCenter: Array.from(ctx.getImageData(135, 200, 1, 1).data) });
+    }
+    return reports;
+  } finally { releaseVideo(video); URL.revokeObjectURL(url); }
+}
+
+export async function videoSoundRms(url: string) {
+  const { Input, BlobSource, ALL_FORMATS, AudioBufferSink } = await import('mediabunny');
+  const blob = await (await fetch(url)).blob(); const input = new Input({ source: new BlobSource(blob), formats: ALL_FORMATS });
+  try {
+    const track = await input.getPrimaryAudioTrack(); if (!track) return 0;
+    let energy = 0, samples = 0;
+    for await (const { buffer } of new AudioBufferSink(track).buffers(0.1, 0.8)) {
+      const channel = buffer.getChannelData(0); for (const sample of channel) energy += sample * sample; samples += channel.length;
+    }
+    return samples ? Math.sqrt(energy / samples) : 0;
+  } finally { input.dispose(); }
 }

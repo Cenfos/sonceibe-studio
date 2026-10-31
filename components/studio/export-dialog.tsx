@@ -129,6 +129,7 @@ export function ExportDialog() {
     try {
       const result = await createProjectMp4({
         audioEl,
+        audioBuffer: audio.audioBuffer,
         duration,
         settings: currentProject.settings,
         target,
