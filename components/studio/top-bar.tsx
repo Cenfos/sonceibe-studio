@@ -229,7 +229,7 @@ export function TopBar() {
           <Separator orientation="vertical" className="studio-mobile-hide h-6" />
 
           <div className="flex items-center gap-2 min-w-0">
-            <span className="studio-project-title text-sm font-medium truncate">
+            <span className="studio-project-title max-w-[160px] text-sm font-medium truncate 2xl:max-w-[260px]">
               {currentProject?.settings.title || 'Sin título'}
             </span>
             {currentProject?.settings.artist && (
@@ -241,14 +241,14 @@ export function TopBar() {
               </>
             )}
             <span
-              className="hidden xl:flex items-center gap-1 text-[11px] text-muted-foreground ml-1"
+              className="hidden 2xl:flex items-center gap-1 whitespace-nowrap text-[11px] text-muted-foreground ml-1"
               title="El autoguardado del navegador es independiente del archivo .scs de tu equipo"
             >
               <HardDrive className="h-3 w-3" />
               {currentProject && hasExternalCopy(currentProject, externalCopies) ? 'Copia guardada en tu equipo' : 'Sólo en este navegador'}
             </span>
             <span
-              className="hidden lg:flex items-center gap-1 text-[11px] text-muted-foreground ml-1"
+              className="hidden 2xl:flex items-center gap-1 whitespace-nowrap text-[11px] text-muted-foreground ml-1"
               title="El proyecto se guarda automáticamente en este navegador"
             >
               {autoSaveStatus === 'saving' ? (
@@ -294,7 +294,7 @@ export function TopBar() {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <Button variant="outline" size="sm" onClick={() => void handleSaveProject()} aria-label="Guardar proyecto .scs" className="gap-1.5"><Save className="h-4 w-4" /><span className="studio-action-label">Guardar proyecto</span></Button>
+          <Button variant="outline" size="sm" onClick={() => void handleSaveProject()} aria-label="Guardar proyecto .scs" className="gap-1.5"><Save className="h-4 w-4" /><span className="studio-action-label hidden xl:inline">Guardar proyecto</span></Button>
           <ProjectVersions />
           <AccountMenu compact />
           <input
@@ -312,7 +312,7 @@ export function TopBar() {
             aria-label="Cargar MP3"
           >
             <Upload className="h-4 w-4" />
-            <span className="studio-action-label">Cargar MP3</span>
+            <span className="studio-action-label hidden xl:inline">Cargar MP3</span>
           </Button>
 
           <input
@@ -331,7 +331,7 @@ export function TopBar() {
             aria-label="Cargar letra"
           >
             <FileText className="h-4 w-4" />
-            <span className="studio-action-label">Cargar letra</span>
+            <span className="studio-action-label hidden xl:inline">Cargar letra</span>
           </Button>
 
           <Button
@@ -344,7 +344,7 @@ export function TopBar() {
             aria-label="Sincronizar letra"
           >
             <Hand className="h-4 w-4" />
-            <span className="studio-action-label">Sincronizar</span>
+            <span className="studio-action-label hidden xl:inline">Sincronizar</span>
           </Button>
 
           <TooltipProvider delayDuration={300}>
@@ -359,7 +359,7 @@ export function TopBar() {
                   aria-label="Exportar"
                 >
                   <Download className="h-4 w-4" />
-                  <span className="studio-action-label">Exportar</span>
+                  <span className="studio-action-label hidden xl:inline">Exportar</span>
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Exportar MP4, TXT o LRC (Ctrl+E)</TooltipContent>

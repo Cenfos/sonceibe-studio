@@ -21,6 +21,8 @@ test('shows the account on home and editor and updates the name in both', async 
   await page.getByRole('button', { name: 'Cuenta: Ana nueva', exact: true }).click();
   await expect(page.getByRole('menuitem', { name: 'Cambiar contraseña' })).toBeVisible();
   await expect(page.getByText('ana@example.com', { exact: true })).toBeVisible();
+  await expect(page.getByRole('menu')).toHaveCSS('opacity', '1');
+  await page.screenshot({ path: 'tests/.generated/account-desktop.png', fullPage: true });
 });
 
 test('validates repeated password, shows errors, and confirms a successful account password change', async ({ page }) => {
