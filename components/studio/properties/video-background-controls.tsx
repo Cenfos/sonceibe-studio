@@ -7,6 +7,7 @@ import { useAudioEngineContext } from '@/lib/audio-engine-context';
 import { saveSourceVideo, saveProjectAudio, deleteProjectAudio, LOCAL_AUDIO_URL } from '@/lib/local-media-storage';
 import { MAX_SOURCE_VIDEO_BYTES, openSourceVideo, releaseVideo, videoRange } from '@/lib/source-video';
 import { Button } from '@/components/ui/button';
+import { VideoImageControls } from './video-image-controls';
 import { ImageFramingControls } from './image-framing-controls';
 import { toast } from 'sonner';
 
@@ -75,6 +76,7 @@ export function VideoBackgroundControls() {
         <Button variant="ghost" size="sm" disabled={busy} onClick={removeSong}>Quitar canción añadida</Button>
       </>}
       <p className="text-xs leading-5 text-muted-foreground">El montaje dura lo que el recorte del vídeo. La canción empieza junto al vídeo desde el segundo elegido; si termina antes, el resto queda sin esa canción.</p>
+      <VideoImageControls />
       <ImageFramingControls label="vídeo" value={bg.videoPlacement} fit="cover" maxScale={300} onChange={videoPlacement => updateBackground({ videoPlacement })} />
       <Button variant="outline" size="sm" className="w-full gap-2" disabled={busy} onClick={() => updateBackground({ type: 'gradient', videoUrl: '', videoName: '', videoDuration: 0, videoStart: 0, videoEnd: 0 })}><Trash2 className="h-4 w-4" />Quitar vídeo · conservar canción</Button>
     </>}

@@ -8,6 +8,7 @@ import { exportToTxt, exportToLrc, downloadTextFile } from '@/lib/lyrics-utils';
 import { createProjectMp4, type CapturableAudioElement } from '@/lib/video-exporter';
 import {
   VIDEO_PROFILES,
+  videoProfileForQuality,
   videoTargetFromOrientation,
   type VideoTarget,
 } from '@/lib/video-profiles';
@@ -19,6 +20,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
+import { ExportQualityControl } from './export-quality-control';
 import { ReelDialog } from './reel-dialog';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -87,7 +89,7 @@ export function ExportDialog() {
 
   if (!currentProject) return null;
 
-  const profile = VIDEO_PROFILES[target];
+  const profile = videoProfileForQuality(target, currentProject.settings.exportConfig.quality);
   const duration = audio.duration || currentProject.settings.audioDuration || 0;
   const includeAudio = currentProject.settings.exportConfig.includeAudio;
   const title = currentProject.settings.title || 'SonCeibe';
@@ -288,6 +290,7 @@ export function ExportDialog() {
                   </button>
                 </div>
 
+                <ExportQualityControl />
                 <label className="flex items-center justify-between rounded-lg border border-border p-3 text-sm">
                   <span>Incluir música</span>
                   <input

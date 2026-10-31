@@ -3,7 +3,7 @@
 import { openSourceVideo, releaseVideo, seekSourceVideo, sourceVideoUrls } from './source-video';
 import type { ProjectSettings } from './types';
 import {
-  VIDEO_PROFILES,
+  videoProfileForQuality,
   matchesVideoProfile,
   settingsForVideoTarget,
   type VideoTarget,
@@ -197,7 +197,7 @@ export async function createProjectMp4(options: Mp4ExportOptions): Promise<Mp4Ex
 
   const captureAudio = audioEl.captureStream ?? audioEl.mozCaptureStream;
 
-  const profile = VIDEO_PROFILES[target];
+  const profile = videoProfileForQuality(target, settings.exportConfig.quality);
   const renderSettings = settingsForVideoTarget(settings, target);
   const renderWidth = options.internalWidth ?? profile.width;
   const renderHeight = options.internalHeight ?? profile.height;
