@@ -56,3 +56,111 @@ test.describe('phone video background', () => {
     await page.screenshot({ path: 'test-results/video-background-mobile.png' });
   });
 });
+
+for (const style of [false, true]) {
+  test(`phone footage Reel creates and downloads the selected MP4${style ? ' with a prepared style' : ''}`, async ({ page }) => {
+    await page.goto('/'); await page.evaluate(() => window.studioTest.seedVideo()); await page.goto('/?ui');
+    await page.getByRole('heading', { name: 'Vídeo del móvil', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Reproducir', exact: true })).toBeEnabled();
+    if (style) {
+      await page.getByRole('button', { name: 'Estilo', exact: true }).click();
+      await page.getByRole('button', { name: /Rústico · Ramas/ }).click();
+      await page.screenshot({ path: 'test-results/video-style-border-only.png' });
+    }
+    await page.getByRole('button', { name: 'Reel', exact: true }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByLabel('Inicio (segundos)').fill('0.3');
+    await dialog.getByLabel('Fin (segundos)').fill('1.8');
+    await dialog.getByRole('button', { name: '3. Exportar', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Crear Reel MP4', exact: true }).click();
+    await expect(dialog.getByRole('link', { name: 'Descargar Reel', exact: true })).toBeVisible({ timeout: 25000 });
+    await expect(dialog.getByRole('alert')).toHaveCount(0);
+    const video = dialog.locator('video');
+    await expect.poll(() => video.evaluate((el: HTMLVideoElement) => el.duration)).toBeGreaterThan(1.3);
+    expect(await video.evaluate((el: HTMLVideoElement) => el.duration)).toBeLessThan(2.2);
+    expect(await video.evaluate((el: HTMLVideoElement) => [el.videoWidth, el.videoHeight])).toEqual([1080, 1920]);
+    const download = page.waitForEvent('download');
+    await dialog.getByRole('link', { name: 'Descargar Reel', exact: true }).click();
+    expect((await download).suggestedFilename()).toMatch(/reel.*\.mp4$/);
+  });
+}
+
+test('every prepared video style keeps the center transparent, with its border and logo', async ({ page }) => {
+  await page.goto('/'); const reports = await page.evaluate(() => window.studioTest.videoStylesFixture());
+  expect(reports.length).toBeGreaterThan(7);
+  for (const report of reports) {
+    expect(report.videoUrl, report.id).toBe(true);
+    expect(report.centers[0][0], report.id).toBeGreaterThan(180); expect(report.centers[0][1], report.id).toBeLessThan(60);
+    expect(report.centers[1][1], report.id).toBeGreaterThan(170); expect(report.centers[1][0], report.id).toBeLessThan(60);
+    expect(report.legacyCenter, report.id).toEqual(report.centers[1]);
+    expect(report.edgeDifferences, report.id).toBeGreaterThan(30); expect(report.logos, report.id).toBeGreaterThan(0);
+  }
+});
+
+test('video Reel exports and downloads without media-element captureStream or an ended listener', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(HTMLMediaElement.prototype, 'captureStream', { configurable: true, value: undefined });
+    Object.defineProperty(HTMLMediaElement.prototype, 'mozCaptureStream', { configurable: true, value: undefined });
+    const add = HTMLMediaElement.prototype.addEventListener;
+    HTMLMediaElement.prototype.addEventListener = function(this: HTMLMediaElement, type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions) {
+      if (type !== 'ended') add.call(this, type, listener, options);
+    } as typeof add;
+  });
+  await page.goto('/'); await page.evaluate(() => window.studioTest.seedVideo()); await page.goto('/?ui');
+  await page.getByRole('heading', { name: 'Vídeo del móvil', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Reproducir', exact: true })).toBeEnabled();
+  await page.getByRole('button', { name: 'Reel', exact: true }).click(); const dialog = page.getByRole('dialog');
+  await dialog.getByLabel('Inicio (segundos)').fill('0.3'); await dialog.getByLabel('Fin (segundos)').fill('1.8');
+  await dialog.getByRole('button', { name: '3. Exportar', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Crear Reel MP4', exact: true }).click();
+  await expect(dialog.getByRole('link', { name: 'Descargar Reel', exact: true })).toBeVisible({ timeout: 25000 });
+  await expect(dialog.getByRole('alert')).toHaveCount(0);
+  const soundUrl = await dialog.locator('video').getAttribute('src');
+  expect(await page.evaluate(url => window.studioTest.videoSoundRms(url!), soundUrl)).toBeGreaterThan(0.025);
+  const download = page.waitForEvent('download'); await dialog.getByRole('link', { name: 'Descargar Reel', exact: true }).click();
+  expect((await download).suggestedFilename()).toMatch(/reel.*\.mp4$/);
+});
+
+test.describe('phone video Reel regression', () => {
+  test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
+  test('prepared style preserves footage and the trimmed Reel downloads with original sound', async ({ page }) => {
+    await page.addInitScript(() => {
+      Object.defineProperty(HTMLMediaElement.prototype, 'captureStream', { configurable: true, value: undefined });
+      Object.defineProperty(HTMLMediaElement.prototype, 'mozCaptureStream', { configurable: true, value: undefined });
+    });
+    await page.goto('/'); await page.evaluate(() => window.studioTest.seedVideo()); await page.goto('/?ui');
+    await page.getByRole('heading', { name: 'Vídeo del móvil', exact: true }).click();
+    await page.getByRole('button', { name: 'Estilo', exact: true }).click();
+    await page.getByRole('button', { name: /Papel e Tinta/ }).click();
+    await expect.poll(() => page.evaluate(async () => (await window.studioTest.savedProjects())[0].settings.visualStyle)).toBe('papel-e-tinta');
+    const saved = await page.evaluate(async () => (await window.studioTest.savedProjects())[0].settings);
+    expect(saved.background.type).toBe('video'); expect(saved.background.videoUrl).toContain('source-video/');
+    expect(saved.background.videoStart).toBe(0.5); expect(saved.background.videoEnd).toBe(2.8);
+    expect(saved.background.videoMuted).not.toBe(true); expect(saved.background.overlay).toBe(0);
+    await page.getByRole('button', { name: 'Vídeo', exact: true }).click();
+    await page.getByRole('button', { name: 'Reels', exact: true }).click(); const dialog = page.getByRole('dialog');
+    await dialog.getByLabel('Inicio (segundos)').fill('0.3'); await dialog.getByLabel('Fin (segundos)').fill('1.8');
+    await dialog.getByRole('button', { name: '3. Exportar', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Crear Reel MP4', exact: true }).click();
+    await expect(dialog.getByRole('link', { name: 'Descargar Reel', exact: true })).toBeVisible({ timeout: 25000 });
+    const soundUrl = await dialog.locator('video').getAttribute('src');
+    expect(await page.evaluate(url => window.studioTest.videoSoundRms(url!), soundUrl)).toBeGreaterThan(0.025);
+    await page.screenshot({ path: 'test-results/video-reel-phone-export.png' });
+    const download = page.waitForEvent('download'); await dialog.getByRole('link', { name: 'Descargar Reel', exact: true }).click();
+    expect((await download).suggestedFilename()).toMatch(/reel.*\.mp4$/);
+  });
+});
+
+test('a previously saved empty video Reel recovers after the soundtrack is ready', async ({ page }) => {
+  await page.goto('/'); await page.evaluate(() => window.studioTest.seedVideo(true)); await page.goto('/?ui');
+  await page.getByRole('heading', { name: 'Vídeo del móvil', exact: true }).click();
+  const trigger = page.getByRole('button', { name: 'Reel', exact: true });
+  await expect(trigger).toBeEnabled(); await trigger.click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByLabel('Inicio (segundos)')).toHaveValue('0');
+  await expect.poll(() => dialog.getByLabel('Fin (segundos)').inputValue()).not.toBe('0');
+  await dialog.getByLabel('Fin (segundos)').fill('1.5');
+  await dialog.getByRole('button', { name: '3. Exportar', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Crear Reel MP4', exact: true }).click();
+  await expect(dialog.getByRole('link', { name: 'Descargar Reel', exact: true })).toBeVisible({ timeout: 25000 });
+});

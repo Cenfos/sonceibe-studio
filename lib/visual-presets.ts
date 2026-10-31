@@ -5,7 +5,9 @@ import type {
   TextStyle,
   TitleStyle,
   VisualStyleId,
+  ProjectSettings,
 } from './types';
+import { defaultTitleStyle } from './types';
 import { SONCEIBE_LOGO_DATA_URL } from './sonceibe-logo-data';
 
 export const SONCEIBE_LOGO_URL = SONCEIBE_LOGO_DATA_URL;
@@ -468,5 +470,21 @@ export function getVisualPreset(id: VisualStyleId | undefined): VisualPreset | n
 /** A style decorates the selected photos instead of replacing their montage. */
 export function presetBackground(current: BackgroundConfig, preset: VisualPreset): Partial<BackgroundConfig> {
   const hasPhotos = (current.type === 'image' && !!current.imageUrl) || (current.type === 'images' && (current.images.length > 0 || current.imageClips.length > 0));
-  return { ...preset.background, ...(hasPhotos || (current.type === 'video' && current.videoUrl) ? { type: current.type } : {}) };
+  if (current.type === 'video' && current.videoUrl) return { ...current, overlay: 0, blur: 0 };
+  return { ...preset.background, ...(hasPhotos ? { type: current.type } : {}) };
+}
+
+/** Video presets add only their frame and signature; footage, sound and text remain independent. */
+export function settingsWithVisualPreset(settings: ProjectSettings, preset: VisualPreset): Partial<ProjectSettings> {
+  if (settings.background.type === 'video' && settings.background.videoUrl) return {
+    visualStyle: preset.id, showSonCeibeBranding: true,
+    background: { ...settings.background, overlay: 0, blur: 0 },
+    effects: { ...settings.effects, overlay: 0, blur: 0, kenburns: false, particles: false, lightleaks: false, vignette: false },
+  };
+  return {
+    visualStyle: preset.id, titleStyle: { ...defaultTitleStyle, ...preset.title },
+    background: { ...settings.background, ...presetBackground(settings.background, preset) },
+    text: { ...settings.text, ...preset.text }, animation: { ...settings.animation, ...preset.animation },
+    effects: { ...settings.effects, ...preset.effects },
+  };
 }

@@ -31,6 +31,7 @@ type CanvasCaptureTrack = MediaStreamTrack & {
 
 export interface Mp4ExportOptions {
   audioEl: CapturableAudioElement;
+  audioBuffer?: AudioBuffer | null;
   backgroundVideoUrl?: string;
   duration: number;
   settings: ProjectSettings;
@@ -195,9 +196,6 @@ export async function createProjectMp4(options: Mp4ExportOptions): Promise<Mp4Ex
   }
 
   const captureAudio = audioEl.captureStream ?? audioEl.mozCaptureStream;
-  if (includeAudio && !captureAudio) {
-    throw new Error('Este navegador no permite capturar el audio para el MP4');
-  }
 
   const profile = VIDEO_PROFILES[target];
   const renderSettings = settingsForVideoTarget(settings, target);
@@ -206,7 +204,6 @@ export async function createProjectMp4(options: Mp4ExportOptions): Promise<Mp4Ex
   const videoBitrate = options.videoBitrate ?? profile.videoBitrate;
   const audioBitrate = options.audioBitrate ?? profile.audioBitrate;
 
-  await abortable(preloadProjectVisuals(renderSettings), signal);
 
   const previousTime = audioEl.currentTime;
   const wasPlaying = !audioEl.paused;
@@ -219,8 +216,17 @@ export async function createProjectMp4(options: Mp4ExportOptions): Promise<Mp4Ex
   let endedHandler: (() => void) | null = null;
   let renderFailures = 0;
   let backgroundVideo: HTMLVideoElement | null = null;
+  let exportAudioContext: AudioContext | null = null;
+  let exportAudioSource: AudioBufferSourceNode | null = null;
+  let playbackErrorHandler: (() => void) | null = null;
 
   try {
+    // Unlock Web Audio during the original click, before loading images or footage.
+    if (includeAudio && !captureAudio) {
+      exportAudioContext = new AudioContext();
+      await abortable(exportAudioContext.resume(), signal);
+    }
+    await abortable(preloadProjectVisuals(renderSettings), signal);
     audioEl.pause();
     audioEl.currentTime = 0;
 
@@ -293,11 +299,26 @@ export async function createProjectMp4(options: Mp4ExportOptions): Promise<Mp4Ex
       );
     }
 
-    if (includeAudio && captureAudio) {
-      const capturedAudio = captureAudio.call(audioEl);
-      const tracks = capturedAudio.getAudioTracks();
-      if (!tracks.length) throw new Error('No se pudo capturar la música');
-      tracks.forEach((track) => outputStream?.addTrack(track));
+    if (includeAudio) {
+      let tracks: MediaStreamTrack[] = [];
+      if (captureAudio) {
+        try { tracks = captureAudio.call(audioEl).getAudioTracks(); } catch { /* Use Web Audio below. */ }
+      }
+      if (!tracks.length) {
+        exportAudioContext ??= new AudioContext();
+        await abortable(exportAudioContext.resume(), signal);
+        let buffer = options.audioBuffer;
+        if (!buffer) {
+          const response = await abortable(fetch(audioEl.currentSrc || audioEl.src, { signal }), signal);
+          if (!response.ok) throw new Error('No se pudo leer el sonido del fragmento');
+          buffer = await abortable(exportAudioContext.decodeAudioData(await response.arrayBuffer()), signal);
+        }
+        const destination = exportAudioContext.createMediaStreamDestination();
+        exportAudioSource = exportAudioContext.createBufferSource(); exportAudioSource.buffer = buffer;
+        exportAudioSource.connect(destination); tracks = destination.stream.getAudioTracks();
+      }
+      if (!tracks.length) throw new Error('No se pudo preparar el sonido del MP4');
+      tracks.forEach(track => outputStream?.addTrack(track));
     }
 
     const chunks: BlobPart[] = [];
@@ -308,7 +329,9 @@ export async function createProjectMp4(options: Mp4ExportOptions): Promise<Mp4Ex
     });
     recorder = activeRecorder;
 
+    let rejectRecording: (error: Error) => void = () => {};
     const finished = new Promise<Blob>((resolve, reject) => {
+      rejectRecording = reject;
       activeRecorder.ondataavailable = (event) => {
         if (event.data?.size) chunks.push(event.data);
       };
@@ -319,12 +342,18 @@ export async function createProjectMp4(options: Mp4ExportOptions): Promise<Mp4Ex
     const frameInterval = 1 / profile.fps;
     let lastRendered = -frameInterval;
     let lastProgress = -1;
+    let lastClockTime = -1, lastAdvance = performance.now();
 
     const renderTick = () => {
       if (!videoTrack || videoTrack.readyState === 'ended') return;
 
       const rawTime = Number.isFinite(audioEl.currentTime) ? audioEl.currentTime : 0;
       const time = Math.min(duration, Math.max(0, rawTime));
+      if (rawTime > lastClockTime + 0.001) { lastClockTime = rawTime; lastAdvance = performance.now(); }
+      if (audioEl.ended || rawTime >= duration - 0.5 / profile.fps) { endedHandler?.(); return; }
+      if (performance.now() - lastAdvance > 15000) {
+        rejectRecording(new Error('La reproducción se ha detenido durante la creación. Mantén Studio en primer plano y vuelve a intentarlo.')); return;
+      }
       if (backgroundVideo && !backgroundVideo.seeking) {
         const expected = Math.min(backgroundVideo.duration - 0.001, (renderSettings.background.videoStart || 0) + time);
         if (Math.abs(backgroundVideo.currentTime - expected) > 0.15) backgroundVideo.currentTime = expected;
@@ -354,11 +383,19 @@ export async function createProjectMp4(options: Mp4ExportOptions): Promise<Mp4Ex
       if (activeRecorder.state !== 'inactive') activeRecorder.stop();
     };
 
+    playbackErrorHandler = () => rejectRecording(new Error('No se pudo reproducir el sonido del fragmento. Vuelve a cargar el vídeo o la canción.'));
+    audioEl.addEventListener('error', playbackErrorHandler, { once: true });
     audioEl.addEventListener('ended', endedHandler, { once: true });
+    if (exportAudioSource) exportAudioSource.onended = endedHandler;
     activeRecorder.start(1000);
     timer = setInterval(renderTick, Math.max(10, Math.round(1000 / profile.fps)));
     renderTick();
-    await abortable(Promise.all([audioEl.play(), ...(backgroundVideo ? [backgroundVideo.play()] : [])]), signal);
+    const playback = Promise.all([audioEl.play(), ...(backgroundVideo ? [backgroundVideo.play()] : [])]);
+    await abortable(Promise.race([playback, finished.then(() => undefined)]), signal);
+    if (exportAudioSource && exportAudioContext && activeRecorder.state !== 'inactive') {
+      const offset = Math.min(audioEl.currentTime, exportAudioSource.buffer!.duration - 0.001);
+      exportAudioSource.start(exportAudioContext.currentTime, offset, Math.min(duration - offset, exportAudioSource.buffer!.duration - offset));
+    }
 
     const recordedBlob = await abortable(finished, signal);
     if (!recordedBlob.size) throw new Error('El MP4 generado está vacío');
@@ -385,6 +422,9 @@ export async function createProjectMp4(options: Mp4ExportOptions): Promise<Mp4Ex
   } finally {
     if (timer) clearInterval(timer);
     if (endedHandler) audioEl.removeEventListener('ended', endedHandler);
+    if (playbackErrorHandler) audioEl.removeEventListener('error', playbackErrorHandler);
+    if (exportAudioSource) { exportAudioSource.onended = null; try { exportAudioSource.stop(); } catch { /* Not started or already ended. */ } exportAudioSource.disconnect(); }
+    if (exportAudioContext && exportAudioContext.state !== 'closed') await exportAudioContext.close();
     if (recorder && recorder.state !== 'inactive') recorder.stop();
     outputStream?.getTracks().forEach((track) => track.stop());
     outputCanvas?.remove();

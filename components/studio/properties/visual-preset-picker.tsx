@@ -2,9 +2,9 @@
 
 import { Palette } from 'lucide-react';
 import { useStore } from '@/lib/store';
-import { SONCEIBE_LOGO_URL, visualPresets, presetBackground } from '@/lib/visual-presets';
+import { SONCEIBE_LOGO_URL, visualPresets, settingsWithVisualPreset } from '@/lib/visual-presets';
 import { preloadVisualBranding } from '@/lib/visual-branding';
-import { defaultTitleStyle, type VisualStyleId } from '@/lib/types';
+import { type VisualStyleId } from '@/lib/types';
 
 export function ThemePreviewDecoration({ id }: { id: VisualStyleId }) {
   if (id === 'rustico-ramas') return <svg className="absolute inset-0 h-full w-full" viewBox="0 0 160 100" preserveAspectRatio="none" aria-hidden="true">
@@ -91,10 +91,6 @@ export function VisualPresetPicker() {
   const {
     currentProject,
     updateSettings,
-    updateBackground,
-    updateText,
-    updateAnimation,
-    updateEffects,
   } = useStore();
 
   if (!currentProject) return null;
@@ -106,14 +102,7 @@ export function VisualPresetPicker() {
     if (!preset) return;
 
     await preloadVisualBranding(preset.id);
-    updateSettings({
-      visualStyle: preset.id,
-      titleStyle: { ...defaultTitleStyle, ...preset.title },
-    });
-    updateBackground(presetBackground(currentProject.settings.background, preset));
-    updateText(preset.text);
-    updateAnimation(preset.animation);
-    updateEffects(preset.effects);
+    updateSettings(settingsWithVisualPreset(currentProject.settings, preset));
   };
 
   return (
@@ -125,7 +114,7 @@ export function VisualPresetPicker() {
         <div>
           <div className="text-xs font-semibold">Estilos preparados</div>
           <p className="mt-0.5 text-[10px] leading-4 text-muted-foreground">
-            Marco, título y letra. Si has cargado fotos en Formato, se conservan; sin fotos se utiliza el fondo del estilo.
+            Con vídeo: solo marco y logotipo, sin tapar la grabación. Con fotos o fondos: también se aplica el diseño del estilo.
           </p>
         </div>
       </div>

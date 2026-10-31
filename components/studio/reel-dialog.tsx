@@ -30,13 +30,19 @@ export function ReelDialog({ fromTimeline = false, onRequestAudio, onManualDesig
   useEffect(() => () => exportController.current?.abort(), []);
   const project = currentProject?.settings;
   const duration = audio.audioBuffer?.duration || audio.duration || project?.audioDuration || 0;
-  const reel: NonNullable<ProjectSettings['reel']> = project?.reel || { start: 0, end: Math.min(30, duration), coverUrl: '', showLyrics: true, showTitle: true };
+  const storedReel = project?.reel;
+  // A Reel opened before video audio finished loading could previously save a 0–0 range.
+  const emptySavedRange = storedReel?.start === 0 && storedReel.end === 0 && duration >= 0.2;
+  const reel: NonNullable<ProjectSettings['reel']> = storedReel && !emptySavedRange ? storedReel : {
+    coverUrl: '', showLyrics: true, showTitle: true, ...storedReel, start: 0, end: Math.min(30, duration),
+  };
+  const videoPreparing = project?.background.type === 'video' && (!audio.audioBuffer || audio.mediaBusy || !!audio.mediaError);
   const lyricsIssue = reelLyricsIssue(reel);
   let valid = true;
   try { validateReel(reel.start, reel.end, duration); } catch { valid = false; }
   const patch = (value: Partial<typeof reel>) => { updateSettings({ editingTarget: 'reel', reel: { ...reel, ...value } }); setResult(null); setError(''); };
   const setBoundary = (key: 'start' | 'end', value: number) => {
-    if (!Number.isFinite(value)) return;
+    if (!Number.isFinite(value) || duration < 0.2 || videoPreparing) return;
     const time = Math.max(0, Math.min(duration, value));
     audio.pause();
     setPreviewing(false);
@@ -111,7 +117,7 @@ export function ReelDialog({ fromTimeline = false, onRequestAudio, onManualDesig
   };
 
   return <>
-    <Button variant={triggerVariant || (fromTimeline ? "outline" : "default")} size="sm" className="gap-2" disabled={fromTimeline && !valid} onClick={() => close(true)}><Scissors className="h-4 w-4" />{label || (fromTimeline ? 'Crear Reel' : 'Reels')}</Button>
+    <Button variant={triggerVariant || (fromTimeline ? "outline" : "default")} size="sm" className="gap-2" disabled={!!videoPreparing || !!audio.mediaBusy || (fromTimeline && !valid)} title={videoPreparing ? audio.mediaError || 'Preparando el sonido del vídeo…' : undefined} onClick={() => close(true)}><Scissors className="h-4 w-4" />{label || (fromTimeline ? 'Crear Reel' : 'Reels')}</Button>
     <Dialog open={open} onOpenChange={close}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" onKeyDown={e => e.stopPropagation()} onInteractOutside={e => { if (busy) e.preventDefault(); }}>
         <DialogHeader><DialogTitle>Reel de Instagram</DialogTitle><DialogDescription>{fromTimeline ? 'Fragmento seleccionado en la línea de tiempo.' : 'Elige el fragmento de la canción.'} MP4 · 1080 × 1920 · 9:16 · 30 FPS. El proyecto completo se conserva.</DialogDescription></DialogHeader>
@@ -152,7 +158,7 @@ export function ReelDialog({ fromTimeline = false, onRequestAudio, onManualDesig
             <canvas ref={canvas} width={270} height={480} className="h-64 w-36 rounded bg-black" aria-label="Vista previa del Reel" />
             <Button variant="outline" disabled={!valid || !audio.audioBuffer} onClick={() => { if (previewing) { audio.pause(); setPreviewing(false); } else { audio.seek(reel.start); void audio.play(); setPreviewing(true); } }}>{previewing ? 'Parar fragmento' : 'Escuchar y previsualizar fragmento'}</Button>
           </div>
-          {(fromTimeline || manual || step === 2) && <><div aria-label="Resumen del Reel" className="rounded-lg border bg-secondary/30 p-3 text-sm space-y-1"><p>Fragmento: {reel.start.toFixed(1)}–{reel.end.toFixed(1)} s · {(reel.end - reel.start).toFixed(1)} s</p><p>Vertical · 1080 × 1920 · 9:16 · MP4 con música</p><p>Fondo: {reel.coverUrl ? 'Portada elegida' : 'Montaje del proyecto'} · Letra: {reel.showLyrics ? (reel.lyricsMode === 'custom' ? 'sólo del Reel' : 'del proyecto') : 'no'} · Título: {reel.showTitle ? 'sí' : 'no'}</p></div><Button className="w-full" disabled={!valid || !audio.audioBuffer || !!lyricsIssue} onClick={() => void exportReel()}>Crear Reel MP4</Button></>}
+          {(fromTimeline || manual || step === 2) && <><div aria-label="Resumen del Reel" className="rounded-lg border bg-secondary/30 p-3 text-sm space-y-1"><p>Fragmento: {reel.start.toFixed(1)}–{reel.end.toFixed(1)} s · {(reel.end - reel.start).toFixed(1)} s</p><p>Vertical · 1080 × 1920 · 9:16 · MP4 con música</p><p>Fondo: {reel.coverUrl ? 'Portada elegida' : 'Montaje del proyecto'} · Letra: {reel.showLyrics ? (reel.lyricsMode === 'custom' ? 'sólo del Reel' : 'del proyecto') : 'no'} · Título: {reel.showTitle ? 'sí' : 'no'}</p></div><Button className="w-full" disabled={!valid || !audio.audioBuffer || !!lyricsIssue || !!audio.mediaBusy || !!audio.mediaError} onClick={() => void exportReel()}>Crear Reel MP4</Button></>}
           {lyricsIssue && <p role="status" className="text-xs text-amber-500">{lyricsIssue}</p>}
           {!fromTimeline && !manual && <div className="flex justify-between gap-2"><Button variant="outline" disabled={step === 0} onClick={() => setStep(step - 1)}>Anterior</Button>{step < 2 && <Button disabled={!valid || !audio.audioBuffer} onClick={() => setStep(step + 1)}>Continuar</Button>}</div>}
         </fieldset>

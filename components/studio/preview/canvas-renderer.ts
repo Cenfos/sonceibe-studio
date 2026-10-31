@@ -530,6 +530,11 @@ export function renderFrame(
   time: number,
   video?: HTMLVideoElement | null
 ) {
+  const videoStyle = settings.background.type === 'video' && Boolean(getVisualPreset(settings.visualStyle));
+  if (videoStyle) settings = {
+    ...settings, background: { ...settings.background, overlay: 0, blur: 0 },
+    effects: { ...settings.effects, overlay: 0, blur: 0, particles: false, lightleaks: false, vignette: false },
+  };
   ctx.clearRect(0, 0, w, h);
   ctx.filter = 'none';
   ctx.globalAlpha = 1;
@@ -546,7 +551,7 @@ export function renderFrame(
   drawText(ctx, w, h, settings, time);
   drawEffects(ctx, w, h, settings, time);
   drawProjectTitle(ctx, w, h, settings, time);
-  drawVisualBranding(ctx, w, h, settings.visualStyle, time);
+  drawVisualBranding(ctx, w, h, settings.visualStyle, time, settings.showSonCeibeBranding, videoStyle);
   ctx.filter = 'none';
   ctx.globalAlpha = 1;
 }

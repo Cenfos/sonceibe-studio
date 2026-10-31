@@ -639,7 +639,8 @@ export function drawVisualBranding(
   h: number,
   style: VisualStyleId | undefined,
   time = 0,
-  showBranding = false
+  showBranding = false,
+  borderOnly = false
 ): void {
   const themed = Boolean(getVisualPreset(style));
   if (!themed && !showBranding) return;
@@ -649,9 +650,14 @@ export function drawVisualBranding(
   const borderWidth = Math.max(3, minSide * 0.0045);
   const isSonCeibeStyle = style === 'sonceibe';
 
+  if (borderOnly) {
+    const rim = Math.min(minSide * 0.14, w / 3, h / 3);
+    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, w, h); ctx.rect(rim, rim, w - rim * 2, h - rim * 2); ctx.clip('evenodd');
+  }
   if (isSonCeibeStyle) {
     drawSonCeibeCelticBorder(ctx, w, h, inset, minSide);
 
+    if (!borderOnly) {
     const pulse = 0.04 + ((Math.sin(time * 0.8) + 1) / 2) * 0.035;
     const glow = ctx.createRadialGradient(w * 0.5, h * 0.84, 0, w * 0.5, h * 0.84, minSide * 0.42);
     glow.addColorStop(0, `rgba(37,91,145,${pulse})`);
@@ -659,6 +665,7 @@ export function drawVisualBranding(
     glow.addColorStop(1, 'rgba(217,154,69,0)');
     ctx.fillStyle = glow;
     ctx.fillRect(0, 0, w, h);
+    }
   } else if (style === 'rock-galego') {
     drawRockTheme(ctx, w, h, minSide, time);
   } else if (style === 'folk-atlantico') {
@@ -676,6 +683,8 @@ export function drawVisualBranding(
   if (style === 'noite-estrelada' || style === 'papel-e-tinta') {
     drawNewTheme(ctx, w, h, style, time);
   }
+
+  if (borderOnly) ctx.restore();
 
   if (themed || showBranding) {
     drawBrandSignature(ctx, w, h, inset, borderWidth, isSonCeibeStyle, style === 'papel-e-tinta');
