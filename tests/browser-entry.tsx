@@ -30,9 +30,9 @@ function solidImage(color: string, width = 320, height = 180): string {
   return canvas.toDataURL();
 }
 
-async function seed() {
+async function seed(artist = '') {
   const settings = createDefaultProjectSettings();
-  settings.title = 'Prueba Studio'; settings.audioDuration = 120;
+  settings.title = 'Prueba Studio'; settings.artist = artist; settings.audioDuration = 120;
   settings.audioUrl = LOCAL_AUDIO_URL; settings.audioName = 'fixture.wav';
   settings.lyrics = [{ id: 'lyric-1', text: 'Primera frase', start: 2, end: 6 }, { id: 'lyric-2', text: 'Última frase', start: 110, end: 120 }];
   const url = solidImage('#bb2222');
