@@ -7,12 +7,12 @@ vi.mock('../../lib/studio-auth-server', () => ({ currentStudioUser }));
 afterEach(() => vi.resetAllMocks());
 function request(authenticated = false) {
   currentStudioUser.mockResolvedValue(authenticated ? { id: 'verified-user' } : null);
-  return new NextRequest('https://studio.example/download/windows');
+  return new NextRequest('https://studio.example/studio/download/windows');
 }
 it('requires login before touching installer storage', async () => {
   const response = await GET(request());
   expect(response.status).toBe(307);
-  expect(response.headers.get('location')).toContain('/access?next=%2Fdownload%2Fwindows');
+  expect(response.headers.get('location')).toContain('/studio/access?next=%2Fdownload%2Fwindows');
   expect(get).not.toHaveBeenCalled();
 });
 it('downloads with a verified session without exposing storage credentials', async () => {

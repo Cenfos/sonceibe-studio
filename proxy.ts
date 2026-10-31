@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ACCESS_COOKIE, REFRESH_COOKIE, authClient, isStudioAccessConfigured, safeDestination, setAuthCookies } from '@/lib/studio-auth-server';
+import { studioPath, studioRequestOrigin } from '@/lib/studio-paths';
 
 export async function proxy(request: NextRequest) {
-  const path = request.nextUrl.pathname;
+  const path = request.nextUrl.pathname.replace(/^\/studio(?=\/|$)/, '') || '/';
   if (path.startsWith('/api/studio-auth/')) return NextResponse.next();
   let session = null;
   let authenticated = false;
@@ -23,11 +24,11 @@ export async function proxy(request: NextRequest) {
   }
   let response: NextResponse;
   if (path !== '/access' && !authenticated) {
-    const url = new URL('/access', request.url);
+    const url = new URL(studioPath('/access'), studioRequestOrigin(request));
     if (path === '/download/windows') url.searchParams.set('next', path);
     response = NextResponse.redirect(url);
   } else if (path === '/access' && authenticated && !request.nextUrl.searchParams.has('token_hash') && request.nextUrl.searchParams.get('mode') !== 'update') {
-    response = NextResponse.redirect(new URL(safeDestination(request.nextUrl.searchParams.get('next')), request.url));
+    response = NextResponse.redirect(new URL(safeDestination(request.nextUrl.searchParams.get('next')), studioRequestOrigin(request)));
   } else response = NextResponse.next({ request: { headers: request.headers } });
   if (session) setAuthCookies(response, session);
   response.headers.set('Cache-Control', 'private, no-store');

@@ -93,16 +93,16 @@ it('refreshes expired sessions and carries cookies into the downstream request',
   expect(response.headers.get('x-middleware-request-cookie')).toContain('studio-access=valid-access');
 });
 it('preserves download destinations and rejects external return URLs', async () => {
-  const anonymous = await proxy(new NextRequest('https://studio.example/download/windows'));
-  expect(anonymous.headers.get('location')).toBe('https://studio.example/access?next=%2Fdownload%2Fwindows');
-  for (const [next, target] of [['/download/windows', '/download/windows'], ['https://other.example', '/']]) {
-    const response = await proxy(new NextRequest('https://studio.example/access?next=' + encodeURIComponent(next), { headers: { cookie: 'studio-access=valid-access' } }));
+  const anonymous = await proxy(new NextRequest('https://studio.example/studio/download/windows'));
+  expect(anonymous.headers.get('location')).toBe('https://studio.example/studio/access?next=%2Fdownload%2Fwindows');
+  for (const [next, target] of [['/download/windows', '/studio/download/windows'], ['https://other.example', '/studio']]) {
+    const response = await proxy(new NextRequest('https://studio.example/studio/access?next=' + encodeURIComponent(next), { headers: { cookie: 'studio-access=valid-access' } }));
     expect(response.headers.get('location')).toBe('https://studio.example' + target);
   }
 });
 it('keeps confirmation and password update pages reachable when already signed in', async () => {
   for (const query of ['?token_hash=token&type=recovery', '?mode=update']) {
-    const response = await proxy(new NextRequest('https://studio.example/access' + query, { headers: { cookie: 'studio-access=valid-access' } }));
+    const response = await proxy(new NextRequest('https://studio.example/studio/access' + query, { headers: { cookie: 'studio-access=valid-access' } }));
     expect(response.headers.get('location')).toBeNull();
   }
 });
@@ -112,5 +112,24 @@ it('clears both cookies and revokes the current session on logout', async () => 
   expect(auth.admin.signOut).toHaveBeenCalledWith(session.access_token, 'local');
   expect(response.cookies.get(ACCESS_COOKIE)?.maxAge).toBe(0);
   expect(response.cookies.get(REFRESH_COOKIE)?.maxAge).toBe(0);
+});
+
+it('keeps redirects on the public website when Vercel rewrites to Studio', async () => {
+  const response = await proxy(new NextRequest('https://sonceibe-studio.vercel.app/studio/download/windows', {
+    headers: { 'x-forwarded-host': 'www.sonceibe.es' },
+  }));
+  expect(response.headers.get('location')).toBe('https://www.sonceibe.es/studio/access?next=%2Fdownload%2Fwindows');
+});
+
+it('accepts the public website origin behind a rewrite and rejects other origins', async () => {
+  auth.signInWithPassword.mockResolvedValue({ data: { session, user }, error: null });
+  const call = (origin: string) => handleAuth(new Request('https://sonceibe-studio.vercel.app/studio/api/studio-auth/login', {
+    method: 'POST', headers: { origin, host: 'sonceibe-studio.vercel.app', 'content-type': 'application/json' },
+    body: JSON.stringify({ email: 'a@example.com', password: 'long-password' }),
+  }), 'login');
+  const response = await call('https://www.sonceibe.es');
+  expect(response.status).toBe(200);
+  expect(response.cookies.get(ACCESS_COOKIE)?.path).toBe('/studio');
+  expect((await call('https://attacker.example')).status).toBe(403);
 });
 

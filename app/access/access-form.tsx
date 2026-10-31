@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { Music2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { studioPath } from '@/lib/studio-paths';
 
 type Mode = 'login' | 'signup' | 'recover' | 'confirm' | 'update';
 const titles: Record<Mode, string> = { login: 'Entra en tu Studio', signup: 'Crea tu cuenta', recover: 'Recupera tu contraseña', confirm: 'Confirma tu correo', update: 'Elige una nueva contraseña' };
@@ -22,7 +23,7 @@ export default function AccessForm({ initialToken, initialType, initialMode, des
   const next = destination;
 
   useEffect(() => {
-    if (initialToken) window.history.replaceState(null, '', '/access');
+    if (initialToken) window.history.replaceState(null, '', studioPath('/access'));
   }, [initialToken]);
 
   function changeMode(value: Mode) {
@@ -39,7 +40,7 @@ export default function AccessForm({ initialToken, initialType, initialMode, des
     setLoading(true);
     const action = { login: 'login', signup: 'signup', recover: 'recover', confirm: 'confirm', update: 'update-password' }[mode];
     try {
-      const response = await fetch(`/api/studio-auth/${action}`, {
+      const response = await fetch(studioPath(`/api/studio-auth/${action}`), {
         method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ name, email, password, token_hash: token, type: tokenType }),
       });
@@ -47,8 +48,8 @@ export default function AccessForm({ initialToken, initialType, initialMode, des
       if (!response.ok || !data.ok) { setError(data.error || 'No se pudo completar la solicitud.'); return; }
       setPassword(''); setRepeat('');
       if (mode === 'login' || (mode === 'confirm' && !data.recovery)) { window.location.replace(next); return; }
-      if (mode === 'confirm') { setToken(''); setMode('update'); window.history.replaceState(null, '', '/access?mode=update'); return; }
-      if (mode === 'update') { setMode('login'); window.history.replaceState(null, '', '/access'); }
+      if (mode === 'confirm') { setToken(''); setMode('update'); window.history.replaceState(null, '', studioPath('/access?mode=update')); return; }
+      if (mode === 'update') { setMode('login'); window.history.replaceState(null, '', studioPath('/access')); }
       setMessage(data.message);
     } catch { setError('No se pudo conectar. Comprueba tu conexión y vuelve a intentarlo.'); }
     finally { setLoading(false); }

@@ -1,5 +1,7 @@
 'use client';
 
+import { studioPath, SONCEIBE_HOME } from '@/lib/studio-paths';
+
 import { Download, ExternalLink, Plus, Clock, MoreVertical, Trash2, Film, LogOut, HardDrive, FolderOpen, Copy } from 'lucide-react';
 import Image from 'next/image';
 import { SONCEIBE_LOGO_DATA_URL } from '@/lib/sonceibe-logo-data';
@@ -41,9 +43,9 @@ export function HomePage() {
 
   const handleLogout = async () => {
     try {
-      await fetch('/api/studio-auth/logout', { method: 'POST' });
+      await fetch(studioPath('/api/studio-auth/logout'), { method: 'POST' });
     } finally {
-      window.location.replace('/access');
+      window.location.replace(studioPath('/access'));
     }
   };
 
@@ -101,8 +103,8 @@ export function HomePage() {
             <div><h1 className="text-xl font-bold tracking-tight sm:text-2xl">SonCeibe Studio</h1><p className="text-xs text-muted-foreground">Tu espacio para crear vídeos musicales</p></div>
           </div>
           <nav aria-label="Enlaces de Studio" className="flex flex-wrap items-center gap-1 sm:gap-2">
-            <Button variant="outline" size="sm" className="gap-2" asChild><a href="/download/windows"><Download className="h-4 w-4" />Windows</a></Button>
-            <Button variant="ghost" size="sm" className="gap-2" asChild><a href="https://www.sonceibe.es"><ExternalLink className="h-4 w-4" />SonCeibe.es</a></Button>
+            <Button variant="outline" size="sm" className="gap-2" asChild><a href={studioPath('/download/windows')}><Download className="h-4 w-4" />Windows</a></Button>
+            <Button variant="ghost" size="sm" className="gap-2" asChild><a href={SONCEIBE_HOME}><ExternalLink className="h-4 w-4" />SonCeibe.es</a></Button>
             <Button variant="ghost" size="sm" onClick={handleLogout} className="ml-auto gap-2 text-muted-foreground lg:ml-0"><LogOut className="h-4 w-4" />Salir</Button>
           </nav>
         </div>

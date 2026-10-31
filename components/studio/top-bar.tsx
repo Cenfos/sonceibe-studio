@@ -1,5 +1,7 @@
 'use client';
 
+import { studioPath, SONCEIBE_HOME } from '@/lib/studio-paths';
+
 import {
   Settings,
   Download,
@@ -105,9 +107,9 @@ export function TopBar() {
 
   const handleLogout = async () => {
     try {
-      await fetch('/api/studio-auth/logout', { method: 'POST' });
+      await fetch(studioPath('/api/studio-auth/logout'), { method: 'POST' });
     } finally {
-      window.location.replace('/access');
+      window.location.replace(studioPath('/access'));
     }
   };
 
@@ -226,7 +228,7 @@ export function TopBar() {
           </Button>
 
           <Button variant="ghost" size="sm" className="h-9 gap-1.5 px-2 shrink-0" asChild>
-            <a href="https://www.sonceibe.es" aria-label="Volver a la web Son Ceibe">
+            <a href={SONCEIBE_HOME} aria-label="Volver a la web Son Ceibe">
               <ExternalLink className="h-4 w-4" />
               <span className="hidden xl:inline">SonCeibe.es</span>
             </a>

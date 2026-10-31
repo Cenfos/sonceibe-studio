@@ -7,7 +7,7 @@ El registro usa Supabase Auth con nombre, correo y contraseña. El nombre se gua
 1. Crea un proyecto en Supabase.
 2. Añade SUPABASE_URL y SUPABASE_PUBLISHABLE_KEY (clave publishable o anon; nunca service_role) en las variables de Vercel. Para desarrollo usa .env.local.
 3. En Authentication activa Email, el registro de usuarios y Confirm email. Configura un mínimo de 8 caracteres para las contraseñas.
-4. En URL Configuration configura Site URL como https://sonceibe-studio.vercel.app.
+4. En URL Configuration configura Site URL como https://www.sonceibe.es/studio (sin barra final). Las plantillas añaden /access y no necesitan cambios.
 5. Configura SMTP propio para enviar a usuarios reales. El remitente integrado de Supabase es para pruebas y restringe destinatarios y frecuencia.
 6. En Email Templates cambia los enlaces de Confirm signup y Reset password como se indica abajo. Las plantillas por defecto no corresponden con el flujo token_hash de esta aplicación.
 7. Revisa los límites de frecuencia del proveedor. La aplicación conserva las respuestas 429; no usa contadores locales en una instancia de Vercel.
@@ -35,6 +35,14 @@ Publica cuando las variables, las plantillas y SMTP estén listos. No elimines S
 Verifica con un correo real: registro, confirmación del correo, entrada al editor, cierre de sesión, entrada con contraseña, recuperación por correo, nueva contraseña y entrada de nuevo. Comprueba que la contraseña antigua falla, que no se reutilizan los enlaces y que dos cuentas no comparten proyectos locales. Comprueba la descarga del instalador.
 
 Sin configuración de Supabase se deniega el acceso, también en desarrollo. No se añade sincronización de proyectos entre dispositivos.
+
+## Publicación bajo /studio
+
+Studio usa basePath /studio. La web principal reescribe /studio/:path* hacia https://sonceibe-studio.vercel.app/studio/:path*, incluidos recursos y API. El enlace del menú cruza entre aplicaciones con una navegación completa. El botón SonCeibe.es del editor apunta a https://sonceibe.es.
+
+Las rutas antiguas del dominio de Vercel redirigen a sus equivalentes con /studio, conservando las consultas de los correos ya enviados. Las cookies nuevas quedan limitadas a /studio. Al pasar al dominio público hay que iniciar sesión otra vez; los proyectos del navegador anterior no se transfieren entre dominios.
+
+Para desarrollo abre http://localhost:3000/studio. El script tests/auth-ui.mjs admite STUDIO_TEST_URL con el origen del servidor local (sin /studio).
 
 Documentación oficial:
 - https://supabase.com/docs/guides/auth/passwords

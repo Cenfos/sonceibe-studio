@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { ACCESS_COOKIE, REFRESH_COOKIE, authClient, isStudioAccessConfigured, setAuthCookies } from './studio-auth-server';
+import { STUDIO_PUBLIC_ORIGIN } from './studio-paths';
 
 const headers = { 'Cache-Control': 'private, no-store' };
 const reply = (body: object, status = 200) => NextResponse.json(body, { status, headers });
@@ -11,7 +12,7 @@ export async function handleAuth(request: Request, action: string) {
   let sameOrigin = false;
   try {
     const parsed = new URL(origin || '');
-    sameOrigin = parsed.origin === origin && parsed.host === host && ['http:', 'https:'].includes(parsed.protocol);
+    sameOrigin = parsed.origin === origin && (parsed.host === host || origin === STUDIO_PUBLIC_ORIGIN) && ['http:', 'https:'].includes(parsed.protocol);
   } catch { /* Missing and malformed origins fail closed. */ }
   if (!sameOrigin) return reply({ error: 'Origen no permitido.' }, 403);
   if (!isStudioAccessConfigured()) return reply({ error: 'El registro todavía no está disponible. Vuelve a intentarlo más tarde.' }, 503);
