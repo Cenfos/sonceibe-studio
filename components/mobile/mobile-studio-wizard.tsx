@@ -1,4 +1,6 @@
 'use client';
+
+import { AccountMenu } from '@/components/account-menu';
 import { VideoBackgroundControls } from '@/components/studio/properties/video-background-controls';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -255,7 +257,7 @@ export function MobileStudioWizard() {
               </div>
               <div className="text-[10px] text-muted-foreground">{hasExternalCopy(currentProject, externalCopies) ? 'Copia guardada en tu equipo' : 'Guarda una copia .scs en tu equipo'}</div>
             </div>
-            <ProjectVersions />
+            <div className="flex shrink-0 items-center"><ProjectVersions /><AccountMenu compact /></div>
           </div>
           <div className="grid grid-cols-5 border-t border-border/60">
             {steps.map((item, index) => {

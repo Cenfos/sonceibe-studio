@@ -6,6 +6,6 @@ export default async function Home() {
   const user = await currentStudioUser();
   // Next's server-component redirect adds the configured basePath.
   if (!user) redirect('/access');
-  return <StudioClient userId={user.id} />;
+  return <StudioClient userId={user.id} account={{ email: user.email || '', name: typeof user.user_metadata.name === 'string' ? user.user_metadata.name : '' }} />;
 }
 

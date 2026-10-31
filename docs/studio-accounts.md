@@ -44,6 +44,12 @@ Las rutas antiguas del dominio de Vercel redirigen a sus equivalentes con /studi
 
 Para desarrollo abre http://localhost:3000/studio. El script tests/auth-ui.mjs admite STUDIO_TEST_URL con el origen del servidor local (sin /studio).
 
+## Menú de cuenta
+
+El inicio y los editores de escritorio y móvil muestran el nombre de la cuenta (o el correo si no hay nombre). El menú permite consultar el correo, cambiar el nombre, cambiar la contraseña y cerrar sesión. El perfil inicial procede del usuario verificado en el servidor. Cambiar nombre solo modifica user_metadata.name: no cambia el UUID de los proyectos.
+
+Para cambiar la contraseña desde la cuenta, el servidor comprueba la sesión y vuelve a autenticar al mismo usuario con su contraseña actual antes de guardar la nueva. El correo y el UUID de destino se obtienen de la sesión verificada y nunca del formulario. La sesión del navegador se conserva al terminar; la recuperación por correo sigue disponible en la pantalla de acceso.
+
 Documentación oficial:
 - https://supabase.com/docs/guides/auth/passwords
 - https://supabase.com/docs/guides/auth/auth-smtp

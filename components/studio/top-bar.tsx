@@ -1,6 +1,7 @@
 'use client';
 
-import { studioPath, SONCEIBE_HOME } from '@/lib/studio-paths';
+import { AccountMenu } from '@/components/account-menu';
+import { SONCEIBE_HOME } from '@/lib/studio-paths';
 
 import {
   Settings,
@@ -10,7 +11,6 @@ import {
   Upload,
   FileText,
   Hand,
-  LogOut,
   HardDrive,
   MoreVertical,
   Save,
@@ -41,7 +41,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
@@ -105,13 +104,6 @@ export function TopBar() {
     return () => window.removeEventListener('sonceibe:save-project', save);
   }, [handleSaveProject]);
 
-  const handleLogout = async () => {
-    try {
-      await fetch(studioPath('/api/studio-auth/logout'), { method: 'POST' });
-    } finally {
-      window.location.replace(studioPath('/access'));
-    }
-  };
 
   const handleAudioUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -304,6 +296,7 @@ export function TopBar() {
         <div className="flex items-center gap-2 shrink-0">
           <Button variant="outline" size="sm" onClick={() => void handleSaveProject()} aria-label="Guardar proyecto .scs" className="gap-1.5"><Save className="h-4 w-4" /><span className="studio-action-label">Guardar proyecto</span></Button>
           <ProjectVersions />
+          <AccountMenu compact />
           <input
             ref={audioInputRef}
             type="file"
@@ -389,11 +382,7 @@ export function TopBar() {
                 <Settings className="h-4 w-4" />
                 Ajustes
               </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => void handleLogout()} className="gap-2 text-muted-foreground">
-                <LogOut className="h-4 w-4" />
-                Salir
-              </DropdownMenuItem>
+
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

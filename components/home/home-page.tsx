@@ -1,8 +1,9 @@
 'use client';
 
+import { AccountMenu } from '@/components/account-menu';
 import { studioPath, SONCEIBE_HOME } from '@/lib/studio-paths';
 
-import { Download, ExternalLink, Plus, Clock, MoreVertical, Trash2, Film, LogOut, HardDrive, FolderOpen, Copy } from 'lucide-react';
+import { Download, ExternalLink, Plus, Clock, MoreVertical, Trash2, Film, HardDrive, FolderOpen, Copy } from 'lucide-react';
 import Image from 'next/image';
 import { SONCEIBE_LOGO_DATA_URL } from '@/lib/sonceibe-logo-data';
 import { useStore } from '@/lib/store';
@@ -41,13 +42,6 @@ export function HomePage() {
   const importInputRef = useRef<HTMLInputElement>(null);
   useEffect(() => setMounted(true), []);
 
-  const handleLogout = async () => {
-    try {
-      await fetch(studioPath('/api/studio-auth/logout'), { method: 'POST' });
-    } finally {
-      window.location.replace(studioPath('/access'));
-    }
-  };
 
   const handleCreateProject = () => {
     setProjectTitle('');
@@ -105,7 +99,7 @@ export function HomePage() {
           <nav aria-label="Enlaces de Studio" className="flex flex-wrap items-center gap-1 sm:gap-2">
             <Button variant="outline" size="sm" className="gap-2" asChild><a href={studioPath('/download/windows')}><Download className="h-4 w-4" />Windows</a></Button>
             <Button variant="ghost" size="sm" className="gap-2" asChild><a href={SONCEIBE_HOME}><ExternalLink className="h-4 w-4" />SonCeibe.es</a></Button>
-            <Button variant="ghost" size="sm" onClick={handleLogout} className="ml-auto gap-2 text-muted-foreground lg:ml-0"><LogOut className="h-4 w-4" />Salir</Button>
+            <AccountMenu />
           </nav>
         </div>
       </header>

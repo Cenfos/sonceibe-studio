@@ -9,7 +9,7 @@ const { auth, jar } = vi.hoisted(() => ({
 }));
 vi.mock('@supabase/supabase-js', () => ({ createClient: () => ({ auth }) }));
 vi.mock('next/headers', () => ({ cookies: async () => ({ get: (name: string) => jar.has(name) ? { value: jar.get(name) } : undefined }) }));
-const user = { id: 'uuid-user', email_confirmed_at: '2026-10-31', user_metadata: { name: 'Ana' } };
+const user = { id: 'uuid-user', email: 'ana@example.com', email_confirmed_at: '2026-10-31', user_metadata: { name: 'Ana' } };
 const session = { access_token: 'valid-access', refresh_token: 'valid-refresh', expires_in: 3600 };
 beforeEach(() => {
   vi.stubEnv('SUPABASE_URL', 'https://example.supabase.co');
@@ -164,5 +164,39 @@ it('records a provider error code without logging credentials or provider messag
   expect(logged).toContain('invalid_credentials');
   for (const secret of ['private@example.com', 'secret-password', 'private provider detail']) expect(logged).not.toContain(secret);
   warning.mockRestore();
+});
+
+it('requires a verified session for account changes and limits updates to display name', async () => {
+  expect((await handleAuth(request({ name: 'Changed' }), 'update-name')).status).toBe(401);
+  expect((await handleAuth(request({ currentPassword: 'old-password', password: 'new-password' }), 'change-password')).status).toBe(401);
+  expect(auth.updateUser).not.toHaveBeenCalled();
+  jar.set(ACCESS_COOKIE, session.access_token); jar.set(REFRESH_COOKIE, session.refresh_token);
+  auth.setSession.mockResolvedValue({ data: { user, session }, error: null });
+  auth.updateUser.mockResolvedValue({ error: null });
+  expect((await handleAuth(request({ name: '  ' }), 'update-name')).status).toBe(400);
+  const response = await handleAuth(request({ name: ' Ana nueva ', userId: 'another-user', email: 'other@example.com' }), 'update-name');
+  expect(response.status).toBe(200);
+  expect((await response.json()).name).toBe('Ana nueva');
+  expect(auth.updateUser).toHaveBeenCalledWith({ data: { name: 'Ana nueva' } });
+});
+
+it('rejects a wrong current password without changing the account', async () => {
+  jar.set(ACCESS_COOKIE, session.access_token);
+  auth.signInWithPassword.mockResolvedValue({ data: {}, error: { code: 'invalid_credentials', status: 400 } });
+  const response = await handleAuth(request({ currentPassword: 'wrong-password', password: 'new-password' }), 'change-password');
+  expect(response.status).toBe(400);
+  expect(auth.updateUser).not.toHaveBeenCalled();
+  expect(response.cookies.get(ACCESS_COOKIE)).toBeUndefined();
+});
+
+it('reauthenticates the current account before updating its password and preserves the session', async () => {
+  jar.set(ACCESS_COOKIE, session.access_token);
+  auth.signInWithPassword.mockResolvedValue({ data: { user, session }, error: null });
+  auth.updateUser.mockResolvedValue({ error: null });
+  const response = await handleAuth(request({ currentPassword: 'old-password', password: 'new-password', email: 'other@example.com' }), 'change-password');
+  expect(response.status).toBe(200);
+  expect(auth.signInWithPassword).toHaveBeenCalledWith({ email: 'ana@example.com', password: 'old-password' });
+  expect(auth.updateUser).toHaveBeenCalledWith({ password: 'new-password' });
+  expect(response.cookies.get(ACCESS_COOKIE)?.value).toBe(session.access_token);
 });
 

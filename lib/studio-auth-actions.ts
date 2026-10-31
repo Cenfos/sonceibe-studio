@@ -13,7 +13,7 @@ function diagnostic(action: string, failure: ProviderFailure, fallback = 'unknow
   return reference;
 }
 export async function handleAuth(request: Request, action: string) {
-  if (!['login', 'signup', 'recover', 'confirm', 'complete-session', 'update-password', 'logout'].includes(action)) return reply({ error: 'Acción desconocida.' }, 404);
+  if (!['login', 'signup', 'recover', 'confirm', 'complete-session', 'update-password', 'update-name', 'change-password', 'logout'].includes(action)) return reply({ error: 'Acción desconocida.' }, 404);
   const origin = request.headers.get('origin');
   const host = request.headers.get('host') || new URL(request.url).host;
   let sameOrigin = false;
@@ -36,6 +36,41 @@ export async function handleAuth(request: Request, action: string) {
     const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
     const password = typeof body.password === 'string' ? body.password : '';
     const name = typeof body.name === 'string' ? body.name.trim() : '';
+    if (action === 'update-name' || action === 'change-password') {
+      const cookieStore = await cookies();
+      const access = cookieStore.get(ACCESS_COOKIE)?.value;
+      if (!access) return reply({ error: 'Tu sesión ha caducado. Recarga Studio para volver a comprobarla.' }, 401);
+      const verified = await client.auth.getUser(access);
+      const user = verified.data.user;
+      if (verified.error || !user?.email_confirmed_at) return reply({ error: 'Tu sesión ha caducado. Recarga Studio para volver a comprobarla.' }, 401);
+      if (action === 'change-password') {
+        const currentPassword = typeof body.currentPassword === 'string' ? body.currentPassword : '';
+        if (!currentPassword || currentPassword.length > 128) return reply({ error: 'Introduce tu contraseña actual.' }, 400);
+        if (password.length < 8 || password.length > 128) return reply({ error: 'La nueva contraseña debe tener entre 8 y 128 caracteres.' }, 400);
+        if (password === currentPassword) return reply({ error: 'Elige una contraseña distinta de la actual.' }, 400);
+        // Reauthenticate using the verified account's email, never a client-supplied identity.
+        const reauthenticated = await client.auth.signInWithPassword({ email: user.email!, password: currentPassword });
+        if (reauthenticated.error || reauthenticated.data.user?.id !== user.id || !reauthenticated.data.session) {
+          if (reauthenticated.error?.status === 429) return providerError(reauthenticated.error, action);
+          return reply({ error: 'La contraseña actual no es correcta. No se ha cambiado tu contraseña.' }, 400);
+        }
+        const updated = await client.auth.updateUser({ password });
+        if (updated.error) return providerError(updated.error, action);
+        const response = reply({ ok: true, message: 'Contraseña actualizada. Tu sesión sigue abierta.' });
+        setAuthCookies(response, reauthenticated.data.session);
+        return response;
+      }
+      if (!name || name.length > 80) return reply({ error: 'El nombre debe tener entre 1 y 80 caracteres.' }, 400);
+      const refresh = cookieStore.get(REFRESH_COOKIE)?.value;
+      if (!refresh) return reply({ error: 'Tu sesión ha caducado. Recarga Studio para volver a comprobarla.' }, 401);
+      const scoped = await client.auth.setSession({ access_token: access, refresh_token: refresh });
+      if (scoped.error || !scoped.data.session || scoped.data.user?.id !== user.id) return reply({ error: 'No se pudo comprobar tu sesión. Recarga Studio.' }, 401);
+      const updated = await client.auth.updateUser({ data: { name } });
+      if (updated.error) return providerError(updated.error, action);
+      const response = reply({ ok: true, name, message: 'Nombre actualizado.' });
+      setAuthCookies(response, scoped.data.session);
+      return response;
+    }
     if (action === 'complete-session') {
       if (typeof body.access_token !== 'string' || !body.access_token || body.access_token.length > 16384 ||
           typeof body.refresh_token !== 'string' || !body.refresh_token || body.refresh_token.length > 4096) {
