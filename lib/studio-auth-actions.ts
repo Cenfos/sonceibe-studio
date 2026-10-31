@@ -5,6 +5,13 @@ import { STUDIO_PUBLIC_ORIGIN } from './studio-paths';
 
 const headers = { 'Cache-Control': 'private, no-store' };
 const reply = (body: object, status = 200) => NextResponse.json(body, { status, headers });
+type ProviderFailure = { status?: number; code?: string };
+function diagnostic(action: string, failure: ProviderFailure, fallback = 'unknown') {
+  const reference = crypto.randomUUID().slice(0, 8);
+  // Deliberately exclude email, password, user IDs, tokens and provider messages.
+  console.warn('studio_auth_failure', JSON.stringify({ action, code: failure.code || fallback, status: failure.status, reference }));
+  return reference;
+}
 export async function handleAuth(request: Request, action: string) {
   if (!['login', 'signup', 'recover', 'confirm', 'update-password', 'logout'].includes(action)) return reply({ error: 'Acción desconocida.' }, 404);
   const origin = request.headers.get('origin');
@@ -34,13 +41,13 @@ export async function handleAuth(request: Request, action: string) {
     if (action === 'signup' && (!name || name.length > 80)) return reply({ error: 'El nombre debe tener entre 1 y 80 caracteres.' }, 400);
     if (action === 'signup') {
       const { error } = await client.auth.signUp({ email, password, options: { data: { name } } });
-      if (error) return providerError(error.status);
+      if (error) return providerError(error, action);
       return reply({ ok: true, message: 'Revisa tu correo para confirmar tu cuenta. Si ya tienes cuenta, puedes entrar o recuperar tu contraseña.' });
     }
     if (action === 'recover') {
       const { error } = await client.auth.resetPasswordForEmail(email);
-      if (error?.status === 429) return providerError(429);
-      if (error && error.status !== 400) return providerError(error.status);
+      if (error?.status === 429) return providerError(error, action);
+      if (error && error.status !== 400) return providerError(error, action);
       return reply({ ok: true, message: 'Si existe una cuenta con ese correo, recibirás un enlace para elegir una nueva contraseña.' });
     }
     if (action === 'confirm') {
@@ -62,7 +69,7 @@ export async function handleAuth(request: Request, action: string) {
       const { error: sessionError } = await client.auth.setSession({ access_token: access, refresh_token: refresh });
       if (sessionError) return reply({ error: 'Solicita un nuevo enlace de recuperación.' }, 401);
       const { error } = await client.auth.updateUser({ password });
-      if (error) return providerError(error.status);
+      if (error) return providerError(error, action);
       await client.auth.admin.signOut(access, 'global');
       const response = reply({ ok: true, message: 'Contraseña actualizada. Ya puedes entrar con tu nueva contraseña.' });
       setAuthCookies(response, null);
@@ -71,8 +78,12 @@ export async function handleAuth(request: Request, action: string) {
     if (!password || password.length > 128) return reply({ error: 'Introduce tu contraseña.' }, 400);
     const { data, error } = await client.auth.signInWithPassword({ email, password });
     if (error || !data.session || !data.user?.email_confirmed_at) {
-      if (error?.status === 429) return providerError(429);
-      return reply({ error: 'No se pudo entrar. Comprueba tu correo, tu contraseña y que hayas confirmado la cuenta.' }, 401);
+      if (error?.status === 429) return providerError(error, action);
+      const reference = diagnostic(action, error || {}, !data.session ? 'missing_session' : 'email_unconfirmed');
+      const message = error?.code === 'email_not_confirmed'
+        ? 'Debes confirmar tu correo antes de entrar.'
+        : 'No se pudo entrar. Comprueba tu correo y la última contraseña que elegiste.';
+      return reply({ error: `${message} Referencia: ${reference}.` }, 401);
     }
     const response = reply({ ok: true, userId: data.user.id });
     setAuthCookies(response, data.session);
@@ -81,7 +92,9 @@ export async function handleAuth(request: Request, action: string) {
     return reply({ error: 'No se pudo completar la solicitud. Vuelve a intentarlo.' }, 400);
   }
 }
-function providerError(status?: number) {
-  return reply({ error: status === 429 ? 'Demasiados intentos. Espera unos minutos antes de volver a intentarlo.' : 'No se pudo completar la solicitud. Comprueba los datos o inténtalo más tarde.' }, status === 429 ? 429 : 400);
+function providerError(failure: ProviderFailure, action: string) {
+  const reference = diagnostic(action, failure);
+  const message = failure.status === 429 ? 'Demasiados intentos. Espera unos minutos antes de volver a intentarlo.' : 'No se pudo completar la solicitud. Comprueba los datos o inténtalo más tarde.';
+  return reply({ error: `${message} Referencia: ${reference}.` }, failure.status === 429 ? 429 : 400);
 }
 

@@ -133,3 +133,17 @@ it('accepts the public website origin behind a rewrite and rejects other origins
   expect((await call('https://attacker.example')).status).toBe(403);
 });
 
+it('records a provider error code without logging credentials or provider messages', async () => {
+  const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  auth.signInWithPassword.mockResolvedValue({
+    data: {}, error: { status: 400, code: 'invalid_credentials', message: 'private provider detail' },
+  });
+  const response = await handleAuth(request({ email: 'private@example.com', password: 'secret-password' }), 'login');
+  expect(response.status).toBe(401);
+  expect((await response.json()).error).toContain('Referencia:');
+  const logged = JSON.stringify(warning.mock.calls);
+  expect(logged).toContain('invalid_credentials');
+  for (const secret of ['private@example.com', 'secret-password', 'private provider detail']) expect(logged).not.toContain(secret);
+  warning.mockRestore();
+});
+
