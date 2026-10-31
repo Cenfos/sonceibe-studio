@@ -1,6 +1,6 @@
 'use client';
 
-import { Download, ExternalLink, Plus, Clock, MoreVertical, Trash2, Film, Sparkles, LogOut, HardDrive, FolderOpen, Copy } from 'lucide-react';
+import { Download, ExternalLink, Plus, Clock, MoreVertical, Trash2, Film, LogOut, HardDrive, FolderOpen, Copy } from 'lucide-react';
 import Image from 'next/image';
 import { SONCEIBE_LOGO_DATA_URL } from '@/lib/sonceibe-logo-data';
 import { useStore } from '@/lib/store';
@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { formatRelative, formatTime } from '@/lib/format';
 import { useState, useEffect, useRef } from 'react';
 import {
@@ -18,7 +17,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { readPortableProjectFile } from '@/lib/project/download-current-project';
-import { visualPresets } from '@/lib/visual-presets';
 import { toast } from 'sonner';
 import { MAX_RECENT_PROJECTS, hasExternalCopy } from '@/lib/recent-projects';
 import { WorkspaceControl } from './workspace-control';
@@ -32,7 +30,7 @@ export function HomePage() {
   const handleDuplicate = async (id: string) => {
     if (duplicateBusy.current) return;
     duplicateBusy.current = true; setDuplicating(true);
-    try { if (await duplicateProject(id)) toast.success('Proyecto duplicado con su audio y fotografías'); }
+    try { if (await duplicateProject(id)) toast.success('Proyecto duplicado con sus archivos y ajustes'); }
     catch (error) { toast.error(error instanceof Error ? error.message : 'No se pudo duplicar el proyecto'); }
     finally { duplicateBusy.current = false; setDuplicating(false); }
   };
@@ -96,71 +94,35 @@ export function HomePage() {
           </form>
         </DialogContent>
       </Dialog>
-      <div className="relative overflow-hidden border-b border-border">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-transparent to-transparent" />
-        <div className="absolute inset-0 bg-grid opacity-30" />
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleLogout}
-          className="absolute right-5 top-5 z-20 gap-1.5 text-muted-foreground"
-        >
-          <LogOut className="h-4 w-4" />
-          Salir
-        </Button>
-        <div className="relative px-8 pt-20 pb-12 md:px-16 md:py-20">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/20 ring-1 ring-primary/30">
-              <Image src={SONCEIBE_LOGO_DATA_URL} alt="Son Ceibe" width={48} height={48} unoptimized className="rounded-xl object-contain" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">SonCeibe Studio</h1>
-              <p className="text-sm text-muted-foreground">Crea vídeos musicales con letras, fotos y efectos</p>
-            </div>
+      <header className="border-b border-border bg-card/30">
+        <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-5 sm:px-8 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-3">
+            <Image src={SONCEIBE_LOGO_DATA_URL} alt="Son Ceibe" width={44} height={44} unoptimized className="rounded-lg object-contain" />
+            <div><h1 className="text-xl font-bold tracking-tight sm:text-2xl">SonCeibe Studio</h1><p className="text-xs text-muted-foreground">Tu espacio para crear vídeos musicales</p></div>
           </div>
-          <p className="text-muted-foreground max-w-2xl mb-4">
-            Importa tu música, sincroniza la letra, coloca tus fotografías en la línea de tiempo y exporta el resultado en MP4 para PC o móvil.
-          </p>
-          <p className="text-xs text-muted-foreground max-w-2xl mb-8 flex items-center gap-1.5">
-            <HardDrive className="h-3.5 w-3.5" />
-            Guarda tus proyectos .scs en tu equipo y ábrelos para continuar. Studio conserva hasta cinco recientes en este navegador como recuperación.
-          </p>
-          <div className="flex flex-wrap gap-3">
-            <Button size="lg" variant="outline" className="gap-2" asChild>
-              <a href="/download/windows"><Download className="h-5 w-5" /> Descargar para Windows</a>
-            </Button>
-            <Button size="lg" variant="outline" className="gap-2" asChild>
-              <a href="https://www.sonceibe.es"><ExternalLink className="h-5 w-5" /> Volver a SonCeibe.es</a>
-            </Button>
-            <Button size="lg" onClick={handleCreateProject} className="gap-2">
-              <Plus className="h-5 w-5" />
-              Nuevo Proyecto
-            </Button>
-            <input
-              ref={importInputRef}
-              type="file"
-              accept=".scs,application/json"
-              className="hidden"
-              onChange={handleProjectImport}
-            />
-            <Button size="lg" variant="outline" className="gap-2" onClick={() => importInputRef.current?.click()}>
-              <FolderOpen className="h-5 w-5" />
-              Abrir proyecto .scs
-            </Button>
-            <Button size="lg" variant="outline" className="gap-2" disabled title="Lo añadiremos más adelante">
-              <Film className="h-5 w-5" />
-              Tutoriales · próximamente
-            </Button>
-          </div>
+          <nav aria-label="Enlaces de Studio" className="flex flex-wrap items-center gap-1 sm:gap-2">
+            <Button variant="outline" size="sm" className="gap-2" asChild><a href="/download/windows"><Download className="h-4 w-4" />Windows</a></Button>
+            <Button variant="ghost" size="sm" className="gap-2" asChild><a href="https://www.sonceibe.es"><ExternalLink className="h-4 w-4" />SonCeibe.es</a></Button>
+            <Button variant="ghost" size="sm" onClick={handleLogout} className="ml-auto gap-2 text-muted-foreground lg:ml-0"><LogOut className="h-4 w-4" />Salir</Button>
+          </nav>
         </div>
-      </div>
-
-      <div className="px-8 py-8 md:px-16 space-y-12">
-        <WorkspaceControl />
+      </header>
+      <main className="mx-auto max-w-6xl space-y-9 px-4 py-7 sm:px-8 sm:py-10">
+        <section aria-labelledby="home-intro" className="relative overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/10 via-card to-card p-5 sm:p-7">
+          <h2 id="home-intro" className="text-2xl font-semibold tracking-tight sm:text-3xl">De tu canción al vídeo final</h2>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground sm:text-base sm:leading-7">
+            Empieza con una canción, tus fotos o un vídeo del móvil. Añade y sincroniza letras, ajusta el encuadre y mezcla el sonido. Exporta el vídeo completo o un Reel en MP4, en vertical u horizontal.
+          </p>
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+            <Button size="lg" onClick={handleCreateProject} className="gap-2"><Plus className="h-5 w-5" />Nuevo Proyecto</Button>
+            <Button size="lg" variant="outline" className="gap-2" onClick={() => importInputRef.current?.click()}><FolderOpen className="h-5 w-5" />Abrir proyecto .scs</Button>
+            <input ref={importInputRef} type="file" aria-label="Archivo de proyecto .scs" accept=".scs,application/json" className="hidden" onChange={handleProjectImport} />
+          </div>
+        </section>
         <section>
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex items-start justify-between gap-3 mb-5">
             <div>
-              <h2 className="text-xl font-semibold">Proyectos Recientes</h2>
+              <h2 className="text-xl font-semibold">Tus proyectos</h2>
               <p className="text-sm text-muted-foreground">
                 {mounted ? `${projects.length} de ${MAX_RECENT_PROJECTS} recientes en este navegador · tus archivos .scs se conservan aparte` : 'Cargando...'}
               </p>
@@ -173,48 +135,27 @@ export function HomePage() {
 
           {projects.length > MAX_RECENT_PROJECTS && <div role="status" className="mb-4 rounded-lg border p-3 text-sm space-y-2"><p>Se han recuperado {projects.length} proyectos anteriores. Ninguno se ha eliminado. Guarda o descarta los más antiguos para conservar cinco recientes.</p><Button variant="outline" onClick={() => void trimRecentProjects()}>Revisar proyectos antiguos</Button></div>}
           {mounted ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {projects.length === 0 && <div className="col-span-full rounded-xl border border-dashed border-border bg-card/30 px-5 py-10 text-center"><FolderOpen className="mx-auto mb-3 h-8 w-8 text-muted-foreground" /><h3 className="font-medium">Tu próximo vídeo empieza aquí</h3><p className="mt-2 text-sm text-muted-foreground">Crea un proyecto nuevo o abre un archivo .scs para continuar trabajando.</p></div>}
               {projects.map((p) => (
-                <Card
-                  key={p.id}
-                  className="group relative overflow-hidden border-border bg-card hover:border-primary/50 transition-all cursor-pointer"
-                  onClick={() => openProject(p.id)}
-                >
-                  <div
-                    className="aspect-video relative overflow-hidden"
-                    style={{
-                      background: `linear-gradient(135deg, ${p.settings.background.gradientFrom}, ${p.settings.background.gradientTo})`,
-                    }}
-                  >
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <span className="text-white/90 font-bold text-lg px-4 text-center drop-shadow-lg line-clamp-2">
-                        {p.settings.title}
+                <Card key={p.id} className="group relative overflow-hidden border-border bg-card transition-colors hover:border-primary/60 focus-within:border-primary">
+                  <button type="button" aria-label={`Abrir ${p.settings.title}`} onClick={() => openProject(p.id)} className="block w-full rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary">
+                    <span className="relative block aspect-video overflow-hidden" style={{ background: `linear-gradient(135deg, ${p.settings.background.gradientFrom}, ${p.settings.background.gradientTo})` }}>
+                      <span className="absolute inset-0 bg-gradient-to-t from-black/65 to-transparent" />
+                      <span className="absolute inset-0 flex items-center justify-center px-6 text-center text-lg font-semibold text-white drop-shadow-lg">{p.settings.title}</span>
+                      <span className="absolute bottom-3 left-3 right-3 flex items-center justify-between text-xs text-white/90">
+                        <span className="rounded bg-black/40 px-2 py-1">{p.settings.background.type === 'video' ? 'Vídeo' : p.settings.audioName ? 'Audio' : 'Proyecto'}</span>
+                        {p.settings.audioDuration > 0 && <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{formatTime(p.settings.audioDuration)}</span>}
                       </span>
-                    </div>
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                    <div className="absolute bottom-2 left-3 right-3 flex items-center justify-between">
-                      <Badge variant="secondary" className="bg-black/50 text-white border-0">
-                        {p.settings.lyrics.length} líneas
-                      </Badge>
-                      {p.settings.audioDuration > 0 && (
-                        <span className="text-xs text-white/80 flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {formatTime(p.settings.audioDuration)}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="p-4">
-                    <h3 className="font-medium truncate">{p.settings.title}</h3>
-                    <p className="text-sm text-muted-foreground truncate">
-                      {p.settings.artist || 'Artista desconocido'}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      {formatRelative(p.settings.updatedAt)}
-                    </p>
-                    <p className="mt-2 text-xs">{hasExternalCopy(p, externalCopies) ? 'Copia guardada en tu equipo' : 'Sólo en este navegador · guarda una copia .scs'}</p>
-                  </div>
+                    </span>
+                    <span className="block p-4">
+                      <span role="heading" aria-level={3} className="block truncate font-medium">{p.settings.title}</span>
+                      {!!p.settings.artist.trim() && !/^artista desconocido$/i.test(p.settings.artist.trim()) && <span className="mt-1 block truncate text-sm text-muted-foreground">{p.settings.artist.trim()}</span>}
+                      <span className="mt-2 block text-xs text-muted-foreground">{formatRelative(p.settings.updatedAt)} · {p.settings.lyrics.length} líneas</span>
+                      <span className="mt-2 block text-xs text-muted-foreground">{hasExternalCopy(p, externalCopies) ? 'Copia guardada en tu equipo' : 'Sólo en este navegador · guarda una copia .scs'}</span>
+                      <span className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-primary"><Film className="h-3.5 w-3.5" />Continuar en el editor</span>
+                    </span>
+                  </button>
 
                   <div className="absolute top-2 right-2">
                     <DropdownMenu>
@@ -248,7 +189,7 @@ export function HomePage() {
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {[1, 2, 3].map((i) => (
                 <Card key={i} className="border-border bg-card/50">
                   <div className="aspect-video bg-muted animate-pulse rounded-t-lg" />
@@ -288,76 +229,11 @@ export function HomePage() {
           )}
         </section>
 
-        <section>
-          <div className="flex items-center gap-2 mb-2">
-            <Sparkles className="h-5 w-5 text-primary" />
-            <h2 className="text-xl font-semibold">Estilos preparados</h2>
-          </div>
-          <p className="text-sm text-muted-foreground mb-6">
-            Los mismos estilos disponibles dentro del editor: fondo, título, letra, animación, efectos y ornamentación.
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {visualPresets.map((preset) => (
-              <Card
-                key={preset.id}
-                className="overflow-hidden border-border bg-card opacity-95 cursor-default"
-              >
-                <div
-                  className="aspect-video relative overflow-hidden"
-                  style={{
-                    background: `linear-gradient(145deg, ${preset.previewFrom}, ${preset.previewTo})`,
-                  }}
-                >
-                  <div
-                    className="absolute inset-3 rounded-lg border"
-                    style={{
-                      borderColor: `${preset.accent}99`,
-                      boxShadow: `inset 0 0 24px ${preset.accent}22, 0 0 18px ${preset.accent}18`,
-                    }}
-                  />
-                  {preset.id === 'ska-ceibe' && (
-                    <div className="absolute inset-x-0 bottom-0 h-6 opacity-70" style={{
-                      backgroundImage: 'linear-gradient(45deg,#111 25%,transparent 25%),linear-gradient(-45deg,#111 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#111 75%),linear-gradient(-45deg,transparent 75%,#111 75%)',
-                      backgroundSize: '18px 18px',
-                      backgroundPosition: '0 0,0 9px,9px -9px,-9px 0px',
-                    }} />
-                  )}
-                  {preset.id === 'folk-atlantico' && (
-                    <div className="absolute inset-x-8 bottom-5 h-px opacity-70" style={{ background: preset.accent }} />
-                  )}
-                  {preset.id === 'rock-galego' && (
-                    <div className="absolute inset-x-6 bottom-4 h-1 rotate-[-1deg] opacity-60" style={{ background: preset.accent }} />
-                  )}
-                  {preset.id === 'galicia-gaita' && (
-                    <div className="absolute right-5 top-4 text-2xl opacity-70">✦</div>
-                  )}
-                  {preset.id === 'taberna-galega' && (
-                    <div className="absolute inset-x-6 top-4 flex justify-between text-sm opacity-80">
-                      <span>●</span><span>●</span><span>●</span><span>●</span><span>●</span>
-                    </div>
-                  )}
-                  <Image src={SONCEIBE_LOGO_DATA_URL} alt="" width={36} height={36} unoptimized className="absolute bottom-3 right-3 rounded-full" />
-                  <div className="absolute inset-0 flex items-center justify-center px-4">
-                    <span
-                      className="font-bold text-center drop-shadow-sm"
-                      style={{ fontFamily: preset.title.fontFamily || 'Inter', color: preset.title.color }}
-                    >
-                      {preset.label}
-                    </span>
-                  </div>
-                </div>
-                <div className="p-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <h3 className="font-medium">{preset.label}</h3>
-                    <Badge variant="outline" className="text-[10px]">Disponible</Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground mt-1">{preset.description}</p>
-                </div>
-              </Card>
-            ))}
-          </div>
-        </section>
-      </div>
+        <footer className="space-y-4 border-t border-border pt-5">
+          <p className="flex items-start gap-2 text-xs leading-5 text-muted-foreground"><HardDrive className="mt-0.5 h-4 w-4 shrink-0" /><span>Guarda una copia .scs en tu equipo para conservar el proyecto completo y abrirlo en otro dispositivo. Studio mantiene hasta cinco proyectos recientes en este navegador como recuperación.</span></p>
+          <WorkspaceControl />
+        </footer>
+      </main>
     </div>
   );
 }
