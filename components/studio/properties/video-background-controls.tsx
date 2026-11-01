@@ -11,7 +11,11 @@ import { VideoImageControls } from './video-image-controls';
 import { ImageFramingControls } from './image-framing-controls';
 import { toast } from 'sonner';
 
-export function VideoBackgroundControls() {
+function VideoControlGroup({ compact, title, children }: { compact: boolean; title: string; children: React.ReactNode }) {
+  return compact ? <details className="rounded-lg border border-border p-3"><summary className="min-h-11 cursor-pointer py-3 text-sm font-medium">{title}</summary><div className="space-y-3 pt-2">{children}</div></details> : <div className="space-y-3">{children}</div>;
+}
+
+export function VideoBackgroundControls({ compact = false }: { compact?: boolean }) {
   const { currentProject, updateBackground, updateSettings, saveVersion } = useStore();
   const userId = useStudioUserId(), audio = useAudioEngineContext();
   const [busy, setBusy] = useState(false);
@@ -56,10 +60,13 @@ export function VideoBackgroundControls() {
     {bg.videoUrl && !active && <Button type="button" variant="outline" size="sm" onClick={() => updateBackground({ type: 'video' })}>Usar el vídeo guardado</Button>}
     {active && <>
       <p className="break-all text-xs text-muted-foreground">{bg.videoName || 'Vídeo cargado'} · {range.duration.toFixed(2)} s de montaje</p>
+      <VideoControlGroup compact={compact} title="Recorte del vídeo">
       <fieldset className="grid grid-cols-2 gap-2 text-xs"><legend className="mb-2 font-medium">Recorte del vídeo (segundos)</legend>
         <label>Inicio<input aria-label="Inicio del vídeo" className="mt-1 w-full rounded border border-border bg-background p-2" type="number" min={0} max={Math.max(0, range.end - 0.2)} step={0.1} value={range.start} onChange={e => { const n = e.currentTarget.valueAsNumber; if (Number.isFinite(n)) updateBackground({ videoStart: Math.max(0, Math.min(range.end - 0.2, n)) }); }} /></label>
         <label>Final<input aria-label="Final del vídeo" className="mt-1 w-full rounded border border-border bg-background p-2" type="number" min={range.start + 0.2} max={bg.videoDuration} step={0.1} value={range.end} onChange={e => { const n = e.currentTarget.valueAsNumber; if (Number.isFinite(n)) updateBackground({ videoEnd: Math.min(bg.videoDuration!, Math.max(range.start + 0.2, n)) }); }} /></label>
       </fieldset>
+      </VideoControlGroup>
+      <VideoControlGroup compact={compact} title="Sonido del montaje">
       {project.settings.audioName ? <label className="block space-y-2 text-sm font-medium">Sonido del montaje
         <select aria-label="Sonido del montaje" value={bg.videoMuted ? 'song' : 'mix'} onChange={e => updateBackground({ videoMuted: e.target.value === 'song' })} className="block w-full rounded border border-border bg-background p-2 text-sm font-normal">
           <option value="mix">Vídeo + canción añadida</option>
@@ -76,8 +83,11 @@ export function VideoBackgroundControls() {
         <Button variant="ghost" size="sm" disabled={busy} onClick={removeSong}>Quitar canción añadida</Button>
       </>}
       <p className="text-xs leading-5 text-muted-foreground">El montaje dura lo que el recorte del vídeo. La canción empieza junto al vídeo desde el segundo elegido; si termina antes, el resto queda sin esa canción.</p>
+      </VideoControlGroup>
+      <VideoControlGroup compact={compact} title="Imagen y encuadre">
       <VideoImageControls />
       <ImageFramingControls label="vídeo" value={bg.videoPlacement} fit="cover" maxScale={300} onChange={videoPlacement => updateBackground({ videoPlacement })} />
+      </VideoControlGroup>
       <Button variant="outline" size="sm" className="w-full gap-2" disabled={busy} onClick={() => updateBackground({ type: 'gradient', videoUrl: '', videoName: '', videoDuration: 0, videoStart: 0, videoEnd: 0 })}><Trash2 className="h-4 w-4" />Quitar vídeo · conservar canción</Button>
     </>}
     {audio.mediaBusy && <p role="status" className="text-xs text-muted-foreground">Preparando vídeo y sonido…</p>}

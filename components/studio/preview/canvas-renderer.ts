@@ -203,7 +203,7 @@ function drawBackground(
         time,
         fx.kenburns,
         fx.kenburnsIntensity,
-        bg.imagePlacement
+        bg.type === 'images' && bg.imageMode === 'manual' ? bg.imageClips.find(clip => time >= clip.start && time < clip.end)?.placement ?? bg.imagePlacement : bg.imagePlacement
       );
     }
   } else if (bg.type === 'video') {

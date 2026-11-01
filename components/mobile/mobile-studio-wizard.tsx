@@ -1,5 +1,7 @@
 'use client';
 
+import { MobileLyricsEditor } from './mobile-lyrics-editor';
+import { MobilePhotoEditor } from './mobile-photo-editor';
 import { AccountMenu } from '@/components/account-menu';
 import { VideoBackgroundControls } from '@/components/studio/properties/video-background-controls';
 
@@ -49,11 +51,11 @@ import { hasExternalCopy } from '@/lib/recent-projects';
 import { ProjectVersions } from '@/components/studio/project-versions';
 
 const steps = [
-  { id: 'music', label: 'Música', icon: Music },
+  { id: 'music', label: 'Audio y vídeo', icon: Music },
   { id: 'lyrics', label: 'Letra', icon: FileText },
   { id: 'photos', label: 'Formato', icon: Images },
   { id: 'style', label: 'Estilo', icon: Palette },
-  { id: 'finish', label: 'Vídeo', icon: Film },
+  { id: 'finish', label: 'Exportar', icon: Film },
 ] as const;
 
 function prepareImage(file: File): Promise<string> {
@@ -204,16 +206,20 @@ export function MobileStudioWizard() {
     setBusy(true);
     try {
       const prepared = await Promise.all(files.map(prepareImage));
-      const images = [...(settings.background.images ?? []), ...prepared];
+      const bg = settings.background;
+      const previous = bg.type === 'images' && bg.imageMode === 'manual' ? bg.imageClips : (bg.images.length ? bg.images : bg.imageUrl ? [bg.imageUrl] : []).map((url, index) => ({ id: `existing-${index}`, url, start: 0, end: 0, placement: bg.imagePlacement }));
+      const items = [...previous, ...prepared.map(url => ({ id: crypto.randomUUID(), url, start: 0, end: 0, placement: undefined }))];
+      const images = items.map(item => item.url);
       const duration = audio.duration || settings.audioDuration || 0;
       const imageDuration = duration > 0 && images.length > 0
         ? Math.max(1, duration / images.length)
         : 5;
       updateBackground({
-        type: images.length > 1 ? 'images' : 'image',
+        type: 'images',
         images,
         imageUrl: images[0] || '',
-        imageMode: 'auto',
+        imageMode: 'manual',
+        imageClips: items.map((item, index) => ({ ...item, start: index * (duration || images.length * 5) / images.length, end: (index + 1) * (duration || images.length * 5) / images.length })),
         imageDuration,
         imageFit: 'cover',
       });
@@ -272,7 +278,7 @@ export function MobileStudioWizard() {
                   aria-current={active ? 'step' : undefined}
                 >
                   <Icon className="h-4 w-4" />
-                  <span className="truncate">{item.label}</span>
+                  <span className="text-center leading-4">{item.label}</span>
                 </button>
               );
             })}
@@ -294,13 +300,16 @@ export function MobileStudioWizard() {
             </div>
           </div>
 
+          <Button variant="outline" className="mb-4 min-h-11 w-full gap-2" onClick={() => window.dispatchEvent(new Event('sonceibe:open-mobile-preview'))}><Eye className="h-4 w-4" />Ver proyecto</Button>
+
           {step === 0 && (
             <Card className="p-5 space-y-4">
               <div>
                 <h2 className="font-medium">Añade una canción o un vídeo</h2>
                 <p className="mt-1 text-sm text-muted-foreground">Quedará guardada localmente con este proyecto para no tener que buscarla de nuevo.</p>
               </div>
-              <VideoBackgroundControls />
+              <VideoBackgroundControls compact />
+              {settings.background.type !== 'video' && <>
               <input ref={audioInputRef} type="file" accept=".mp3,audio/*" className="hidden" onChange={loadAudio} />
               <Button className="w-full gap-2 h-12" onClick={() => audioInputRef.current?.click()} disabled={busy}>
                 <Upload className="h-4 w-4" />
@@ -312,11 +321,12 @@ export function MobileStudioWizard() {
                   <span className="truncate">{settings.audioName}</span>
                 </div>
               )}
+              </>}
             </Card>
           )}
 
           {step === 1 && (
-            <Card className="p-5 space-y-4">
+            <Card className="min-w-0 p-5 space-y-4">
               <div>
                 <h2 className="font-medium">Añade la letra</h2>
                 <p className="mt-1 text-sm text-muted-foreground">TXT, LRC, ODT, DOCX, RTF, HTML o Markdown. Studio limpia acordes y etiquetas automáticamente.</p>
@@ -344,6 +354,7 @@ export function MobileStudioWizard() {
                   )}
                 </>
               )}
+              <MobileLyricsEditor key={currentProject.id} />
             </Card>
           )}
 
@@ -352,26 +363,14 @@ export function MobileStudioWizard() {
               <Card className="p-5 space-y-4">
                 <div>
                   <h2 className="font-medium">Añade fotos</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">Puedes elegir varias de una vez. Se recortarán automáticamente para llenar toda la pantalla 9:16.</p>
+                  <p className="mt-1 text-sm text-muted-foreground">Puedes elegir varias, ordenar la secuencia y encuadrar cada foto. Si usas un vídeo, añadir fotos lo sustituye como fondo.</p>
                 </div>
                 <input ref={photosInputRef} type="file" accept="image/*" multiple className="hidden" onChange={loadPhotos} />
                 <Button className="w-full gap-2 h-12" onClick={() => photosInputRef.current?.click()} disabled={busy}>
                   <Images className="h-4 w-4" />
                   {hasPhotos ? 'Añadir más fotos' : 'Elegir fotos'}
                 </Button>
-                {(settings.background.images?.length ?? 0) > 0 && (
-                  <div className="grid grid-cols-3 gap-2">
-                    {settings.background.images.slice(0, 6).map((src, index) => (
-                      <div key={`${src}-${index}`} className="aspect-[9/16] overflow-hidden rounded-lg bg-black">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={src} alt="" className="h-full w-full object-cover" />
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {hasPhotos && (
-                  <div className="text-xs text-muted-foreground">Las fotos se repartirán automáticamente a lo largo de la canción.</div>
-                )}
+                <MobilePhotoEditor />
               </Card>
             </div>
           )}
