@@ -6,8 +6,6 @@ import { HomePage } from '@/components/home/home-page';
 import { StudioLayout } from '@/components/studio/studio-layout';
 import { MobileStudioWizard } from '@/components/mobile/mobile-studio-wizard';
 import { MobilePreviewLauncher } from '@/components/mobile/mobile-preview-launcher';
-import { MobileProjectTransferButton } from '@/components/mobile/mobile-project-transfer';
-import { MobileSavedVideoButton } from '@/components/mobile/mobile-saved-video-button';
 import { ExportDialog } from '@/components/studio/export-dialog';
 import { SettingsDialog } from '@/components/studio/settings-dialog';
 import { isDefaultProjectTitle, PENDING_PROJECT_TITLE_KEY, titleFromAudioFilename } from '@/lib/project-title';
@@ -93,8 +91,6 @@ export function AppShell() {
       ) : isPhone ? (
         <>
           <MobileStudioWizard />
-          <MobileSavedVideoButton />
-          <MobileProjectTransferButton />
           <MobilePreviewLauncher />
         </>
       ) : (

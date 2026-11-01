@@ -1,7 +1,7 @@
 'use client';
 
-import { FormEvent, useId, useState } from 'react';
-import { ChevronDown, KeyRound, LogOut, Pencil, UserRound } from 'lucide-react';
+import { FormEvent, type ReactNode, useId, useState } from 'react';
+import { ChevronDown, KeyRound, LogOut, Menu, Pencil, UserRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { useStudioAccount } from '@/lib/studio-user-context';
 import { studioPath } from '@/lib/studio-paths';
@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
-export function AccountMenu({ compact = false }: { compact?: boolean }) {
+export function AccountMenu({ compact = false, mobileMenu = false, projectActions }: { compact?: boolean; mobileMenu?: boolean; projectActions?: ReactNode }) {
   const { account, setName } = useStudioAccount();
   const [dialog, setDialog] = useState<'name' | 'password' | null>(null);
   const [name, setDraftName] = useState('');
@@ -58,22 +58,25 @@ export function AccountMenu({ compact = false }: { compact?: boolean }) {
   return <>
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm" disabled={busy} className="max-w-[200px] gap-2" aria-label={`Cuenta: ${displayName}`}>
+        <Button variant="ghost" size={mobileMenu ? 'icon' : 'sm'} disabled={busy} className={mobileMenu ? 'h-11 w-11 shrink-0' : 'max-w-[200px] gap-2'} aria-label={mobileMenu ? 'Menú del proyecto' : `Cuenta: ${displayName}`}>
+          {mobileMenu ? <Menu className="h-5 w-5" /> : <>
           <UserRound className="h-4 w-4 shrink-0" />
           <span className={compact ? 'max-w-[90px] truncate text-xs' : 'max-w-[140px] truncate'}>{displayName}</span>
           <ChevronDown className="h-3 w-3 shrink-0" />
+          </>}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-72 max-w-[calc(100vw-2rem)]">
+      <DropdownMenuContent align="end" className="w-72 max-w-[calc(100vw-2rem)] max-h-[var(--radix-dropdown-menu-content-available-height)] overflow-y-auto">
+        {projectActions}
         <DropdownMenuLabel className="space-y-1">
           <p className="break-words">{account.name || 'Mi cuenta'}</p>
           <p className="break-all text-xs font-normal text-muted-foreground">{account.email || 'Cuenta de Studio'}</p>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={() => open('name')} className="gap-2"><Pencil className="h-4 w-4" />Cambiar nombre</DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => open('password')} className="gap-2"><KeyRound className="h-4 w-4" />Cambiar contraseña</DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => open('name')} className="min-h-[44px] gap-2"><Pencil className="h-4 w-4" />Cambiar nombre</DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => open('password')} className="min-h-[44px] gap-2"><KeyRound className="h-4 w-4" />Cambiar contraseña</DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={() => void logout()} className="gap-2"><LogOut className="h-4 w-4" />Cerrar sesión</DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => void logout()} className="min-h-[44px] gap-2"><LogOut className="h-4 w-4" />Cerrar sesión</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
     <Dialog open={dialog !== null} onOpenChange={value => { if (!value) close(); }}>

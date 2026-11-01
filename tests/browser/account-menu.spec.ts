@@ -52,7 +52,7 @@ test('validates repeated password, shows errors, and confirms a successful accou
 test('offers account management in the mobile editor and closes the session', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole('heading', { name: 'Prueba Studio', exact: true }).click();
-  await page.getByRole('button', { name: 'Cuenta: Ana Studio', exact: true }).click();
+  await page.getByRole('button', { name: 'Menú del proyecto', exact: true }).click();
   await expect(page.getByText('ana@example.com', { exact: true })).toBeVisible();
   await expect(page.getByRole('menu')).toHaveCSS('opacity', '1');
   await page.screenshot({ path: 'tests/.generated/account-mobile.png', fullPage: true });

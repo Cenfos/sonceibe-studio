@@ -4,7 +4,7 @@ import { MobileTextControls } from './mobile-text-controls';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { MobileLyricsEditor } from './mobile-lyrics-editor';
 import { MobilePhotoEditor } from './mobile-photo-editor';
-import { AccountMenu } from '@/components/account-menu';
+import { MobileStudioMenu } from './mobile-studio-menu';
 import { VideoBackgroundControls } from '@/components/studio/properties/video-background-controls';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -50,7 +50,6 @@ import { MobileAudioPlayer } from './mobile-audio-player';
 import { ReelDialog } from '@/components/studio/reel-dialog';
 import { emptyStyle } from '@/lib/reel';
 import { hasExternalCopy } from '@/lib/recent-projects';
-import { ProjectVersions } from '@/components/studio/project-versions';
 
 const steps = [
   { id: 'music', label: 'Audio y vídeo', icon: Music },
@@ -262,8 +261,8 @@ export function MobileStudioWizard() {
       <MobileOrientationGate />
       <div className="mobile-studio-wizard h-[100dvh] overflow-y-auto bg-background">
         <header className="sticky top-0 z-20 border-b border-border bg-background/95 backdrop-blur">
-          <div className="flex items-center justify-between px-4 py-3">
-            <Button variant="ghost" size="icon" onClick={requestProjectExit} aria-label="Volver a proyectos">
+          <div className="grid grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] items-start gap-2 px-3 py-3">
+            <Button variant="ghost" size="icon" className="h-11 w-11 shrink-0" onClick={requestProjectExit} aria-label="Volver a proyectos">
               <Home className="h-5 w-5" />
             </Button>
             <div className="min-w-0 text-center">
@@ -278,7 +277,7 @@ export function MobileStudioWizard() {
               </div>
               <div className="text-[10px] text-muted-foreground">{hasExternalCopy(currentProject, externalCopies) ? 'Copia guardada en tu equipo' : 'Guarda una copia .scs en tu equipo'}</div>
             </div>
-            <div className="flex shrink-0 items-center"><ProjectVersions /><AccountMenu compact /></div>
+            <MobileStudioMenu />
           </div>
           <div className="grid grid-cols-5 border-t border-border/60">
             {steps.map((item, index) => {

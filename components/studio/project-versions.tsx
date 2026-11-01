@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { History } from 'lucide-react';
 import { toast } from 'sonner';
 import { useStore } from '@/lib/store';
@@ -8,12 +8,20 @@ import type { ProjectSnapshot } from '@/lib/project-history';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
 
-export function ProjectVersions() {
+export function ProjectVersions({ initiallyOpen = false, hideTrigger = false, onClose }: { initiallyOpen?: boolean; hideTrigger?: boolean; onClose?: () => void } = {}) {
   const { saveVersion, getVersions, restoreVersion, historyError } = useStore();
-  const [open, setOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(initiallyOpen);
+  const [busy, setBusy] = useState(initiallyOpen);
   const [versions, setVersions] = useState<ProjectSnapshot[]>([]);
   const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!initiallyOpen) return;
+    let cancelled = false;
+    void getVersions().then(value => { if (!cancelled) setVersions(value); }).catch(reason => {
+      if (!cancelled) setError(reason instanceof Error ? reason.message : 'No se pudo leer el historial');
+    }).finally(() => { if (!cancelled) setBusy(false); });
+    return () => { cancelled = true; };
+  }, [initiallyOpen, getVersions]);
   const run = async (action: () => Promise<void>) => {
     setBusy(true); setError(null);
     try { await action(); setVersions(await getVersions()); }
@@ -23,11 +31,12 @@ export function ProjectVersions() {
   return <Dialog open={open} onOpenChange={value => {
     if (busy) return;
     setOpen(value);
+    if (!value) onClose?.();
     if (value) void run(async () => {});
   }}>
-    <DialogTrigger asChild><Button variant="outline" size="sm" aria-label="Versiones locales" title="Versiones locales" className={historyError ? 'text-destructive' : ''}>
+    {!hideTrigger && <DialogTrigger asChild><Button variant="outline" size="sm" aria-label="Versiones locales" title="Versiones locales" className={historyError ? 'text-destructive' : ''}>
       <History className="h-4 w-4" /><span className="hidden xl:inline ml-2">Versiones</span>
-    </Button></DialogTrigger>
+    </Button></DialogTrigger>}
     <DialogContent onEscapeKeyDown={event => { if (busy) event.preventDefault(); }} onPointerDownOutside={event => { if (busy) event.preventDefault(); }}>
       <DialogHeader><DialogTitle>Versiones locales</DialogTitle><DialogDescription>
         Se guardan antes de cambiar letras, fotos o estilos. Hasta 20 versiones y 128 MB por proyecto en este navegador. Incluyen el audio disponible. Al restaurar se conserva primero el estado actual.
