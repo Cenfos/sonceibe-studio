@@ -11,7 +11,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 45
     env:
-      STUDIO_DESKTOP_URL: https://sonceibe-studio.vercel.app
+      STUDIO_DESKTOP_URL: https://www.sonceibe.es/studio
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

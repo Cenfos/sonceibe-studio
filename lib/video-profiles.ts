@@ -1,4 +1,15 @@
-import type { ProjectSettings, VideoOrientation } from './types';
+import type { ExportQuality, ProjectSettings, VideoOrientation } from './types';
+
+export const EXPORT_QUALITIES: Record<ExportQuality, { label: string; description: string; videoBitrate: number; audioBitrate: number }> = {
+  light: { label: 'Ligera', description: 'Archivo pequeño para compartir.', videoBitrate: 1_300_000, audioBitrate: 96_000 },
+  balanced: { label: 'Equilibrada', description: 'Buen detalle y tamaño moderado.', videoBitrate: 5_500_000, audioBitrate: 160_000 },
+  high: { label: 'Alta', description: 'Más detalle en movimiento; archivo mayor.', videoBitrate: 12_000_000, audioBitrate: 192_000 },
+};
+
+export function videoProfileForQuality(target: VideoTarget, quality: ExportQuality = 'balanced'): VideoProfile {
+  const level = EXPORT_QUALITIES[quality] ?? EXPORT_QUALITIES.balanced;
+  return { ...VIDEO_PROFILES[target], videoBitrate: level.videoBitrate, audioBitrate: level.audioBitrate };
+}
 
 export type VideoTarget = 'mobile' | 'pc';
 

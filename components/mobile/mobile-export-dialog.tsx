@@ -9,7 +9,9 @@ import { useAudioEngineContext } from '@/lib/audio-engine-context';
 import { useStudioUserId } from '@/lib/studio-user-context';
 import { getProjectVideo, saveProjectVideo } from '@/lib/local-media-storage';
 import { createProjectMp4, type CapturableAudioElement } from '@/lib/video-exporter';
-import { VIDEO_PROFILES } from '@/lib/video-profiles';
+import { ExportQualityControl } from '@/components/studio/export-quality-control';
+import type { ExportQuality } from '@/lib/types';
+import { VIDEO_PROFILES, videoProfileForQuality } from '@/lib/video-profiles';
 import { toast } from 'sonner';
 
 function safeFilename(value: string): string {
@@ -36,9 +38,9 @@ function downloadBlob(filename: string, blob: Blob) {
   window.setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
-function estimatedSizeBytes(duration: number): number {
+function estimatedSizeBytes(duration: number, quality?: ExportQuality): number {
   if (duration <= 0) return 0;
-  const profile = VIDEO_PROFILES.mobile;
+  const profile = videoProfileForQuality('mobile', quality);
   return duration * (profile.videoBitrate + profile.audioBitrate) / 8 * 1.03;
 }
 
@@ -54,7 +56,8 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
   const existingVideoInputRef = useRef<HTMLInputElement>(null);
 
   const duration = audio.duration || currentProject?.settings.audioDuration || 0;
-  const estimatedSize = useMemo(() => estimatedSizeBytes(duration), [duration]);
+  const quality = currentProject?.settings.exportConfig.quality ?? 'balanced';
+  const estimatedSize = useMemo(() => estimatedSizeBytes(duration, quality), [duration, quality]);
 
   useEffect(() => {
     if (!open || !currentProject) {
@@ -132,8 +135,8 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
         includeAudio: true,
         // Render lighter on the phone, but capture and verify the final canvas
         // at the exact 1080×1920 mobile profile.
-        internalWidth: 720,
-        internalHeight: 1280,
+        internalWidth: quality === 'high' ? 1080 : 720,
+        internalHeight: quality === 'high' ? 1920 : 1280,
         onProgress: setProgress,
       });
 
@@ -228,6 +231,7 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
             </div>
           ) : (
             <div className="space-y-4">
+              <ExportQualityControl />
               <div className="rounded-lg bg-secondary/40 p-3 text-sm">
                 <p role="status" className="mb-2 font-medium">Vas a crear la canción completa: 0.0–{duration.toFixed(1)} s. Para crear un fragmento, vuelve atrás y elige Reels.</p>
                 <div className="flex justify-between"><span className="text-muted-foreground">Formato</span><span>1080×1920 · 9:16</span></div>
@@ -235,7 +239,7 @@ export function MobileExportDialog({ open, onClose }: { open: boolean; onClose: 
                 <div className="mt-1 flex justify-between"><span className="text-muted-foreground">Tamaño estimado</span><span>~{estimatedSize ? formatMb(estimatedSize) : '—'}</span></div>
               </div>
               <p className="text-xs leading-5 text-muted-foreground">
-                El archivo final sigue siendo Full HD 9:16, pero Studio renderiza internamente de forma optimizada para evitar que la imagen o la letra se congelen durante la exportación en móvil.
+                El archivo final es Full HD 9:16. En calidad alta se renderiza a resolución completa; ligera y equilibrada reducen el trabajo en el móvil.
               </p>
               <Button className="w-full h-12 gap-2" onClick={exportVideo}>
                 <Film className="h-5 w-5" />

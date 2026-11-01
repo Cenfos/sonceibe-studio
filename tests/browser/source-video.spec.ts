@@ -48,6 +48,8 @@ test.describe('phone video background', () => {
   test('video controls fit the phone and support original sound without a separate song', async ({ page }) => {
     await page.goto('/'); await page.evaluate(() => window.studioTest.seedVideo()); await page.goto('/?ui');
     await page.getByRole('heading', { name: 'Vídeo del móvil', exact: true }).click();
+    await page.getByText('Recorte del vídeo', { exact: true }).click();
+    await page.getByText('Sonido del montaje', { exact: true }).click();
     await expect(page.getByLabel('Inicio del vídeo', { exact: true })).toHaveValue('0.5');
     await expect(page.getByLabel('Mantener sonido original', { exact: true })).toBeChecked();
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

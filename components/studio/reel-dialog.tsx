@@ -1,5 +1,6 @@
 'use client';
 
+import { ExportQualityControl } from './export-quality-control';
 import { useEffect, useRef, useState } from 'react';
 import { Scissors } from 'lucide-react';
 import { useStore } from '@/lib/store';
@@ -160,7 +161,7 @@ export function ReelDialog({ fromTimeline = false, onRequestAudio, onManualDesig
             <canvas ref={canvas} width={270} height={480} className="h-64 w-36 rounded bg-black" aria-label="Vista previa del Reel" />
             <Button variant="outline" disabled={!valid || !audio.audioBuffer} onClick={() => { if (previewing) { audio.pause(); setPreviewing(false); } else { audio.seek(reel.start); void audio.play(); setPreviewing(true); } }}>{previewing ? 'Parar fragmento' : 'Escuchar y previsualizar fragmento'}</Button>
           </div>
-          {(fromTimeline || manual || step === 2) && <><div aria-label="Resumen del Reel" className="rounded-lg border bg-secondary/30 p-3 text-sm space-y-1"><p>Fragmento: {reel.start.toFixed(1)}–{reel.end.toFixed(1)} s · {(reel.end - reel.start).toFixed(1)} s</p><p>Vertical · 1080 × 1920 · 9:16 · MP4 con música</p><p>Fondo: {reel.coverUrl ? 'Portada elegida' : 'Montaje del proyecto'} · Letra: {reel.showLyrics ? (reel.lyricsMode === 'custom' ? 'sólo del Reel' : 'del proyecto') : 'no'} · Título: {reel.showTitle ? 'sí' : 'no'}</p></div><Button className="w-full" disabled={!valid || !audio.audioBuffer || !!lyricsIssue || !!audio.mediaBusy || !!audio.mediaError} onClick={() => void exportReel()}>Crear Reel MP4</Button></>}
+          {(fromTimeline || manual || step === 2) && <><ExportQualityControl /><div aria-label="Resumen del Reel" className="rounded-lg border bg-secondary/30 p-3 text-sm space-y-1"><p>Fragmento: {reel.start.toFixed(1)}–{reel.end.toFixed(1)} s · {(reel.end - reel.start).toFixed(1)} s</p><p>Vertical · 1080 × 1920 · 9:16 · MP4 con música</p><p>Fondo: {reel.coverUrl ? 'Portada elegida' : 'Montaje del proyecto'} · Letra: {reel.showLyrics ? (reel.lyricsMode === 'custom' ? 'sólo del Reel' : 'del proyecto') : 'no'} · Título: {reel.showTitle ? 'sí' : 'no'}</p></div><Button className="w-full" disabled={!valid || !audio.audioBuffer || !!lyricsIssue || !!audio.mediaBusy || !!audio.mediaError} onClick={() => void exportReel()}>Crear Reel MP4</Button></>}
           {lyricsIssue && <p role="status" className="text-xs text-amber-500">{lyricsIssue}</p>}
           {!fromTimeline && !manual && <div className="flex justify-between gap-2"><Button variant="outline" disabled={step === 0} onClick={() => setStep(step - 1)}>Anterior</Button>{step < 2 && <Button disabled={!valid || !audio.audioBuffer} onClick={() => setStep(step + 1)}>Continuar</Button>}</div>}
         </fieldset>

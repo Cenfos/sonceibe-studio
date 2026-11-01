@@ -1,6 +1,12 @@
 'use client';
 
-import { Download, ExternalLink, Plus, Clock, MoreVertical, Trash2, Film, LogOut, HardDrive, FolderOpen, Copy } from 'lucide-react';
+import { useStudioUserId } from '@/lib/studio-user-context';
+import { prepareWorkspacePickerDirectory } from '@/lib/local-workspace';
+import { openProjectFilePicker } from '@/lib/project/open-project-file';
+import { AccountMenu } from '@/components/account-menu';
+import { studioPath, SONCEIBE_HOME } from '@/lib/studio-paths';
+
+import { Download, ExternalLink, Plus, Clock, MoreVertical, Trash2, Film, HardDrive, FolderOpen, Copy } from 'lucide-react';
 import Image from 'next/image';
 import { SONCEIBE_LOGO_DATA_URL } from '@/lib/sonceibe-logo-data';
 import { useStore } from '@/lib/store';
@@ -22,6 +28,13 @@ import { MAX_RECENT_PROJECTS, hasExternalCopy } from '@/lib/recent-projects';
 import { WorkspaceControl } from './workspace-control';
 
 export function HomePage() {
+  const userId = useStudioUserId();
+  const [pickerReady, setPickerReady] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    void prepareWorkspacePickerDirectory(userId).catch(() => {}).finally(() => { if (!cancelled) setPickerReady(true); });
+    return () => { cancelled = true; };
+  }, [userId]);
   const { projects, openProject, createProject, deleteProject, duplicateProject, importProject, saveProjectFile, externalCopies, trimRecentProjects } = useStore();
   const [createOpen, setCreateOpen] = useState(false);
   const [projectTitle, setProjectTitle] = useState('');
@@ -39,13 +52,6 @@ export function HomePage() {
   const importInputRef = useRef<HTMLInputElement>(null);
   useEffect(() => setMounted(true), []);
 
-  const handleLogout = async () => {
-    try {
-      await fetch('/api/studio-auth/logout', { method: 'POST' });
-    } finally {
-      window.location.replace('/access');
-    }
-  };
 
   const handleCreateProject = () => {
     setProjectTitle('');
@@ -65,6 +71,10 @@ export function HomePage() {
     event.target.value = '';
     if (!file) return;
 
+    await importFile(file);
+  };
+
+  const importFile = async (file: File) => {
     try {
       const imported = await readPortableProjectFile(file);
       if (await importProject(imported.project, imported.audioFile)) toast.success('Proyecto abierto desde el archivo .scs');
@@ -72,6 +82,15 @@ export function HomePage() {
       console.error('Project import failed:', error);
       toast.error(error instanceof Error ? error.message : 'No se pudo importar el proyecto');
     }
+  };
+
+  const openFromDevice = () => {
+    const selection = openProjectFilePicker(userId);
+    if (!selection) { importInputRef.current?.click(); return; }
+    void selection.then(file => { if (file) return importFile(file); }).catch(error => {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      importInputRef.current?.click();
+    });
   };
 
   return (
@@ -101,9 +120,9 @@ export function HomePage() {
             <div><h1 className="text-xl font-bold tracking-tight sm:text-2xl">SonCeibe Studio</h1><p className="text-xs text-muted-foreground">Tu espacio para crear vídeos musicales</p></div>
           </div>
           <nav aria-label="Enlaces de Studio" className="flex flex-wrap items-center gap-1 sm:gap-2">
-            <Button variant="outline" size="sm" className="gap-2" asChild><a href="/download/windows"><Download className="h-4 w-4" />Windows</a></Button>
-            <Button variant="ghost" size="sm" className="gap-2" asChild><a href="https://www.sonceibe.es"><ExternalLink className="h-4 w-4" />SonCeibe.es</a></Button>
-            <Button variant="ghost" size="sm" onClick={handleLogout} className="ml-auto gap-2 text-muted-foreground lg:ml-0"><LogOut className="h-4 w-4" />Salir</Button>
+            <Button variant="outline" size="sm" className="gap-2" asChild><a href={studioPath('/download/windows')}><Download className="h-4 w-4" />Windows</a></Button>
+            <Button variant="ghost" size="sm" className="gap-2" asChild><a href={SONCEIBE_HOME}><ExternalLink className="h-4 w-4" />SonCeibe.es</a></Button>
+            <AccountMenu />
           </nav>
         </div>
       </header>
@@ -115,7 +134,7 @@ export function HomePage() {
           </p>
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
             <Button size="lg" onClick={handleCreateProject} className="gap-2"><Plus className="h-5 w-5" />Nuevo Proyecto</Button>
-            <Button size="lg" variant="outline" className="gap-2" onClick={() => importInputRef.current?.click()}><FolderOpen className="h-5 w-5" />Abrir proyecto .scs</Button>
+            <Button size="lg" variant="outline" className="gap-2" disabled={!pickerReady} onClick={openFromDevice}><FolderOpen className="h-5 w-5" />Abrir proyecto .scs</Button>
             <input ref={importInputRef} type="file" aria-label="Archivo de proyecto .scs" accept=".scs,application/json" className="hidden" onChange={handleProjectImport} />
           </div>
         </section>

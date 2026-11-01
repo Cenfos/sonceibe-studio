@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { STUDIO_SESSION_COOKIE, readStudioSession } from '@/lib/studio-auth-server';
+import { currentStudioUser } from '@/lib/studio-auth-server';
+import { studioPath, studioRequestOrigin } from '@/lib/studio-paths';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -8,8 +9,8 @@ const headers = { 'Cache-Control': 'private, no-store' };
 
 export async function GET(request: NextRequest) {
   // Download access always requires a real session, including development.
-  if (!readStudioSession(request.cookies.get(STUDIO_SESSION_COOKIE)?.value)) {
-    const response = NextResponse.redirect(new URL('/access?next=%2Fdownload%2Fwindows', request.url));
+  if (!(await currentStudioUser())) {
+    const response = NextResponse.redirect(new URL(studioPath('/access?next=%2Fdownload%2Fwindows'), studioRequestOrigin(request)));
     response.headers.set('Cache-Control', headers['Cache-Control']);
     return response;
   }

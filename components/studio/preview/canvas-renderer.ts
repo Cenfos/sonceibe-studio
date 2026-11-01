@@ -1,4 +1,4 @@
-import { videoFrameRect } from '@/lib/source-video';
+import { drawAdjustedVideo } from '@/lib/video-adjustments';
 import { defaultTitleStyle, type AnimationType, type ImageFitMode, type ImagePlacement, type LyricLine, type ProjectSettings } from '@/lib/types';
 import { drawVisualBranding } from '@/lib/visual-branding';
 import { getVisualPreset } from '@/lib/visual-presets';
@@ -203,15 +203,14 @@ function drawBackground(
         time,
         fx.kenburns,
         fx.kenburnsIntensity,
-        bg.imagePlacement
+        bg.type === 'images' && bg.imageMode === 'manual' ? bg.imageClips.find(clip => time >= clip.start && time < clip.end)?.placement ?? bg.imagePlacement : bg.imagePlacement
       );
     }
   } else if (bg.type === 'video') {
     ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, w, h);
     if (video && video.readyState >= 2 && video.videoWidth) {
-      const rect = videoFrameRect(w, h, video.videoWidth, video.videoHeight, { scale: 100, x: 50, y: 50, fit: 'cover', ...bg.videoPlacement });
-      ctx.drawImage(video, rect.x, rect.y, rect.width, rect.height);
+      drawAdjustedVideo(ctx, video, w, h, bg);
     }
   } else {
     ctx.fillStyle = bg.color;
