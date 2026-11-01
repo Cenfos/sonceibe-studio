@@ -1,9 +1,10 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { ACCESS_COOKIE, REFRESH_COOKIE, authClient, isStudioAccessConfigured, setAuthCookies } from './studio-auth-server';
-import { STUDIO_PUBLIC_ORIGIN } from './studio-paths';
+import { STUDIO_PUBLIC_ORIGIN, studioPath } from './studio-paths';
 
 const headers = { 'Cache-Control': 'private, no-store' };
+const emailCallbackUrl = `${STUDIO_PUBLIC_ORIGIN}${studioPath('/access?mode=callback')}`;
 const reply = (body: object, status = 200) => NextResponse.json(body, { status, headers });
 type ProviderFailure = { status?: number; code?: string };
 function diagnostic(action: string, failure: ProviderFailure, fallback = 'unknown') {
@@ -93,12 +94,12 @@ export async function handleAuth(request: Request, action: string) {
     if (['signup', 'update-password'].includes(action) && (password.length < 8 || password.length > 128)) return reply({ error: 'La contraseña debe tener entre 8 y 128 caracteres.' }, 400);
     if (action === 'signup' && (!name || name.length > 80)) return reply({ error: 'El nombre debe tener entre 1 y 80 caracteres.' }, 400);
     if (action === 'signup') {
-      const { error } = await client.auth.signUp({ email, password, options: { data: { name } } });
+      const { error } = await client.auth.signUp({ email, password, options: { data: { name }, emailRedirectTo: emailCallbackUrl } });
       if (error) return providerError(error, action);
       return reply({ ok: true, message: 'Revisa tu correo para confirmar tu cuenta. Si ya tienes cuenta, puedes entrar o recuperar tu contraseña.' });
     }
     if (action === 'recover') {
-      const { error } = await client.auth.resetPasswordForEmail(email);
+      const { error } = await client.auth.resetPasswordForEmail(email, { redirectTo: emailCallbackUrl });
       if (error?.status === 429) return providerError(error, action);
       if (error && error.status !== 400) return providerError(error, action);
       return reply({ ok: true, message: 'Si existe una cuenta con ese correo, recibirás un enlace para elegir una nueva contraseña.' });
@@ -150,4 +151,5 @@ function providerError(failure: ProviderFailure, action: string) {
   const message = failure.status === 429 ? 'Demasiados intentos. Espera unos minutos antes de volver a intentarlo.' : 'No se pudo completar la solicitud. Comprueba los datos o inténtalo más tarde.';
   return reply({ error: `${message} Referencia: ${reference}.` }, failure.status === 429 ? 429 : 400);
 }
+
 
