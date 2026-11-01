@@ -1,5 +1,7 @@
 'use client';
 
+import { MobileTextControls } from './mobile-text-controls';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { MobileLyricsEditor } from './mobile-lyrics-editor';
 import { MobilePhotoEditor } from './mobile-photo-editor';
 import { AccountMenu } from '@/components/account-menu';
@@ -112,6 +114,7 @@ export function MobileStudioWizard() {
   const userId = useStudioUserId();
   const [step, setStep] = useState(0);
   const [syncOpen, setSyncOpen] = useState(false);
+  const [exitOpen, setExitOpen] = useState(false);
   const [mobileExportOpen, setMobileExportOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const audioInputRef = useRef<HTMLInputElement>(null);
@@ -142,6 +145,18 @@ export function MobileStudioWizard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentProject?.id]);
 
+  useEffect(() => {
+    const back = () => {
+      if (syncOpen) { setSyncOpen(false); return; }
+      if (mobileExportOpen) { setMobileExportOpen(false); return; }
+      if (step > 0) setStep(0);
+      else setExitOpen(true);
+    };
+    window.addEventListener('sonceibe:mobile-project-back', back);
+    return () => window.removeEventListener('sonceibe:mobile-project-back', back);
+  }, [step, syncOpen, mobileExportOpen]);
+
+  const requestProjectExit = () => { if (step > 0) setStep(0); else setExitOpen(true); };
   const title = settings?.title || 'Proyecto';
   const progress = useMemo(() => ((step + 1) / steps.length) * 100, [step]);
 
@@ -248,7 +263,7 @@ export function MobileStudioWizard() {
       <div className="mobile-studio-wizard h-[100dvh] overflow-y-auto bg-background">
         <header className="sticky top-0 z-20 border-b border-border bg-background/95 backdrop-blur">
           <div className="flex items-center justify-between px-4 py-3">
-            <Button variant="ghost" size="icon" onClick={closeProject} aria-label="Volver a proyectos">
+            <Button variant="ghost" size="icon" onClick={requestProjectExit} aria-label="Volver a proyectos">
               <Home className="h-5 w-5" />
             </Button>
             <div className="min-w-0 text-center">
@@ -376,6 +391,7 @@ export function MobileStudioWizard() {
           )}
           {step === 3 && (
             <div className="space-y-4">
+              <MobileTextControls />
               <Button variant="outline" className="w-full" onClick={() => updateSettings(emptyStyle())}>Sin estilo · fondo vacío</Button>
                 <Card className="p-5 space-y-4">
                   <div className="flex items-start gap-3">
@@ -488,8 +504,8 @@ export function MobileStudioWizard() {
             <Button
               variant="outline"
               className="flex-1 gap-1.5"
-              onClick={() => setStep((current) => Math.max(0, current - 1))}
-              disabled={step === 0 || busy}
+              onClick={() => step > 0 ? setStep(step - 1) : setExitOpen(true)}
+              disabled={busy}
             >
               <ArrowLeft className="h-4 w-4" />
               Atrás
@@ -508,6 +524,14 @@ export function MobileStudioWizard() {
         </main>
       </div>
 
+      <Dialog open={exitOpen} onOpenChange={setExitOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>¿Salir del proyecto?</DialogTitle><DialogDescription>Volverás a la lista de proyectos. Tus cambios se guardan automáticamente en este navegador.</DialogDescription></DialogHeader>
+          {autoSaveStatus === 'saving' && <p role="status" className="text-sm">Guardando los últimos cambios…</p>}
+          {autoSaveStatus === 'error' && <p role="alert" className="text-sm text-destructive">No se han podido guardar los últimos cambios. Sigue editando y guarda una copia antes de salir.</p>}
+          <DialogFooter><Button variant="outline" onClick={() => setExitOpen(false)}>Seguir editando</Button><Button disabled={autoSaveStatus === 'saving' || autoSaveStatus === 'error'} onClick={() => { audio.pause(); setExitOpen(false); closeProject(); }}>Salir del proyecto</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
       <LyricsSyncDialog open={syncOpen} onOpenChange={setSyncOpen} />
       <MobileExportDialog open={mobileExportOpen} onClose={() => setMobileExportOpen(false)} />
     </>

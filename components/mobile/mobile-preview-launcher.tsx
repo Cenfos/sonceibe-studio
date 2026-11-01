@@ -26,6 +26,13 @@ export function MobilePreviewLauncher() {
     return () => window.removeEventListener('sonceibe:open-mobile-preview', openPreview);
   }, []);
 
+  useEffect(() => {
+    if (!open) return;
+    const back = (event: Event) => { event.preventDefault(); audio.pause(); setOpen(false); };
+    window.addEventListener('sonceibe:mobile-back-overlay', back);
+    return () => window.removeEventListener('sonceibe:mobile-back-overlay', back);
+  }, [open, audio.pause]);
+
   const settings = currentProject?.settings;
   const mobileSettings = useMemo(
     () => settings ? settingsForVideoTarget(settings, 'mobile') : null,

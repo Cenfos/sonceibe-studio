@@ -1,5 +1,8 @@
 'use client';
 
+import { useStudioUserId } from '@/lib/studio-user-context';
+import { prepareWorkspacePickerDirectory } from '@/lib/local-workspace';
+import { openProjectFilePicker } from '@/lib/project/open-project-file';
 import { AccountMenu } from '@/components/account-menu';
 import { studioPath, SONCEIBE_HOME } from '@/lib/studio-paths';
 
@@ -25,6 +28,13 @@ import { MAX_RECENT_PROJECTS, hasExternalCopy } from '@/lib/recent-projects';
 import { WorkspaceControl } from './workspace-control';
 
 export function HomePage() {
+  const userId = useStudioUserId();
+  const [pickerReady, setPickerReady] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    void prepareWorkspacePickerDirectory(userId).catch(() => {}).finally(() => { if (!cancelled) setPickerReady(true); });
+    return () => { cancelled = true; };
+  }, [userId]);
   const { projects, openProject, createProject, deleteProject, duplicateProject, importProject, saveProjectFile, externalCopies, trimRecentProjects } = useStore();
   const [createOpen, setCreateOpen] = useState(false);
   const [projectTitle, setProjectTitle] = useState('');
@@ -61,6 +71,10 @@ export function HomePage() {
     event.target.value = '';
     if (!file) return;
 
+    await importFile(file);
+  };
+
+  const importFile = async (file: File) => {
     try {
       const imported = await readPortableProjectFile(file);
       if (await importProject(imported.project, imported.audioFile)) toast.success('Proyecto abierto desde el archivo .scs');
@@ -68,6 +82,15 @@ export function HomePage() {
       console.error('Project import failed:', error);
       toast.error(error instanceof Error ? error.message : 'No se pudo importar el proyecto');
     }
+  };
+
+  const openFromDevice = () => {
+    const selection = openProjectFilePicker(userId);
+    if (!selection) { importInputRef.current?.click(); return; }
+    void selection.then(file => { if (file) return importFile(file); }).catch(error => {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      importInputRef.current?.click();
+    });
   };
 
   return (
@@ -111,7 +134,7 @@ export function HomePage() {
           </p>
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
             <Button size="lg" onClick={handleCreateProject} className="gap-2"><Plus className="h-5 w-5" />Nuevo Proyecto</Button>
-            <Button size="lg" variant="outline" className="gap-2" onClick={() => importInputRef.current?.click()}><FolderOpen className="h-5 w-5" />Abrir proyecto .scs</Button>
+            <Button size="lg" variant="outline" className="gap-2" disabled={!pickerReady} onClick={openFromDevice}><FolderOpen className="h-5 w-5" />Abrir proyecto .scs</Button>
             <input ref={importInputRef} type="file" aria-label="Archivo de proyecto .scs" accept=".scs,application/json" className="hidden" onChange={handleProjectImport} />
           </div>
         </section>

@@ -54,11 +54,17 @@ export function AppShell() {
 
   useEffect(() => {
     const handleBack = () => {
-      if (currentProject) closeProject();
+      if (!currentProject) return;
+      if (isPhone) {
+        window.history.pushState({ ...window.history.state, sonCeibeView: 'project', projectId: currentProject.id }, '', window.location.href);
+        const overlay = new Event('sonceibe:mobile-back-overlay', { cancelable: true });
+        window.dispatchEvent(overlay);
+        if (!overlay.defaultPrevented) window.dispatchEvent(new Event('sonceibe:mobile-project-back'));
+      } else closeProject();
     };
     window.addEventListener('popstate', handleBack);
     return () => window.removeEventListener('popstate', handleBack);
-  }, [currentProject, closeProject]);
+  }, [currentProject, closeProject, isPhone]);
 
   useEffect(() => {
     if (!currentProject) return;
