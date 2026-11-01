@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, type ReactNode, useId, useState } from 'react';
+import { FormEvent, type ReactNode, useEffect, useId, useState } from 'react';
 import { ChevronDown, KeyRound, LogOut, Menu, Pencil, UserRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { useStudioAccount } from '@/lib/studio-user-context';
@@ -12,6 +12,13 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 
 export function AccountMenu({ compact = false, mobileMenu = false, projectActions }: { compact?: boolean; mobileMenu?: boolean; projectActions?: ReactNode }) {
   const { account, setName } = useStudioAccount();
+  const [menuOpen, setMenuOpen] = useState(false);
+  useEffect(() => {
+    if (!mobileMenu || !menuOpen) return;
+    const back = (event: Event) => { event.preventDefault(); setMenuOpen(false); };
+    window.addEventListener('sonceibe:mobile-back-overlay', back);
+    return () => window.removeEventListener('sonceibe:mobile-back-overlay', back);
+  }, [mobileMenu, menuOpen]);
   const [dialog, setDialog] = useState<'name' | 'password' | null>(null);
   const [name, setDraftName] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
@@ -56,7 +63,7 @@ export function AccountMenu({ compact = false, mobileMenu = false, projectAction
   }
 
   return <>
-    <DropdownMenu>
+    <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size={mobileMenu ? 'icon' : 'sm'} disabled={busy} className={mobileMenu ? 'h-11 w-11 shrink-0' : 'max-w-[200px] gap-2'} aria-label={mobileMenu ? 'Menú del proyecto' : `Cuenta: ${displayName}`}>
           {mobileMenu ? <Menu className="h-5 w-5" /> : <>

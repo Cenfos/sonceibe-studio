@@ -3,6 +3,25 @@ import { expect, test } from '@playwright/test';
 for (const width of [320, 390]) {
   test.describe(`mobile menu at ${width}px`, () => {
     test.use({ hasTouch: true, viewport: { width, height: 844 } });
+    test('Back closes only the open menu and preserves the current project step', async ({ page }) => {
+      await page.goto('/'); await page.evaluate(() => window.studioTest.seed()); await page.goto('/?ui');
+      await page.getByRole('heading', { name: 'Prueba Studio', exact: true }).click();
+      await page.getByRole('button', { name: 'Estilo', exact: true }).click();
+      const menuButton = page.getByRole('button', { name: 'Menú del proyecto', exact: true });
+      await menuButton.click(); await expect(page.getByRole('menu')).toBeVisible();
+      await page.goBack();
+      await expect(page.getByRole('menu')).not.toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Estilo', exact: true })).toBeVisible();
+      await expect(page.getByRole('dialog', { name: '¿Salir del proyecto?' })).not.toBeVisible();
+      await expect(menuButton).toBeFocused();
+      await page.goBack();
+      await expect(page.getByRole('heading', { name: 'Audio y vídeo', exact: true })).toBeVisible();
+      await menuButton.click(); await page.goBack();
+      await expect(page.getByRole('menu')).not.toBeVisible();
+      await expect(page.getByRole('dialog', { name: '¿Salir del proyecto?' })).not.toBeVisible();
+      await page.goBack();
+      await expect(page.getByRole('dialog', { name: '¿Salir del proyecto?' })).toBeVisible();
+    });
     test('keeps the header separate and opens project, video, history and account actions', async ({ page }) => {
       await page.goto('/'); await page.evaluate(() => window.studioTest.seed()); await page.goto('/?ui');
       await page.getByRole('heading', { name: 'Prueba Studio', exact: true }).click();
