@@ -1,11 +1,12 @@
 'use client';
 
+import { ExportQualityControl } from './export-quality-control';
 import { useEffect, useRef, useState } from 'react';
 import { Scissors } from 'lucide-react';
 import { useStore } from '@/lib/store';
 import { useAudioEngineContext } from '@/lib/audio-engine-context';
-import { reelSettings, sliceAudioWav, validateReel, reelLyricsIssue } from '@/lib/reel';
-import { createProjectMp4 } from '@/lib/video-exporter';
+import { reelSettings, validateReel, reelLyricsIssue } from '@/lib/reel';
+import { createReelMp4 } from '@/lib/reel-exporter';
 import { preloadBackgroundImage, renderFrame } from './preview/canvas-renderer';
 import { preloadVisualBranding } from '@/lib/visual-branding';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -97,25 +98,12 @@ export function ReelDialog({ fromTimeline = false, onRequestAudio, onManualDesig
     setBusy(true); setError(''); setResult(null); setProgress(0); audio.pause(); setPreviewing(false);
     const controller = new AbortController();
     exportController.current = controller;
-    let url = ''; const clip = new Audio();
     try {
-      const wav = sliceAudioWav(audio.audioBuffer, reel.start, reel.end);
-      url = URL.createObjectURL(wav); clip.preload = 'auto';
-      await new Promise<void>((resolve, reject) => {
-        const timeout = window.setTimeout(() => { cleanup(); reject(new Error('No se pudo cargar el fragmento de audio.')); }, 15000);
-        const abort = () => { cleanup(); reject(new DOMException('Creación cancelada', 'AbortError')); };
-        const cleanup = () => { clearTimeout(timeout); clip.oncanplay = null; clip.onerror = null; controller.signal.removeEventListener('abort', abort); };
-        controller.signal.addEventListener('abort', abort, { once: true });
-        clip.oncanplay = () => { cleanup(); resolve(); };
-        clip.onerror = () => { cleanup(); reject(new Error('No se pudo leer el fragmento de audio.')); };
-        clip.src = url; clip.load();
-      });
-      const settings = reelSettings({ ...project, audioDuration: duration }, reel.start, reel.end, reel.coverUrl, reel.showLyrics, reel.showTitle);
-      const exported = await createProjectMp4({ audioEl: clip, duration: clip.duration, settings, target: 'mobile', onProgress: setProgress, signal: controller.signal });
+      const exported = await createReelMp4({ settings: { ...project, reel }, audioBuffer: audio.audioBuffer, onProgress: setProgress, signal: controller.signal });
       if (controller.signal.aborted) return;
       setResult({ url: URL.createObjectURL(exported.blob), blob: exported.blob });
     } catch (err) { if (!controller.signal.aborted) setError(err instanceof Error ? err.message : 'No se pudo crear el Reel.'); }
-    finally { exportController.current = null; clip.pause(); clip.removeAttribute('src'); clip.load(); if (url) URL.revokeObjectURL(url); setBusy(false); }
+    finally { exportController.current = null; setBusy(false); }
   };
 
   return <>
@@ -160,7 +148,7 @@ export function ReelDialog({ fromTimeline = false, onRequestAudio, onManualDesig
             <canvas ref={canvas} width={270} height={480} className="h-64 w-36 rounded bg-black" aria-label="Vista previa del Reel" />
             <Button variant="outline" disabled={!valid || !audio.audioBuffer} onClick={() => { if (previewing) { audio.pause(); setPreviewing(false); } else { audio.seek(reel.start); void audio.play(); setPreviewing(true); } }}>{previewing ? 'Parar fragmento' : 'Escuchar y previsualizar fragmento'}</Button>
           </div>
-          {(fromTimeline || manual || step === 2) && <><div aria-label="Resumen del Reel" className="rounded-lg border bg-secondary/30 p-3 text-sm space-y-1"><p>Fragmento: {reel.start.toFixed(1)}–{reel.end.toFixed(1)} s · {(reel.end - reel.start).toFixed(1)} s</p><p>Vertical · 1080 × 1920 · 9:16 · MP4 con música</p><p>Fondo: {reel.coverUrl ? 'Portada elegida' : 'Montaje del proyecto'} · Letra: {reel.showLyrics ? (reel.lyricsMode === 'custom' ? 'sólo del Reel' : 'del proyecto') : 'no'} · Título: {reel.showTitle ? 'sí' : 'no'}</p></div><Button className="w-full" disabled={!valid || !audio.audioBuffer || !!lyricsIssue || !!audio.mediaBusy || !!audio.mediaError} onClick={() => void exportReel()}>Crear Reel MP4</Button></>}
+          {(fromTimeline || manual || step === 2) && <><ExportQualityControl /><div aria-label="Resumen del Reel" className="rounded-lg border bg-secondary/30 p-3 text-sm space-y-1"><p>Fragmento: {reel.start.toFixed(1)}–{reel.end.toFixed(1)} s · {(reel.end - reel.start).toFixed(1)} s</p><p>Vertical · 1080 × 1920 · 9:16 · MP4 con música</p><p>Fondo: {reel.coverUrl ? 'Portada elegida' : 'Montaje del proyecto'} · Letra: {reel.showLyrics ? (reel.lyricsMode === 'custom' ? 'sólo del Reel' : 'del proyecto') : 'no'} · Título: {reel.showTitle ? 'sí' : 'no'}</p></div><Button className="w-full" disabled={!valid || !audio.audioBuffer || !!lyricsIssue || !!audio.mediaBusy || !!audio.mediaError} onClick={() => void exportReel()}>Crear Reel MP4</Button></>}
           {lyricsIssue && <p role="status" className="text-xs text-amber-500">{lyricsIssue}</p>}
           {!fromTimeline && !manual && <div className="flex justify-between gap-2"><Button variant="outline" disabled={step === 0} onClick={() => setStep(step - 1)}>Anterior</Button>{step < 2 && <Button disabled={!valid || !audio.audioBuffer} onClick={() => setStep(step + 1)}>Continuar</Button>}</div>}
         </fieldset>

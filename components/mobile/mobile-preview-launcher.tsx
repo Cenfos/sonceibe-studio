@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Eye, Pause, Play, RotateCcw, ShieldCheck, X } from 'lucide-react';
+import { Pause, Play, RotateCcw, ShieldCheck, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useStore } from '@/lib/store';
 import { useAudioEngineContext } from '@/lib/audio-engine-context';
@@ -26,6 +26,13 @@ export function MobilePreviewLauncher() {
     return () => window.removeEventListener('sonceibe:open-mobile-preview', openPreview);
   }, []);
 
+  useEffect(() => {
+    if (!open) return;
+    const back = (event: Event) => { event.preventDefault(); audio.pause(); setOpen(false); };
+    window.addEventListener('sonceibe:mobile-back-overlay', back);
+    return () => window.removeEventListener('sonceibe:mobile-back-overlay', back);
+  }, [open, audio.pause]);
+
   const settings = currentProject?.settings;
   const mobileSettings = useMemo(
     () => settings ? settingsForVideoTarget(settings, 'mobile') : null,
@@ -39,17 +46,17 @@ export function MobilePreviewLauncher() {
     const bg = mobileSettings.background;
     if (bg.imageUrl) values.add(bg.imageUrl);
     for (const src of bg.images ?? []) if (src) values.add(src);
-    for (const clip of bg.imageClips ?? []) if (clip.url) values.add(clip.url);
+    for (const clip of [...(bg.imageClips ?? []), ...(bg.photoClips ?? [])]) if (clip.url) values.add(clip.url);
     return Array.from(values);
   }, [mobileSettings]);
 
   const draw = useCallback((time: number) => {
     const canvas = canvasRef.current;
-    if (!canvas || !mobileSettings) return;
+    if (!canvas || !mobileSettings || audio.videoEl?.seeking) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    renderFrame(ctx, WIDTH, HEIGHT, mobileSettings, time);
-  }, [mobileSettings]);
+    renderFrame(ctx, WIDTH, HEIGHT, mobileSettings, time, audio.videoEl);
+  }, [mobileSettings, audio.videoEl]);
 
   useEffect(() => {
     if (!open || !mobileSettings) return;
@@ -68,20 +75,22 @@ export function MobilePreviewLauncher() {
   }, [audio.audioEl, audio.currentTime, draw, mobileSettings, open, sources]);
 
   useEffect(() => {
-    if (!open || !audio.isPlaying || !audio.audioEl) {
-      if (open) draw(audio.audioEl?.currentTime ?? audio.currentTime);
-      return;
-    }
-
-    const element = audio.audioEl;
-    let frameId = 0;
+    if (!open) return;
+    let frameId = 0, previousTime = -1, previousVideoTime = -1;
+    const video = audio.videoEl;
+    const refreshed = () => { previousTime = -1; };
+    video?.addEventListener('seeked', refreshed);
+    video?.addEventListener('loadeddata', refreshed);
     const loop = () => {
-      draw(element.currentTime);
+      const time = audio.audioEl?.currentTime ?? audio.currentTime;
+      const videoTime = audio.videoEl?.currentTime ?? -1;
+      if (time !== previousTime || videoTime !== previousVideoTime) draw(time);
+      previousTime = time; previousVideoTime = videoTime;
       frameId = requestAnimationFrame(loop);
     };
     frameId = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(frameId);
-  }, [audio.audioEl, audio.currentTime, audio.isPlaying, draw, open]);
+    return () => { cancelAnimationFrame(frameId); video?.removeEventListener('seeked', refreshed); video?.removeEventListener('loadeddata', refreshed); };
+  }, [audio.audioEl, audio.videoEl, audio.currentTime, draw, open]);
 
   if (!currentProject || !settings) return null;
 
@@ -99,22 +108,8 @@ export function MobilePreviewLauncher() {
 
   return (
     <>
-      {!open && (
-        <Button
-          type="button"
-          variant="destructive"
-          size="icon"
-          onClick={() => setOpen(true)}
-          className="fixed right-3 top-2.5 z-[73] h-9 w-9 rounded-full bg-red-600 text-white shadow-lg ring-2 ring-red-300/40 hover:bg-red-700"
-          title="Ver proyecto"
-          aria-label="Ver proyecto"
-        >
-          <Eye className="h-4 w-4" />
-        </Button>
-      )}
-
       {open && (
-        <div className="fixed inset-0 z-[110] flex flex-col bg-black/95 text-white">
+        <div role="dialog" aria-modal="true" aria-label="Vista previa del proyecto" className="fixed inset-0 z-[110] flex flex-col bg-black text-white">
           <header className="flex items-center justify-between px-4 py-3">
             <div className="min-w-0">
               <div className="truncate text-sm font-semibold">Vista previa</div>
@@ -131,7 +126,7 @@ export function MobilePreviewLauncher() {
                 <ShieldCheck className="h-4 w-4" />
                 Zona segura
               </Button>
-              <Button variant="ghost" size="icon" onClick={closePreview} className="text-white hover:bg-white/10 hover:text-white">
+              <Button variant="ghost" size="icon" aria-label="Cerrar vista previa" onClick={closePreview} className="text-white hover:bg-white/10 hover:text-white">
                 <X className="h-5 w-5" />
               </Button>
             </div>
@@ -139,7 +134,7 @@ export function MobilePreviewLauncher() {
 
           <div className="flex min-h-0 flex-1 items-center justify-center px-4 pb-3">
             <div className="relative h-full max-h-[72dvh] overflow-hidden rounded-xl bg-black shadow-2xl" style={{ aspectRatio: '9 / 16' }}>
-              <canvas ref={canvasRef} width={WIDTH} height={HEIGHT} className="h-full w-full" />
+              <canvas aria-label="Imagen del proyecto" ref={canvasRef} width={WIDTH} height={HEIGHT} className="h-full w-full" />
               {showSafeZone && (
                 <div className="pointer-events-none absolute inset-0 z-20 text-[8px] font-medium text-white/90">
                   <div className="absolute inset-[5%] rounded border border-dashed border-cyan-300/80">
@@ -162,8 +157,11 @@ export function MobilePreviewLauncher() {
             </div>
           </div>
 
+          {audio.mediaBusy && <p role="status" className="text-center text-sm">Preparando vídeo y sonido…</p>}
+          {audio.mediaError && <p role="alert" className="px-4 text-center text-sm">{audio.mediaError}</p>}
           <div className="space-y-3 border-t border-white/10 bg-black/80 px-4 pb-5 pt-4">
             <input
+              aria-label="Posición de la vista previa"
               type="range"
               min={0}
               max={duration || 1}
@@ -180,6 +178,7 @@ export function MobilePreviewLauncher() {
               <span className="w-16 text-xs tabular-nums text-white/70">{formatTime(audio.currentTime)}</span>
               <div className="flex items-center gap-2">
                 <Button
+                  aria-label="Volver al principio"
                   variant="ghost"
                   size="icon"
                   className="text-white hover:bg-white/10 hover:text-white"
@@ -190,7 +189,7 @@ export function MobilePreviewLauncher() {
                 >
                   <RotateCcw className="h-4 w-4" />
                 </Button>
-                <Button size="icon" className="h-12 w-12 rounded-full" onClick={togglePlay} disabled={duration <= 0}>
+                <Button size="icon" className="h-12 w-12 rounded-full" aria-label={audio.isPlaying ? 'Pausar vista previa' : 'Reproducir vista previa'} onClick={togglePlay} disabled={duration <= 0 || audio.mediaBusy || !!audio.mediaError}>
                   {audio.isPlaying ? <Pause className="h-5 w-5" /> : <Play className="ml-0.5 h-5 w-5" />}
                 </Button>
               </div>

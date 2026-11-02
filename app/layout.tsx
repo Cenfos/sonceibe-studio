@@ -2,6 +2,7 @@ import './globals.css';
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import { Toaster } from '@/components/ui/sonner';
+import { EmailSessionBridge } from '@/components/email-session-bridge';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -25,6 +26,7 @@ export default function RootLayout({
   return (
     <html lang="es" className="dark">
       <body className={inter.className}>
+        <EmailSessionBridge />
         {children}
         <Toaster />
       </body>

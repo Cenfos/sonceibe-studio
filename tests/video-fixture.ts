@@ -46,11 +46,15 @@ export async function videoMixFixture() {
     silent: await spectrum(await mixVideoAudio({ ...bg, videoMuted: true }, file, null)),
   };
 }
-export async function videoExportFixture() {
+export async function videoExportFixture(adjusted = false) {
   const file = await sourceFixture(), sourceUrl = URL.createObjectURL(file);
   const settings = createDefaultProjectSettings(); settings.showTitle = false;
   settings.background = { ...settings.background, type: 'video', videoUrl: sourceUrl, videoDuration: 3.4, videoStart: 0.5, videoEnd: 2.8, overlay: 0 };
   settings.effects = { ...settings.effects, overlay: 0, vignette: false, particles: false, lightleaks: false };
+  if (adjusted) {
+    settings.background.videoAdjustments = { brightness: 80, contrast: 110, saturation: 0, sharpness: 25 };
+    settings.exportConfig.quality = 'high';
+  }
   const wav = await mixVideoAudio({ ...settings.background, videoMuted: true }, file, await songFile());
   const audioUrl = URL.createObjectURL(wav), audio = new Audio(audioUrl);
   await new Promise<void>((resolve, reject) => { audio.oncanplay = () => resolve(); audio.onerror = reject; });

@@ -6,8 +6,11 @@ import { useStore } from '@/lib/store';
 import { useAudioEngineContext } from '@/lib/audio-engine-context';
 import { exportToTxt, exportToLrc, downloadTextFile } from '@/lib/lyrics-utils';
 import { createProjectMp4, type CapturableAudioElement } from '@/lib/video-exporter';
+import { createReelMp4 } from '@/lib/reel-exporter';
+import { reelLyricsIssue, validateReel } from '@/lib/reel';
 import {
   VIDEO_PROFILES,
+  videoProfileForQuality,
   videoTargetFromOrientation,
   type VideoTarget,
 } from '@/lib/video-profiles';
@@ -19,7 +22,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { ReelDialog } from './reel-dialog';
+import { ExportQualityControl } from './export-quality-control';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -62,6 +65,7 @@ export function ExportDialog() {
     setExportOpen,
     currentProject,
     updateExport,
+    updateSettings,
     markSaved,
   } = useStore();
   const audio = useAudioEngineContext();
@@ -83,17 +87,28 @@ export function ExportDialog() {
     setDone(false);
     setDoneText('');
     setScope(currentProject.settings.reel && currentProject.settings.editingTarget !== 'full' ? 'reel' : 'full');
-  }, [isExportOpen, currentProject?.id, currentProject?.settings.exportConfig.orientation]);
+  }, [isExportOpen, currentProject?.id]);
 
   if (!currentProject) return null;
 
-  const profile = VIDEO_PROFILES[target];
-  const duration = audio.duration || currentProject.settings.audioDuration || 0;
+  const exportTarget = scope === 'reel' ? 'mobile' : target;
+  const profile = videoProfileForQuality(exportTarget, currentProject.settings.exportConfig.quality);
+  const duration = audio.audioBuffer?.duration || audio.duration || currentProject.settings.audioDuration || 0;
+  const reel = currentProject.settings.reel;
+  let reelIssue = '';
+  if (scope === 'reel') {
+    if (!reel) reelIssue = 'Selecciona primero un fragmento para el Reel.';
+    else {
+      try { validateReel(reel.start, reel.end, duration); } catch (error) { reelIssue = (error as Error).message; }
+      reelIssue ||= reelLyricsIssue(reel);
+    }
+    if (!reelIssue && !audio.audioBuffer) reelIssue = 'Espera a que termine de cargar la canción.';
+  }
   const includeAudio = currentProject.settings.exportConfig.includeAudio;
   const title = currentProject.settings.title || 'SonCeibe';
   const estimatedBytes = estimateBytes(duration, profile.videoBitrate, profile.audioBitrate, includeAudio);
   const preflight = getExportPreflight(currentProject.settings, duration, target);
-  const hasBlockingIssue = hasBlockingExportIssue(preflight);
+  const hasBlockingIssue = (scope === 'reel' ? !!reelIssue : hasBlockingExportIssue(preflight)) || !!audio.mediaBusy || !!audio.mediaError;
 
   const exportText = (kind: 'txt' | 'lrc') => {
     if (kind === 'txt') {
@@ -111,6 +126,7 @@ export function ExportDialog() {
 
   const exportVideo = async () => {
     if (exporting || exportController.current) return;
+    if (scope === 'reel' && reelIssue) { toast.error(reelIssue); return; }
 
     if (audio.mediaBusy || audio.mediaError) { toast.error(audio.mediaError || 'Espera a que termine de preparar el vídeo y sonido'); return; }
     const audioEl = audio.audioEl as CapturableAudioElement | null;
@@ -127,7 +143,13 @@ export function ExportDialog() {
     exportController.current = controller;
 
     try {
-      const result = await createProjectMp4({
+      if (scope === 'reel') audio.pause();
+      const result = scope === 'reel' ? await createReelMp4({
+        settings: currentProject.settings,
+        audioBuffer: audio.audioBuffer!,
+        onProgress: setProgress,
+        signal: controller.signal,
+      }) : await createProjectMp4({
         audioEl,
         audioBuffer: audio.audioBuffer,
         duration,
@@ -139,7 +161,7 @@ export function ExportDialog() {
       });
       if (controller.signal.aborted) return;
 
-      const filename = `${safeFilename(title)}${profile.filenameSuffix}.mp4`;
+      const filename = `${safeFilename(title)}${scope === 'reel' ? '-reel' : ''}${profile.filenameSuffix}.mp4`;
       downloadBlob(filename, result.blob);
       markSaved();
       setDoneText(
@@ -147,7 +169,7 @@ export function ExportDialog() {
       );
       setDone(true);
       toast.success(
-        `MP4 comprobado · ${result.width}×${result.height} · ${target === 'mobile' ? '9:16' : '16:9'}`
+        `MP4 comprobado · ${result.width}×${result.height} · ${exportTarget === 'mobile' ? '9:16' : '16:9'}`
       );
     } catch (error) {
       if (controller.signal.aborted) return;
@@ -199,7 +221,7 @@ export function ExportDialog() {
           <p role="status">{scope === 'reel' && currentProject.settings.reel
             ? `Vas a crear un Reel: ${currentProject.settings.reel.start.toFixed(1)}–${currentProject.settings.reel.end.toFixed(1)} s · ${(currentProject.settings.reel.end - currentProject.settings.reel.start).toFixed(1)} s · vertical 9:16.`
             : `Vas a crear el vídeo de la canción completa: 0.0–${duration.toFixed(1)} s · ${duration.toFixed(1)} s.`}</p>
-          {scope === 'reel' && <ReelDialog label="Revisar y crear Reel" fromTimeline />}
+          {scope === 'reel' && <Button variant="outline" onClick={() => { updateSettings({ editingTarget: 'reel' }); closeDialog(); window.dispatchEvent(new Event('sonceibe:reel-guide')); }}>Revisar Reel en el editor</Button>}
         </section>}
         {done ? (
           <div className="py-8 text-center space-y-3">
@@ -218,7 +240,7 @@ export function ExportDialog() {
               <div className="h-full bg-primary transition-all" style={{ width: `${progress}%` }} />
             </div>
             <div className="text-center text-xs text-muted-foreground">
-              {target === 'mobile'
+              {exportTarget === 'mobile'
                 ? '9:16 vertical · pantalla completa · 30 FPS'
                 : '16:9 horizontal · pantalla completa · 30 FPS'}
             </div>
@@ -246,7 +268,16 @@ export function ExportDialog() {
               ))}
             </div>
 
-            {exportType === 'video' && scope === 'reel' ? <p className="text-sm text-muted-foreground">Revisa el fragmento antes de crear el Reel. Su corte, portada y letra propia se conservan separados de la canción completa.</p> : exportType === 'video' ? (
+            {exportType === 'video' && scope === 'reel' ? <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">Exporta el fragmento con el diseño guardado. Su corte, portada y letra propia se conservan separados de la canción completa.</p>
+              <ExportQualityControl />
+              <div className="rounded-lg bg-secondary/40 p-3 text-sm" aria-label="Resumen de exportación del Reel">
+                <p>Duración: {reel ? (reel.end - reel.start).toFixed(1) : '—'} s · 1080×1920 · 9:16 · con música</p>
+                <p>Fondo: {reel?.coverUrl ? 'Portada elegida' : 'Montaje del proyecto'} · Letra: {reel?.showLyrics ? reel.lyricsMode === 'custom' ? 'sólo del Reel' : 'del proyecto' : 'no'}</p>
+              </div>
+              {reelIssue && <p role="alert" className="text-sm text-destructive">{reelIssue}</p>}
+              {(audio.mediaError || audio.mediaBusy) && <p role="status" className="text-sm text-muted-foreground">{audio.mediaError || 'Preparando vídeo y sonido…'}</p>}
+            </div> : exportType === 'video' ? (
               <>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <button
@@ -288,6 +319,7 @@ export function ExportDialog() {
                   </button>
                 </div>
 
+                <ExportQualityControl />
                 <label className="flex items-center justify-between rounded-lg border border-border p-3 text-sm">
                   <span>Incluir música</span>
                   <input
@@ -351,10 +383,10 @@ export function ExportDialog() {
         {!exporting && !done && (
           <DialogFooter>
             <Button variant="outline" onClick={closeDialog}>Cancelar</Button>
-            {exportType === 'video' ? scope === 'full' && (
+            {exportType === 'video' ? (
               <Button onClick={exportVideo} className="gap-2" disabled={hasBlockingIssue}>
                 <Download className="h-4 w-4" />
-                Crear MP4 {target === 'mobile' ? 'móvil 9:16' : 'PC 16:9'}
+                {scope === 'reel' ? 'Crear Reel MP4' : `Crear MP4 ${target === 'mobile' ? 'móvil 9:16' : 'PC 16:9'}`}
               </Button>
             ) : (
               <Button onClick={() => exportText(exportType)} className="gap-2">

@@ -131,4 +131,4 @@ const savedProjects = async () => (await loadRecentProjects('sonceibe-projects-v
 const api = { videoMixFixture, videoExportFixture, videoPersistenceFixture, videoStylesFixture, videoSoundRms, seedVideo, seed, exportFixture, renderIntervals, renderLongLyrics, getProjectAudio, saveProjectAudio, listSnapshots, savedProjects, saveRecentProjects };
 declare global { interface Window { studioTest: typeof api } }
 window.studioTest = api;
-if (location.search.includes('ui')) createRoot(document.getElementById('root')!).render(<StudioClient userId="owner" />);
+if (location.search.includes('ui')) createRoot(document.getElementById('root')!).render(<StudioClient userId="owner" account={{ name: 'Ana Studio', email: 'ana@example.com' }} />);

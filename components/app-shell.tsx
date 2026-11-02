@@ -6,8 +6,6 @@ import { HomePage } from '@/components/home/home-page';
 import { StudioLayout } from '@/components/studio/studio-layout';
 import { MobileStudioWizard } from '@/components/mobile/mobile-studio-wizard';
 import { MobilePreviewLauncher } from '@/components/mobile/mobile-preview-launcher';
-import { MobileProjectTransferButton } from '@/components/mobile/mobile-project-transfer';
-import { MobileSavedVideoButton } from '@/components/mobile/mobile-saved-video-button';
 import { ExportDialog } from '@/components/studio/export-dialog';
 import { SettingsDialog } from '@/components/studio/settings-dialog';
 import { isDefaultProjectTitle, PENDING_PROJECT_TITLE_KEY, titleFromAudioFilename } from '@/lib/project-title';
@@ -54,11 +52,17 @@ export function AppShell() {
 
   useEffect(() => {
     const handleBack = () => {
-      if (currentProject) closeProject();
+      if (!currentProject) return;
+      if (isPhone) {
+        window.history.pushState({ ...window.history.state, sonCeibeView: 'project', projectId: currentProject.id }, '', window.location.href);
+        const overlay = new Event('sonceibe:mobile-back-overlay', { cancelable: true });
+        window.dispatchEvent(overlay);
+        if (!overlay.defaultPrevented) window.dispatchEvent(new Event('sonceibe:mobile-project-back'));
+      } else closeProject();
     };
     window.addEventListener('popstate', handleBack);
     return () => window.removeEventListener('popstate', handleBack);
-  }, [currentProject, closeProject]);
+  }, [currentProject, closeProject, isPhone]);
 
   useEffect(() => {
     if (!currentProject) return;
@@ -87,8 +91,6 @@ export function AppShell() {
       ) : isPhone ? (
         <>
           <MobileStudioWizard />
-          <MobileSavedVideoButton />
-          <MobileProjectTransferButton />
           <MobilePreviewLauncher />
         </>
       ) : (

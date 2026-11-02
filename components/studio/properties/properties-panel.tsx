@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { EditingScope } from '../editing-scope';
 import { CreationGuide } from '../creation-guide';
+import { ReelControls } from '../reel-controls';
 import { SidebarRail } from '../sidebar-rail';
 
 const tabMeta = [
@@ -29,7 +30,7 @@ interface PropertiesPanelProps {
 }
 
 export function PropertiesPanel({ mobileOpen = false, onMobileClose, onTabSelected }: PropertiesPanelProps) {
-  const { activeTab, setTab, updateSettings, currentProject } = useStore();
+  const { activeTab, setTab, currentProject } = useStore();
   const [width, setWidth] = useState(576);
   const [maxWidth, setMaxWidth] = useState(960);
   const [guided, setGuided] = useState(true);
@@ -37,11 +38,20 @@ export function PropertiesPanel({ mobileOpen = false, onMobileClose, onTabSelect
   const previousTab = useRef(activeTab);
   useEffect(() => { if (previousTab.current !== activeTab) setGuided(false); previousTab.current = activeTab; }, [activeTab]);
   const selectTool: NonNullable<PropertiesPanelProps['onTabSelected']> = tab => { setGuided(false); onTabSelected?.(tab); };
-  const openGuide = () => {
+  const openGuide = (step?: number) => {
     previousTab.current = 'text';
     setTab('text');
     setGuided(true);
+    if (typeof step === 'number') setGuideStep(step);
   };
+  useEffect(() => {
+    const openReelGuide = () => {
+      previousTab.current = 'text';
+      setTab('text'); setGuided(true); setGuideStep(1);
+    };
+    window.addEventListener('sonceibe:reel-guide', openReelGuide);
+    return () => window.removeEventListener('sonceibe:reel-guide', openReelGuide);
+  }, [setTab]);
   const drag = useRef<{ x: number; width: number } | null>(null);
   useEffect(() => {
     const maximum = () => Math.max(288, window.innerWidth - 480);
@@ -99,7 +109,7 @@ export function PropertiesPanel({ mobileOpen = false, onMobileClose, onTabSelect
           <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 space-y-4">
             <p className="text-sm font-semibold">Continúa con tu vídeo, paso a paso</p>
             <p className="text-sm text-muted-foreground">El editor de letra se muestra en el centro. Cuando termines, vuelve a la guía para añadir fotos, elegir un estilo y exportar el vídeo. Tus cambios se conservan.</p>
-            <Button className="w-full" onClick={openGuide}>Continuar con la guía paso a paso</Button>
+            <Button className="w-full" onClick={() => openGuide()}>Continuar con la guía paso a paso</Button>
             <p className="text-xs text-muted-foreground">También puedes usar las herramientas de arriba para seguir con la edición manual.</p>
           </div>
         </div>
@@ -138,9 +148,10 @@ export function PropertiesPanel({ mobileOpen = false, onMobileClose, onTabSelect
       </div>
       <ScrollArea className="flex-1 min-h-0">
         <div className="p-4">
-          {currentProject?.settings.reel && currentProject.settings.editingTarget !== 'full' && <div className="mb-3 rounded-lg border border-primary/30 p-3 text-xs space-y-2"><p>Editando el Reel: los ajustes visuales se comparten con el proyecto. El corte, la portada y su letra propia se ajustan en «Ajustes avanzados del Reel».</p>{currentProject.settings.reel.coverUrl && <><p>La portada del Reel sustituye al montaje de fondo en este fragmento.</p><Button variant="outline" size="sm" onClick={() => updateSettings({ reel: { ...currentProject.settings.reel!, coverUrl: '' } })}>Quitar portada y usar el montaje</Button></>}</div>}
+          {currentProject?.settings.reel && currentProject.settings.editingTarget !== 'full' && <div className="mb-3 text-xs text-muted-foreground">Editando el Reel. Ajusta el corte y la portada en Fragmento, y sus frases en Letra. Los ajustes visuales se comparten con el proyecto.</div>}
           <CreationGuide guided={guided} onGuidedChange={setGuided} step={guideStep} onStepChange={setGuideStep} />
           {!guided && <>
+            {currentProject?.settings.reel && currentProject.settings.editingTarget !== 'full' && <ReelControls />}
             {activeTab === 'text' && <TextTab />}
             {activeTab === 'background' && <FormatSection />}
             {activeTab === 'style' && <StyleSection />}

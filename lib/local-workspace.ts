@@ -37,6 +37,16 @@ interface DirectoryHandleLike {
   requestPermission?(options?: { mode?: PermissionMode }): Promise<HandlePermission>;
 }
 
+const pickerDirectories = new Map<string, DirectoryHandleLike>();
+export function cachedWorkspacePickerDirectory(userId: string) {
+  return pickerDirectories.get(userId);
+}
+export async function prepareWorkspacePickerDirectory(userId: string): Promise<void> {
+  const handle = await getStoredHandle(userId);
+  if (handle) pickerDirectories.set(userId, handle);
+  else pickerDirectories.delete(userId);
+}
+
 interface PickerWindow extends Window {
   showDirectoryPicker?: (options?: { mode?: PermissionMode }) => Promise<DirectoryHandleLike>;
 }
@@ -84,6 +94,7 @@ async function saveHandle(userId: string, handle: DirectoryHandleLike): Promise<
       tx.onerror = () => reject(tx.error ?? new Error('No se pudo recordar la carpeta local'));
       tx.onabort = () => reject(tx.error ?? new Error('No se pudo recordar la carpeta local'));
     });
+    pickerDirectories.set(userId, handle);
   } finally {
     db.close();
   }
