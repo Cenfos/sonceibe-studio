@@ -10,9 +10,10 @@ test('desktop Reel stays in the editor, preserves edits and exports from its inl
   await expect(page.getByRole('dialog')).toHaveCount(0);
   const guide = page.getByRole('region', { name: 'Creación guiada de vídeo' });
   await expect(guide.getByText('Tu Reel o vídeo corto, paso a paso')).toBeVisible();
-  await guide.getByText('Ajustar tiempos exactos', { exact: true }).click();
-  await guide.getByLabel('Inicio del fragmento (segundos)', { exact: true }).fill('40');
-  await guide.getByLabel('Fin del fragmento (segundos)', { exact: true }).fill('42');
+  await guide.getByLabel('Situar fragmento de 30 segundos').fill('40');
+  await guide.getByRole('button', { name: 'Usar este fragmento', exact: true }).click();
+  await guide.getByRole('slider', { name: 'Final del fragmento', exact: true }).focus();
+  for (let index = 0; index < 56; index++) await page.keyboard.press('Shift+ArrowLeft');
   await expect(page.getByRole('slider', { name: 'Inicio de Reel', exact: true })).toHaveAttribute('aria-valuenow', '40');
   await guide.getByRole('button', { name: '3. Letra', exact: true }).click();
   await guide.getByRole('button', { name: 'Letra sólo para este Reel', exact: true }).click();
@@ -27,7 +28,7 @@ test('desktop Reel stays in the editor, preserves edits and exports from its inl
   await expect(dialog.getByRole('button', { name: 'Reel seleccionado', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await dialog.getByRole('button', { name: 'Revisar Reel en el editor', exact: true }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await expect(guide.getByLabel('Inicio del fragmento (segundos)', { exact: true })).toHaveValue('40');
+  await expect(guide.getByRole('slider', { name: 'Inicio del fragmento', exact: true })).toHaveAttribute('aria-valuenow', '40');
   await page.screenshot({ path: 'test-results/desktop-reel-inline-guide.png' });
   await guide.getByRole('button', { name: '6. Exportar', exact: true }).click();
   await guide.getByRole('button', { name: 'Revisar y exportar Reel', exact: true }).click();

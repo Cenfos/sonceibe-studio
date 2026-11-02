@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '@/lib/store';
 import { useAudioEngineContext } from '@/lib/audio-engine-context';
 import { generateWaveformPeaks } from '@/lib/waveform';
@@ -9,12 +9,15 @@ import { markReelBoundary } from '@/lib/reel';
 import { formatTime } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import { getVisualPreset } from '@/lib/visual-presets';
+import { editTimeRange, type TimeRange } from '@/lib/timeline-edit';
 
 export function ReelFragmentTimeline() {
   const { currentProject, updateSettings } = useStore();
   const audio = useAudioEngineContext();
   const [chooseAgain, setChooseAgain] = useState(false);
-  const [position, setPosition] = useState<number | null>(null);
+  const [candidate, setCandidate] = useState<TimeRange | null>(null);
+  const [draft, setDraft] = useState<TimeRange | null>(null);
+  const drag = useRef<{ edge: 'left' | 'right'; x: number; width: number; span: number; range: TimeRange; latest: TimeRange; pointer: number } | null>(null);
   const [listening, setListening] = useState(false);
   const settings = currentProject?.settings;
   const reel = settings?.reel;
@@ -23,8 +26,8 @@ export function ReelFragmentTimeline() {
   const peaks = useMemo(() => audio.audioBuffer ? generateWaveformPeaks(audio.audioBuffer, 1000) : [], [audio.audioBuffer]);
   const valid = !!reel && reel.start >= 0 && reel.end <= duration && reel.end - reel.start >= 0.2;
   const choosing = chooseAgain || !valid || reel?.selectionConfirmed === false;
-  const start = choosing ? Math.min(position ?? suggestion.start, Math.max(0, duration - Math.min(30, duration))) : reel!.start;
-  const end = choosing ? Math.min(duration, start + 30) : reel!.end;
+  const range = choosing ? candidate || suggestion : reel!;
+  const { start, end } = draft || range || { start: 0, end: 0 };
   useEffect(() => {
     if (!listening) return;
     const element = audio.audioEl;
@@ -34,11 +37,11 @@ export function ReelFragmentTimeline() {
     return () => { clearInterval(timer); element.pause(); };
   }, [listening, start, end, audio.audioEl]);
   if (!settings || !reel) return null;
-  const select = () => {
+  const commit = (selected: TimeRange) => {
     audio.pause(); setListening(false);
-    const moved = { ...settings, ...markReelBoundary(settings, 'start', start, duration) };
-    updateSettings(markReelBoundary(moved, 'end', end, duration));
-    audio.seek(start); setChooseAgain(false); setPosition(null);
+    const moved = { ...settings, ...markReelBoundary(settings, 'start', selected.start, duration) };
+    updateSettings(markReelBoundary(moved, 'end', selected.end, duration));
+    audio.seek(selected.start); setChooseAgain(false); setCandidate(null);
   };
   const play = async () => {
     if (listening) { audio.pause(); setListening(false); return; }
@@ -46,8 +49,9 @@ export function ReelFragmentTimeline() {
     setListening(true);
     try { await audio.play(); } catch { setListening(false); }
   };
-  const viewStart = choosing ? 0 : start;
-  const viewEnd = choosing ? duration : end;
+  // Freeze the scale throughout a drag; refit to the new cut after committing.
+  const viewStart = choosing ? 0 : reel.start;
+  const viewEnd = choosing ? duration : reel.end;
   const span = Math.max(0.2, viewEnd - viewStart);
   const viewPeaks = peaks.slice(Math.floor(viewStart / (duration || 1) * peaks.length), Math.max(1, Math.ceil(viewEnd / (duration || 1) * peaks.length)));
   const progress = Math.max(0, Math.min(100, (audio.currentTime - viewStart) / span * 100));
@@ -59,24 +63,57 @@ export function ReelFragmentTimeline() {
   ];
   return <section aria-label="Línea de tiempo del fragmento" className="space-y-3">
     {choosing ? <>
-      <p className="text-sm font-medium">Elige los 30 segundos de tu Reel</p>
+      <p className="text-sm font-medium">Elige el fragmento de tu Reel</p>
       <p className="text-sm text-muted-foreground">{suggestion.repeatedText ? `Esta frase se repite en la letra: «${suggestion.repeatedText}». Puede ser un buen punto para el estribillo. Escúchalo antes de elegir.` : 'Busca el estribillo o una parte que se repita. Escucha la canción y mueve el inicio de la selección; prepararemos 30 segundos desde ahí.'}</p>
-      <label className="block text-sm">Situar el fragmento en la canción<input aria-label="Situar fragmento de 30 segundos" type="range" min={0} max={Math.max(0, duration - Math.min(30, duration))} step={0.1} value={start} disabled={duration < 0.2 || !!audio.mediaBusy} className="mt-2 w-full accent-primary" onChange={event => { audio.pause(); setListening(false); setPosition(Number(event.target.value)); }} /></label>
-    </> : <p className="text-sm text-muted-foreground">Este es el tramo seleccionado. Escúchalo y revisa las frases y fotos que aparecen dentro del corte.</p>}
+      <label className="block text-sm">Situar el fragmento en la canción<input aria-label="Situar fragmento de 30 segundos" type="range" min={0} max={Math.max(0, duration - Math.min(30, duration))} step={0.1} value={Math.min(start, Math.max(0, duration - Math.min(30, duration)))} disabled={duration < 0.2 || !!audio.mediaBusy} className="mt-2 w-full accent-primary" onChange={event => { audio.pause(); setListening(false); const start = Number(event.target.value); setCandidate({ start, end: Math.min(duration, start + 30) }); }} /></label>
+    </> : <p className="text-sm text-muted-foreground">Arrastra el borde izquierdo para ajustar el inicio y el derecho para ajustar el final. Escucha el fragmento para comprobar el corte.</p>}
     <div className="overflow-hidden rounded-lg border border-primary/40 bg-background" aria-label={choosing ? 'Canción con selección de 30 segundos' : 'Sólo el tramo seleccionado'}>
       <div className="flex justify-between px-2 py-1 text-xs font-mono"><span>{formatTime(viewStart)}</span><span>{formatTime(viewStart + span / 2)}</span><span>{formatTime(viewEnd)}</span></div>
       <div className="relative h-16 bg-primary/5">
         <svg aria-label="Forma de onda del fragmento" viewBox={`0 0 ${Math.max(1, viewPeaks.length)} 64`} preserveAspectRatio="none" className="h-full w-full"><path d={viewPeaks.map((peak, index) => `M${index},${32 - peak * 28}v${Math.max(1, peak * 56)}`).join(' ')} stroke="currentColor" className="text-primary" strokeWidth="1" /></svg>
-        {choosing && <div className="absolute inset-y-0 border-2 border-primary bg-primary/20 pointer-events-none" style={{ left: `${start / (duration || 1) * 100}%`, width: `${(end - start) / (duration || 1) * 100}%` }} />}
+        <div className="absolute inset-y-0 border-2 border-primary bg-primary/20 pointer-events-none" style={{ left: `${(start - viewStart) / span * 100}%`, width: `${(end - start) / span * 100}%` }} />
+        {(['left', 'right'] as const).map(edge => <div key={edge} role="slider" tabIndex={0} aria-label={edge === 'left' ? 'Inicio del fragmento' : 'Final del fragmento'} aria-valuemin={edge === 'left' ? 0 : start + 0.2} aria-valuemax={edge === 'left' ? end - 0.2 : duration} aria-valuenow={edge === 'left' ? start : end} aria-valuetext={`${(edge === 'left' ? start : end).toFixed(2)} segundos`} aria-orientation="horizontal"
+          title={edge === 'left' ? 'Arrastra para ajustar el inicio' : 'Arrastra para ajustar el final'}
+          className="absolute inset-y-0 z-10 w-4 cursor-ew-resize touch-none rounded bg-primary ring-1 ring-white/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+          style={edge === 'left' ? { left: `${Math.max(0, (start - viewStart) / span * 100)}%` } : { right: `${Math.max(0, (viewEnd - end) / span * 100)}%` }}
+          onPointerDown={event => {
+            if (event.button !== 0 || duration < 0.2 || audio.mediaBusy) return;
+            event.preventDefault(); audio.pause(); setListening(false); event.currentTarget.focus();
+            drag.current = { edge, x: event.clientX, width: event.currentTarget.parentElement!.getBoundingClientRect().width, span, range: { start, end }, latest: { start, end }, pointer: event.pointerId };
+            event.currentTarget.setPointerCapture(event.pointerId);
+          }}
+          onPointerMove={event => {
+            const state = drag.current;
+            if (!state || state.pointer !== event.pointerId) return;
+            state.latest = editTimeRange(state.range, state.edge, (event.clientX - state.x) / state.width * state.span, duration);
+            setDraft(state.latest);
+          }}
+          onPointerUp={event => {
+            const state = drag.current;
+            if (!state || state.pointer !== event.pointerId) return;
+            drag.current = null; setDraft(null);
+            if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+            if (state.latest.start === state.range.start && state.latest.end === state.range.end) return;
+            if (choosing) setCandidate(state.latest); else commit(state.latest);
+          }}
+          onPointerCancel={() => { drag.current = null; setDraft(null); }}
+          onLostPointerCapture={() => { drag.current = null; setDraft(null); }}
+          onKeyDown={event => {
+            if (event.key === 'Escape') { drag.current = null; setDraft(null); return; }
+            if (!['ArrowLeft', 'ArrowRight'].includes(event.key) || duration < 0.2 || audio.mediaBusy) return;
+            event.preventDefault(); event.stopPropagation();
+            const next = editTimeRange({ start, end }, edge, (event.key === 'ArrowLeft' ? -1 : 1) * (event.shiftKey ? 0.5 : event.altKey ? 0.01 : 0.1), duration);
+            if (choosing) setCandidate(next); else commit(next);
+          }}><span className="absolute left-1/2 top-1/2 h-6 w-0.5 -translate-x-1/2 -translate-y-1/2 bg-white/90" /></div>)}
         <div className="absolute inset-y-0 w-0.5 bg-white pointer-events-none" style={{ left: `${progress}%` }} />
       </div>
-      {!choosing && rows.filter(row => row.clips.length).map(row => <div key={row.name} className="flex border-t border-border text-xs"><span className="w-20 shrink-0 p-1">{row.name}</span><div className="relative min-w-0 flex-1 h-7">{row.clips.filter(clip => clip.end > start && clip.start < end).map(clip => <div key={clip.id} title={`${clip.label} · ${Math.max(start, clip.start).toFixed(1)}–${Math.min(end, clip.end).toFixed(1)} s`} className="absolute inset-y-1 truncate rounded bg-primary/25 px-1" style={{ left: `${(Math.max(start, clip.start) - start) / span * 100}%`, width: `${(Math.min(end, clip.end) - Math.max(start, clip.start)) / span * 100}%` }}>{clip.label}</div>)}</div></div>)}
+      {!choosing && rows.filter(row => row.clips.length).map(row => <div key={row.name} className="flex border-t border-border text-xs"><span className="w-20 shrink-0 p-1">{row.name}</span><div className="relative min-w-0 flex-1 h-7">{row.clips.filter(clip => clip.end > start && clip.start < end).map(clip => <div key={clip.id} title={`${clip.label} · ${Math.max(start, clip.start).toFixed(1)}–${Math.min(end, clip.end).toFixed(1)} s`} className="absolute inset-y-1 truncate rounded bg-primary/25 px-1" style={{ left: `${(Math.max(start, clip.start) - viewStart) / span * 100}%`, width: `${(Math.min(end, clip.end) - Math.max(start, clip.start)) / span * 100}%` }}>{clip.label}</div>)}</div></div>)}
     </div>
     {!choosing && <label className="block text-xs">Recorrer el fragmento<input aria-label="Posición dentro del fragmento" type="range" min={start} max={end} step={0.01} value={Math.max(start, Math.min(end, audio.currentTime))} className="mt-1 w-full accent-primary" onChange={event => { audio.pause(); setListening(false); audio.seek(Number(event.target.value)); }} /></label>}
     <p role="status" className="text-sm">{formatTime(start)} → {formatTime(end)} · {(end - start).toFixed(1)} s</p>
     <div className="flex flex-wrap gap-2">
       <Button size="sm" variant="outline" disabled={!audio.audioBuffer || !!audio.mediaBusy || !!audio.mediaError || end - start < 0.2} onClick={() => void play()}>{listening ? 'Parar fragmento' : 'Escuchar fragmento'}</Button>
-      {choosing ? <><Button size="sm" disabled={duration < 0.2 || !!audio.mediaBusy} onClick={select}>Usar este fragmento</Button>{chooseAgain && valid && reel.selectionConfirmed !== false && <Button size="sm" variant="ghost" onClick={() => { setChooseAgain(false); setPosition(null); }}>Conservar selección anterior</Button>}</> : <Button size="sm" variant="outline" onClick={() => { audio.pause(); setListening(false); setPosition(null); setChooseAgain(true); }}>Elegir otro fragmento</Button>}
+      {choosing ? <><Button size="sm" disabled={duration < 0.2 || !!audio.mediaBusy} onClick={() => commit({ start, end })}>Usar este fragmento</Button>{chooseAgain && valid && reel.selectionConfirmed !== false && <Button size="sm" variant="ghost" onClick={() => { setChooseAgain(false); setCandidate(null); }}>Conservar selección anterior</Button>}</> : <Button size="sm" variant="outline" onClick={() => { audio.pause(); setListening(false); setCandidate(null); setChooseAgain(true); }}>Elegir otro fragmento</Button>}
     </div>
     {duration < 0.2 && <p className="text-sm text-muted-foreground">Carga la canción en el paso Audio para seleccionar el fragmento.</p>}
   </section>;

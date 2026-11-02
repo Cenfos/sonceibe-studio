@@ -25,7 +25,7 @@ export function Timeline() {
   const [tracksHeight, setTracksHeight] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const anchor = useRef<{ time: number; pixel: number } | null>(null);
-  const [pxPerSec, setPxPerSec] = useState(20);
+  const [manualZoom, setManualZoom] = useState<{ projectId: string | undefined; scale: number } | null>(null);
   const [viewportWidth, setViewportWidth] = useState(800);
   const [selection, setSelection] = useState<Selection | null>(null);
   const snap = true;
@@ -88,6 +88,9 @@ export function Timeline() {
   const clipsFor = (track: Track) => track === 'lyrics' ? lyrics : track === 'imageClips' ? imageClips : photoClips;
   const selected = selection ? clipsFor(selection.track).find(clip => clip.id === selection.id) : undefined;
   const visualDuration = Math.max(duration, ...lyrics.map(line => line.end), ...imageClips.map(clip => clip.end), ...photoClips.map(clip => clip.end), 1);
+  const fitScale = Math.max(0.01, Math.min(200, (viewportWidth - 24) / visualDuration));
+  const hasManualZoom = manualZoom !== null && manualZoom.projectId === currentProject?.id;
+  const pxPerSec = hasManualZoom ? manualZoom.scale : fitScale;
   const totalWidth = Math.max(visualDuration * pxPerSec + 24, viewportWidth);
   const peaks = useMemo(() => audio.audioBuffer ? generateWaveformPeaks(audio.audioBuffer, 2000) : [], [audio.audioBuffer]);
 
@@ -114,8 +117,13 @@ export function Timeline() {
       const focus = pixel ?? (playheadPixel >= 0 && playheadPixel <= element.clientWidth ? playheadPixel : element.clientWidth / 2);
       anchor.current = { time: (element.scrollLeft + focus) / pxPerSec, pixel: focus };
     }
-    setPxPerSec(Math.max(0.25, Math.min(200, value)));
-  }, [audio.currentTime, pxPerSec]);
+    setManualZoom({ projectId: currentProject?.id, scale: Math.max(0.25, Math.min(200, value)) });
+  }, [audio.currentTime, pxPerSec, currentProject?.id]);
+
+  useLayoutEffect(() => {
+    anchor.current = null;
+    if (scrollRef.current) scrollRef.current.scrollLeft = 0;
+  }, [currentProject?.id]);
 
   useLayoutEffect(() => {
     if (scrollRef.current && anchor.current) {
@@ -182,7 +190,7 @@ export function Timeline() {
         <Button size="icon" variant="ghost" className="h-7 w-7" aria-label="Alejar timeline" onClick={() => zoom(pxPerSec / 1.5)}><ZoomOut className="h-4 w-4" /></Button>
         <input type="range" min={0.25} max={200} step={0.25} value={pxPerSec} aria-label="Zoom horizontal" className="w-20" onChange={event => zoom(Number(event.target.value))} />
         <Button size="icon" variant="ghost" className="h-7 w-7" aria-label="Acercar timeline" onClick={() => zoom(pxPerSec * 1.5)}><ZoomIn className="h-4 w-4" /></Button>
-        <Button size="sm" variant="ghost" className="h-7" onClick={() => { anchor.current = { time: 0, pixel: 0 }; setPxPerSec(Math.max(0.25, Math.min(200, (viewportWidth - 24) / visualDuration))); if (scrollRef.current) scrollRef.current.scrollLeft = 0; }}>Ver todo</Button>
+        <Button size="sm" variant="ghost" className="h-7" aria-pressed={!hasManualZoom} onClick={() => { anchor.current = null; setManualZoom(null); if (scrollRef.current) scrollRef.current.scrollLeft = 0; }}>Ver todo</Button>
         <Button size="icon" variant="ghost" className="h-7 w-7" aria-label="Añadir línea de letra" onClick={() => addLyric()}><Plus className="h-4 w-4" /></Button>
       </div>
     </div>
