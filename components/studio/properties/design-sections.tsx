@@ -17,10 +17,10 @@ export function FormatSection() {
 }
 
 export function StyleSection() {
-  const { updateSettings } = useStore();
+  const { currentProject, updateSettings } = useStore();
   return <section aria-label="Estilo del vídeo" className="space-y-3">
     <p className="text-sm">Elige el estilo preparado para el marco y la letra. Tus fotos se conservan.</p>
     <VisualPresetPicker />
-    <Button variant="outline" size="sm" onClick={() => updateSettings(emptyStyle())}>Sin estilo · fondo vacío</Button>
+    <Button variant="outline" size="sm" onClick={() => { if (currentProject) updateSettings(emptyStyle(currentProject.settings)); }}>Quitar estilo preparado</Button>
   </section>;
 }

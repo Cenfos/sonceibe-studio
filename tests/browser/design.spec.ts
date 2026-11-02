@@ -34,7 +34,7 @@ test('format contains photos and style contains a single preset picker which pre
   await page.reload(); await page.getByRole('heading', { name: 'Prueba Studio', exact: true }).click();
   await page.getByRole('button', { name: 'Estilo', exact: true }).click();
   await expect(rustic).toHaveAttribute('aria-pressed', 'true');
-  await page.getByRole('button', { name: 'Sin estilo · fondo vacío', exact: true }).click();
+  await page.getByRole('button', { name: 'Quitar estilo preparado', exact: true }).click();
   await rustic.click();
   await page.locator('.studio-preview-stage canvas').screenshot({ path: 'test-results/rustic-style-preview.png' });
 });

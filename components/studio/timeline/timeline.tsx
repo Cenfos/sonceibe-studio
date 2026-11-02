@@ -11,7 +11,7 @@ import { formatTime } from '@/lib/format';
 import { getVisualPreset } from '@/lib/visual-presets';
 import { editTimeRange, pointerTime, snapToPlayhead, type EditMode, type TimeRange } from '@/lib/timeline-edit';
 import { Button } from '@/components/ui/button';
-import type { BackgroundImageClip, LyricLine } from '@/lib/types';
+import type { BackgroundImageClip } from '@/lib/types';
 
 type Track = 'lyrics' | 'imageClips' | 'photoClips';
 type Selection = { track: Track; id: string };
@@ -19,7 +19,7 @@ const IMAGE_DRAG_TYPE = 'application/x-sonceibe-image-index';
 const ROW_HEIGHT = 28;
 
 export function Timeline() {
-  const { currentProject, updateLyric: updateProjectLyric, addLyric: addProjectLyric, deleteLyric: deleteProjectLyric, duplicateLyric: duplicateProjectLyric, updateBackground, updateSettings, setTab } = useStore();
+  const { currentProject, updateLyric, addLyric, deleteLyric, duplicateLyric, updateBackground, updateSettings, setTab } = useStore();
   const audio = useAudioEngineContext();
   const tracksRef = useRef<HTMLDivElement>(null);
   const [tracksHeight, setTracksHeight] = useState(0);
@@ -45,30 +45,8 @@ export function Timeline() {
       setSelection(null);
     }
   }
-  const customLyrics = reelEnabled && settings?.reel?.lyricsMode === 'custom';
-  const lyrics = customLyrics ? (settings?.reel?.lyrics || []).map(line => ({ ...line, start: line.start + reel.start, end: line.end + reel.start })) : settings?.lyrics ?? [];
-  function saveReelLyrics(lines: LyricLine[]) {
-    const relative = lines.map(line => ({ ...line, start: line.start - reel.start, end: line.end - reel.start, words: undefined }));
-    updateSettings({ reel: { ...reel, lyrics: relative, lyricsText: relative.map(line => line.text).join('\n') } });
-  }
-  function updateLyric(id: string, patch: Partial<LyricLine>) {
-    if (!customLyrics) { updateProjectLyric(id, patch); return; }
-    saveReelLyrics(lyrics.map(line => line.id === id ? { ...line, ...patch } : line));
-  }
-  function deleteLyric(id: string) {
-    if (!customLyrics) { deleteProjectLyric(id); return; }
-    saveReelLyrics(lyrics.filter(line => line.id !== id));
-  }
-  function duplicateLyric(id: string) {
-    if (!customLyrics) { duplicateProjectLyric(id); return; }
-    const line = lyrics.find(line => line.id === id);
-    if (line) saveReelLyrics([...lyrics, { ...line, id: crypto.randomUUID(), start: line.end, end: Math.min(reel.end, line.end + line.end - line.start) }]);
-  }
-  function addLyric() {
-    if (!customLyrics) { addProjectLyric(); return; }
-    const start = Math.max(reel.start, Math.min(reel.end - 0.05, audio.currentTime));
-    saveReelLyrics([...lyrics, { id: crypto.randomUUID(), text: '', start, end: Math.min(reel.end, start + 4) }]);
-  }
+  // The general timeline always provides the full song as context for the cut.
+  const lyrics = settings?.lyrics ?? [];
   const imageClips = settings?.background.imageClips ?? [];
   const photoClips = settings?.background.photoClips ?? [];
   const manualImages = settings?.background.type === 'images' && settings.background.imageMode === 'manual';

@@ -97,3 +97,28 @@ test('general timeline opens fitted, preserves manual zoom and fits again on req
   await expect(fit).toHaveAttribute('aria-pressed', 'true');
   await expect.poll(() => scroll.evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
 });
+
+test('general timeline retains the complete lyrics when the Reel has its own lyrics', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(async () => {
+    await window.studioTest.seed();
+    const key = 'sonceibe-projects-v2:owner';
+    const projects = JSON.parse(localStorage.getItem(key)!);
+    projects[0].settings.editingTarget = 'full';
+    projects[0].settings.reel = { start: 40, end: 70, coverUrl: '', showLyrics: true, showTitle: true, lyricsMode: 'custom', lyricsText: 'Letra propia del Reel', lyrics: [{ id: 'custom-line', text: 'Letra propia del Reel', start: 0, end: 3 }] };
+    localStorage.setItem(key, JSON.stringify(projects));
+  });
+  await page.goto('/?ui');
+  await page.getByRole('heading', { name: 'Prueba Studio', exact: true }).click();
+  const timeline = page.getByRole('region', { name: 'Línea de tiempo', exact: true });
+  await page.getByRole('button', { name: 'Reel', exact: true }).click();
+  await expect(timeline.getByRole('group', { name: 'Letra 1', exact: true })).toContainText('Primera frase');
+  await expect(timeline.getByRole('group', { name: 'Letra 2', exact: true })).toContainText('Última frase');
+  await timeline.getByRole('slider', { name: 'Final de Reel', exact: true }).focus();
+  await page.keyboard.press('Shift+ArrowRight');
+  await expect(timeline.getByRole('slider', { name: 'Final de Reel', exact: true })).toHaveAttribute('aria-valuenow', '70.5');
+  await expect(timeline.getByRole('group', { name: 'Letra 2', exact: true })).toContainText('Última frase');
+  const saved = await page.evaluate(async () => (await window.studioTest.savedProjects())[0].settings);
+  expect(saved.lyrics.map(line => line.text)).toEqual(['Primera frase', 'Última frase']);
+  expect(saved.reel?.lyrics?.[0].text).toBe('Letra propia del Reel');
+});

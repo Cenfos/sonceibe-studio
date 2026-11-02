@@ -135,12 +135,15 @@ test('timeline Reel handles drag after scroll, support fine keys and undo', asyn
   await expect(end).toHaveAttribute('aria-valuenow', '100');
 });
 
-test('clear preset produces an empty background and can be undone', async ({ page }) => {
+test('removing a preset preserves the montage and can be undone', async ({ page }) => {
   await page.getByRole('button', { name: 'Estilo', exact: true }).click();
-  await page.getByRole('button', { name: 'Sin estilo · fondo vacío', exact: true }).click();
-  await expect.poll(() => page.evaluate(async () => (await window.studioTest.savedProjects())[0].settings.background.type)).toBe('color');
-  await page.keyboard.press('Control+z');
+  await page.getByRole('button', { name: /Rock Galego/ }).click();
+  await expect.poll(() => page.evaluate(async () => (await window.studioTest.savedProjects())[0].settings.visualStyle)).toBe('rock-galego');
+  await page.getByRole('button', { name: 'Quitar estilo preparado', exact: true }).click();
+  await expect.poll(() => page.evaluate(async () => (await window.studioTest.savedProjects())[0].settings.visualStyle)).toBe('default');
   await expect.poll(() => page.evaluate(async () => (await window.studioTest.savedProjects())[0].settings.background.type)).toBe('images');
+  await page.keyboard.press('Control+z');
+  await expect.poll(() => page.evaluate(async () => (await window.studioTest.savedProjects())[0].settings.visualStyle)).toBe('rock-galego');
 });
 
 test.describe('phone', () => {
@@ -148,10 +151,10 @@ test.describe('phone', () => {
 
 test('mobile exposes Reels and does not restore a cleared style on export', async ({ page }) => {
   await page.getByRole('button', { name: 'Estilo', exact: true }).click();
-  await page.getByRole('button', { name: 'Sin estilo · fondo vacío', exact: true }).click();
+  await page.getByRole('button', { name: 'Quitar estilo preparado', exact: true }).click();
   await page.getByRole('button', { name: /Rock Galego/ }).click();
   await expect.poll(() => page.evaluate(async () => (await window.studioTest.savedProjects())[0].settings.visualStyle)).toBe('rock-galego');
-  await page.getByRole('button', { name: 'Sin estilo · fondo vacío', exact: true }).click();
+  await page.getByRole('button', { name: 'Quitar estilo preparado', exact: true }).click();
   await page.getByRole('button', { name: 'Vídeo', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Reels', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Reels', exact: true }).click();
@@ -190,7 +193,7 @@ test('video guide allows manual editing and format selection', async ({ page }) 
   await guide.getByRole('button', { name: 'Editar manualmente' }).click();
   await expect(guide.getByRole('button', { name: '1. Audio' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Estilo', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Sin estilo · fondo vacío', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Quitar estilo preparado', exact: true })).toBeVisible();
   await guide.getByRole('button', { name: 'Abrir guía' }).click();
   await guide.getByRole('button', { name: '3. Formato', exact: true }).click();
   await guide.getByRole('button', { name: 'Horizontal · 16:9' }).click();
