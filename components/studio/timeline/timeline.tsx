@@ -35,7 +35,7 @@ export function Timeline() {
   const reel = settings?.reel || { start: 0, end: Math.min(30, duration), coverUrl: '', showLyrics: true, showTitle: true };
   const reelRange = editTimeRange(reel, 'move', 0, duration);
   function changeReel(range: TimeRange) {
-    updateSettings({ editingTarget: 'reel', reel: { ...reel, ...range } });
+    updateSettings({ editingTarget: 'reel', reel: { ...reel, ...range, selectionConfirmed: true } });
   }
   function enableReel() {
     const next = !reelEnabled;

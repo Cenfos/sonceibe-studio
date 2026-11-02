@@ -188,7 +188,7 @@ export interface SyncProgress {
 
 export interface ProjectSettings {
   editingTarget?: 'reel' | 'full';
-  reel?: { start: number; end: number; coverUrl: string; showLyrics: boolean; showTitle: boolean; lyricsMode?: 'project' | 'custom'; lyrics?: LyricLine[]; lyricsText?: string };
+  reel?: { selectionConfirmed?: boolean; start: number; end: number; coverUrl: string; showLyrics: boolean; showTitle: boolean; lyricsMode?: 'project' | 'custom'; lyrics?: LyricLine[]; lyricsText?: string };
   title: string;
   artist: string;
   audioUrl: string;

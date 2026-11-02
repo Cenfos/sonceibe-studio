@@ -29,7 +29,7 @@ export function EditingScope({ onOpenGuide, guideOpen = false }: { onOpenGuide: 
       <Button size="sm" variant={selected ? 'default' : 'outline'} aria-pressed={selected} onClick={() => {
         const duration = audio.duration || settings.audioDuration;
         audio.pause();
-        const saved = reel || { start: 0, end: Math.min(30, duration || 30), coverUrl: '', showLyrics: true, showTitle: true };
+        const saved = reel || { selectionConfirmed: false, start: 0, end: Math.min(30, duration || 30), coverUrl: '', showLyrics: true, showTitle: true };
         updateSettings({ editingTarget: 'reel', reel: saved });
         audio.seek(saved.start);
         onOpenGuide(duration > 0 ? 1 : 0);

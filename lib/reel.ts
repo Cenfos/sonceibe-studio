@@ -90,5 +90,5 @@ export function markReelBoundary(settings: ProjectSettings, edge: 'start' | 'end
     const offset = previous.start - next.start;
     next.lyrics = previous.lyrics.map(line => ({ ...line, start: line.start + offset, end: line.end + offset, words: undefined }));
   }
-  return { editingTarget: 'reel', reel: next };
+  return { editingTarget: 'reel', reel: { ...next, selectionConfirmed: true } };
 }

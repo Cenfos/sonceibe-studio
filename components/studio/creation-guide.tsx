@@ -63,7 +63,7 @@ export function CreationGuide({ guided, onGuidedChange, step, onStepChange: setS
       {stage === 'Formato' && <FormatSection />}
       {stage === 'Estilo' && <StyleSection />}
       {stage === 'Exportar' && <><p className="text-sm">{reel ? `Reel · ${reel.start.toFixed(1)}–${reel.end.toFixed(1)} s · ${(reel.end - reel.start).toFixed(1)} s · Vertical 9:16` : `Vídeo completo · ${settings.audioDuration.toFixed(1)} s · ${settings.exportConfig.orientation === 'portrait' ? 'Vertical 9:16' : 'Horizontal 16:9'}`}. Revisa la vista previa y confirma los detalles al exportar.</p><Button disabled={!hasAudio} onClick={() => setExportOpen(true)}>{reel ? 'Revisar y exportar Reel' : 'Revisar y exportar vídeo'}</Button>{!hasAudio && <p className="text-xs text-muted-foreground">Carga el audio para exportar.</p>}</>}
-      {currentStep < steps.length - 1 && <Button size="sm" disabled={loadingLyrics || (stage === 'Audio' && !hasAudio)} onClick={() => setStep(currentStep + 1)}>{stage === 'Letra' && !reel && !lyricCount ? 'Continuar sin letra' : 'Continuar'}</Button>}
+      {currentStep < steps.length - 1 && <Button size="sm" disabled={loadingLyrics || (stage === 'Audio' && !hasAudio) || (stage === 'Fragmento' && reel?.selectionConfirmed === false)} onClick={() => setStep(currentStep + 1)}>{stage === 'Letra' && !reel && !lyricCount ? 'Continuar sin letra' : 'Continuar'}</Button>}
     </>}
     <p className="text-xs text-muted-foreground">Formato: orientación y fotos. Estilo: estilos preparados. Usa las herramientas de arriba para la edición manual.</p>
   </section>;

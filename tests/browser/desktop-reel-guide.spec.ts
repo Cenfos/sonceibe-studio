@@ -10,6 +10,7 @@ test('desktop Reel stays in the editor, preserves edits and exports from its inl
   await expect(page.getByRole('dialog')).toHaveCount(0);
   const guide = page.getByRole('region', { name: 'Creación guiada de vídeo' });
   await expect(guide.getByText('Tu Reel o vídeo corto, paso a paso')).toBeVisible();
+  await guide.getByText('Ajustar tiempos exactos', { exact: true }).click();
   await guide.getByLabel('Inicio del fragmento (segundos)', { exact: true }).fill('40');
   await guide.getByLabel('Fin del fragmento (segundos)', { exact: true }).fill('42');
   await expect(page.getByRole('slider', { name: 'Inicio de Reel', exact: true })).toHaveAttribute('aria-valuenow', '40');

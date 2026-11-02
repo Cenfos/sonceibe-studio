@@ -98,6 +98,7 @@ export function ExportDialog() {
   let reelIssue = '';
   if (scope === 'reel') {
     if (!reel) reelIssue = 'Selecciona primero un fragmento para el Reel.';
+    else if (reel.selectionConfirmed === false) reelIssue = 'Confirma el fragmento en el paso Fragmento de la guía antes de exportar.';
     else {
       try { validateReel(reel.start, reel.end, duration); } catch (error) { reelIssue = (error as Error).message; }
       reelIssue ||= reelLyricsIssue(reel);
