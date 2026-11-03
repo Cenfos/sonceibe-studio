@@ -680,13 +680,15 @@ export function drawVisualBranding(
     drawRusticBranches(ctx, w, h);
   }
 
+  if (style === 'aurea' || style === 'atlantico' || style === 'escena') drawCollectionFrame(ctx, w, h, style, time);
+
   if (style === 'noite-estrelada' || style === 'papel-e-tinta') {
     drawNewTheme(ctx, w, h, style, time);
   }
 
   if (borderOnly) ctx.restore();
 
-  if (themed || showBranding) {
+  if (showBranding) {
     drawBrandSignature(ctx, w, h, inset, borderWidth, isSonCeibeStyle, style === 'papel-e-tinta');
   }
 }
@@ -762,6 +764,40 @@ function drawNewTheme(ctx: CanvasRenderingContext2D, w: number, h: number, style
       ctx.save(); ctx.translate(x, y); ctx.rotate(Math.PI / 4);
       ctx.fillStyle = '#624329'; ctx.fillRect(-side * 0.004, -side * 0.004, side * 0.008, side * 0.008); ctx.restore();
     }
+  }
+  ctx.restore();
+}
+
+/** Keep every ornament inside the outer rim in both portrait and landscape. */
+function drawCollectionFrame(ctx: CanvasRenderingContext2D, w: number, h: number, style: VisualStyleId, time: number) {
+  const s = Math.min(w, h), d = s * 0.035;
+  const accent = getVisualPreset(style)!.accent;
+  ctx.save(); ctx.strokeStyle = accent; ctx.lineWidth = Math.max(1, s * 0.0015);
+  if (style === 'aurea') {
+    ctx.globalAlpha = 0.7; ctx.strokeRect(d, d, w - 2 * d, h - 2 * d);
+    ctx.globalAlpha = 0.28; ctx.strokeRect(d * 1.4, d * 1.4, w - 2.8 * d, h - 2.8 * d);
+    ctx.globalAlpha = 0.95;
+    for (const [x, y, sx, sy] of [[d, d, 1, 1], [w-d, d, -1, 1], [d, h-d, 1, -1], [w-d, h-d, -1, -1]]) {
+      ctx.save(); ctx.translate(x, y); ctx.scale(sx, sy);
+      ctx.beginPath(); ctx.moveTo(0, d * 2.2); ctx.lineTo(0, 0); ctx.lineTo(d * 2.2, 0); ctx.stroke();
+      ctx.translate(d * 0.45, d * 0.45); ctx.rotate(Math.PI/4); ctx.fillStyle = accent; ctx.fillRect(-s*.003, -s*.003, s*.006, s*.006); ctx.restore();
+    }
+  } else if (style === 'atlantico') {
+    for (let i = 0; i < 4; i++) {
+      const y = d * (0.5 + i * 0.32), wave = Math.sin(time * 0.35 + i) * d * 0.12;
+      ctx.globalAlpha = 0.55 - i * 0.1;
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.bezierCurveTo(w*.3, y+d+wave, w*.65, y-d, w, y+d*.4); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, h-y); ctx.bezierCurveTo(w*.3, h-y-d, w*.7, h-y+d+wave, w, h-y-d*.4); ctx.stroke();
+    }
+    ctx.globalAlpha = .3; ctx.beginPath(); ctx.moveTo(d, h*.2); ctx.lineTo(d, h*.8); ctx.moveTo(w-d,h*.2); ctx.lineTo(w-d,h*.8); ctx.stroke();
+  } else {
+    ctx.globalAlpha = .75;
+    for (const [x,y,sx,sy] of [[d,d,1,1],[w-d,d,-1,1],[d,h-d,1,-1],[w-d,h-d,-1,-1]]) {
+      ctx.save(); ctx.translate(x,y); ctx.scale(sx,sy); ctx.beginPath(); ctx.moveTo(0,d*2); ctx.lineTo(0,0); ctx.lineTo(d*3,0); ctx.stroke();
+      ctx.globalAlpha = .35; ctx.fillStyle = accent; ctx.fillRect(d*.25,d*.25,d*1.5,s*.003); ctx.restore();
+    }
+    ctx.globalAlpha = .45; ctx.fillStyle = accent;
+    for (let i = 0; i < 5; i++) { const height = d * (.25 + .1 * Math.sin(time*.6+i)); ctx.fillRect(w/2+(i-2)*d*.23,h-d-height,s*.003,height); }
   }
   ctx.restore();
 }

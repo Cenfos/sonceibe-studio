@@ -8,5 +8,12 @@ it.each(visualPresets)('$id preserves footage, framing, sound and existing text 
   expect(result.background).toMatchObject({ ...settings.background, overlay: 0, blur: 0 });
   expect(result.text).toEqual(settings.text); expect(result.titleStyle).toEqual(settings.titleStyle);
   expect(result.effects).toMatchObject({ overlay: 0, blur: 0, lightleaks: false, vignette: false, particles: false });
-  expect(result.visualStyle).toBe(preset.id); expect(result.showSonCeibeBranding).toBe(true);
+  expect(result.visualStyle).toBe(preset.id); expect(result.showSonCeibeBranding).toBe(settings.showSonCeibeBranding);
+});
+
+it.each([true, false])('keeps the chosen logo visibility (%s) when switching prepared styles', visible => {
+  const settings = { ...createDefaultProjectSettings(), showSonCeibeBranding: visible };
+  for (const preset of visualPresets) {
+    expect({ ...settings, ...settingsWithVisualPreset(settings, preset) }.showSonCeibeBranding).toBe(visible);
+  }
 });

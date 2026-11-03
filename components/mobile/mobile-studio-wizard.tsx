@@ -403,6 +403,7 @@ export function MobileStudioWizard() {
                     </div>
                   </div>
 
+                  <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={!!settings.showSonCeibeBranding} onChange={event => updateSettings({ showSonCeibeBranding: event.target.checked })} />Mostrar logotipo de Son Ceibe</label>
                   <div className="grid grid-cols-2 gap-3">
                     {visualPresets.map((preset) => {
                       const active = effectiveStyle === preset.id;
@@ -423,7 +424,7 @@ export function MobileStudioWizard() {
                               style={{ borderColor: `${preset.accent}99`, boxShadow: `inset 0 0 18px ${preset.accent}22` }}
                             />
                             <ThemePreviewDecoration id={preset.id} />
-                            {(
+                            {settings.showSonCeibeBranding && (
                               // eslint-disable-next-line @next/next/no-img-element
                               <img
                                 src={SONCEIBE_LOGO_URL}

@@ -6,6 +6,7 @@ import { useStudioUserId } from '@/lib/studio-user-context';
 import { useAudioEngineContext } from '@/lib/audio-engine-context';
 import { saveSourceVideo, saveProjectAudio, deleteProjectAudio, LOCAL_AUDIO_URL } from '@/lib/local-media-storage';
 import { MAX_SOURCE_VIDEO_BYTES, openSourceVideo, releaseVideo, videoRange } from '@/lib/source-video';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { VideoImageControls } from './video-image-controls';
 import { ImageFramingControls } from './image-framing-controls';
@@ -61,18 +62,23 @@ export function VideoBackgroundControls({ compact = false }: { compact?: boolean
     try { await saveVersion('Antes de quitar la canción'); await deleteProjectAudio(userId, project.id); audio.clear(); updateSettings({ audioName: '', audioUrl: '' }); }
     catch { toast.error('No se pudo quitar la canción'); } finally { setBusy(false); }
   };
+  const removeVideo = async () => {
+    setBusy(true); audio.pause();
+    try {
+      await saveVersion('Antes de quitar el vídeo');
+      updateBackground({ type: 'gradient', videoUrl: '', videoName: '', videoDuration: 0, videoStart: 0, videoEnd: 0 });
+    } catch { toast.error('No se pudo quitar el vídeo'); }
+    finally { setBusy(false); }
+  };
   return <section aria-label="Vídeo de fondo y sonido" className="space-y-3 rounded-xl border border-border bg-card/30 p-3">
     <h3 className="text-sm font-semibold">Vídeo de fondo</h3>
     <Button asChild variant="outline" size="sm" className="w-full gap-2" disabled={busy}><label className="cursor-pointer"><Film className="h-4 w-4" />{busy ? 'Preparando…' : bg.videoUrl ? 'Cambiar vídeo' : 'Cargar vídeo del móvil'}<input aria-label="Vídeo de fondo" type="file" accept="video/*,.mp4,.mov,.webm" disabled={busy} className="hidden" onChange={uploadVideo} /></label></Button>
     {bg.videoUrl && !active && <Button type="button" variant="outline" size="sm" onClick={() => updateBackground({ type: 'video' })}>Usar el vídeo guardado</Button>}
     {active && <>
       <p className="break-all text-xs text-muted-foreground">{bg.videoName || 'Vídeo cargado'} · {range.duration.toFixed(2)} s de montaje</p>
-      <VideoControlGroup compact={compact} title="Recorte del vídeo">
-      <fieldset className="grid grid-cols-2 gap-2 text-xs"><legend className="mb-2 font-medium">Recorte del vídeo (segundos)</legend>
-        <label>Inicio<input aria-label="Inicio del vídeo" className="mt-1 w-full rounded border border-border bg-background p-2" type="number" min={0} max={Math.max(0, range.end - 0.2)} step={0.1} value={range.start} onChange={e => { const n = e.currentTarget.valueAsNumber; if (Number.isFinite(n)) updateBackground({ videoStart: Math.max(0, Math.min(range.end - 0.2, n)) }); }} /></label>
-        <label>Final<input aria-label="Final del vídeo" className="mt-1 w-full rounded border border-border bg-background p-2" type="number" min={range.start + 0.2} max={bg.videoDuration} step={0.1} value={range.end} onChange={e => { const n = e.currentTarget.valueAsNumber; if (Number.isFinite(n)) updateBackground({ videoEnd: Math.min(bg.videoDuration!, Math.max(range.start + 0.2, n)) }); }} /></label>
-      </fieldset>
-      </VideoControlGroup>
+      <Tabs defaultValue="sound">
+        {!compact && <TabsList className="hidden lg:inline-flex"><TabsTrigger value="sound">Sonido</TabsTrigger><TabsTrigger value="advanced">Avanzados</TabsTrigger></TabsList>}
+        <TabsContent value="sound">
       <VideoControlGroup compact={compact} title="Sonido del montaje">
       {project.settings.audioName ? <label className="block space-y-2 text-sm font-medium">Sonido del montaje
         <select aria-label="Sonido del montaje" value={bg.videoMuted ? 'song' : 'mix'} onChange={e => updateBackground({ videoMuted: e.target.value === 'song' })} className="block w-full rounded border border-border bg-background p-2 text-sm font-normal">
@@ -102,11 +108,21 @@ export function VideoBackgroundControls({ compact = false }: { compact?: boolean
       </>}
       <p className="text-xs leading-5 text-muted-foreground">El montaje dura lo que el recorte del vídeo. La canción empieza junto al vídeo desde el segundo elegido; si termina antes, el resto queda sin esa canción.</p>
       </VideoControlGroup>
+        </TabsContent>
+        {!compact && <TabsContent value="advanced" className="hidden space-y-4 lg:block">
+      <VideoControlGroup compact={compact} title="Recorte del vídeo">
+      <fieldset className="grid grid-cols-2 gap-2 text-xs"><legend className="mb-2 font-medium">Recorte del vídeo (segundos)</legend>
+        <label>Inicio<input aria-label="Inicio del vídeo" className="mt-1 w-full rounded border border-border bg-background p-2" type="number" min={0} max={Math.max(0, range.end - 0.2)} step={0.1} value={range.start} onChange={e => { const n = e.currentTarget.valueAsNumber; if (Number.isFinite(n)) updateBackground({ videoStart: Math.max(0, Math.min(range.end - 0.2, n)) }); }} /></label>
+        <label>Final<input aria-label="Final del vídeo" className="mt-1 w-full rounded border border-border bg-background p-2" type="number" min={range.start + 0.2} max={bg.videoDuration} step={0.1} value={range.end} onChange={e => { const n = e.currentTarget.valueAsNumber; if (Number.isFinite(n)) updateBackground({ videoEnd: Math.min(bg.videoDuration!, Math.max(range.start + 0.2, n)) }); }} /></label>
+      </fieldset>
+      </VideoControlGroup>
       <VideoControlGroup compact={compact} title="Imagen y encuadre">
       <VideoImageControls />
       <ImageFramingControls label="vídeo" value={bg.videoPlacement} fit="cover" maxScale={300} onChange={videoPlacement => updateBackground({ videoPlacement })} />
       </VideoControlGroup>
-      <Button variant="outline" size="sm" className="w-full gap-2" disabled={busy} onClick={() => updateBackground({ type: 'gradient', videoUrl: '', videoName: '', videoDuration: 0, videoStart: 0, videoEnd: 0 })}><Trash2 className="h-4 w-4" />Quitar vídeo · conservar canción</Button>
+        </TabsContent>}
+      </Tabs>
+      <Button variant="outline" size="sm" className="w-full gap-2" disabled={busy} onClick={removeVideo}><Trash2 className="h-4 w-4" />Quitar vídeo añadido</Button>
     </>}
     {audio.mediaBusy && <p role="status" className="text-xs text-muted-foreground">Preparando vídeo y sonido…</p>}
     {audio.mediaError && <p role="alert" className="text-xs text-destructive">{audio.mediaError}</p>}

@@ -21,6 +21,9 @@ export type VisualStyleId =
   | 'noite-estrelada'
   | 'papel-e-tinta'
   | 'rustico-ramas'
+  | 'aurea'
+  | 'atlantico'
+  | 'escena'
   // Legacy values kept so projects saved before the redesign still load.
   | 'karaoke-pop'
   | 'minimal'

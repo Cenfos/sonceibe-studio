@@ -97,7 +97,7 @@ export async function videoStylesFixture() {
   const file = await sourceFixture(), url = URL.createObjectURL(file), video = await openSourceVideo(url);
   try {
     const canvas = document.createElement('canvas'); canvas.width = 270; canvas.height = 480; const ctx = canvas.getContext('2d')!;
-    const settings = createDefaultProjectSettings(); settings.showTitle = false; settings.showSonCeibeBranding = false;
+    const settings = createDefaultProjectSettings(); settings.showTitle = false; settings.showSonCeibeBranding = true;
     settings.background = { ...settings.background, type: 'video', videoUrl: url, videoName: file.name, videoStart: 0.5, videoEnd: 2.8, videoDuration: 3.4, overlay: 0 };
     const reports = [];
     for (const preset of visualPresets) {
@@ -109,10 +109,14 @@ export async function videoStylesFixture() {
       for (const time of [0.5, 2.1]) { await seekSourceVideo(video, time); renderFrame(ctx, 270, 480, themed, time, video); centers.push(Array.from(ctx.getImageData(135, 200, 1, 1).data)); }
       const image = ctx.getImageData(0, 0, 270, 480).data; let edgeDifferences = 0;
       for (let y = 0; y < 55; y++) for (let x = 0; x < 270; x++) { const index = (y * 270 + x) * 4; if ([0, 1, 2].some(channel => Math.abs(image[index + channel] - centers[1][channel]) > 10)) edgeDifferences++; }
+      const visibleLogos = logos;
+      logos = 0;
+      renderFrame(ctx, 270, 480, { ...themed, showSonCeibeBranding: false }, 2.1, video);
+      const hiddenLogos = logos;
       ctx.drawImage = draw;
       // Previously saved overlays must not cover a video when its preset is restored.
       renderFrame(ctx, 270, 480, { ...themed, background: { ...themed.background, overlay: 1 }, effects: { ...themed.effects, overlay: 1, lightleaks: true } }, 2.1, video);
-      reports.push({ id: preset.id, videoUrl: themed.background.videoUrl === url, centers, edgeDifferences, logos, legacyCenter: Array.from(ctx.getImageData(135, 200, 1, 1).data) });
+      reports.push({ id: preset.id, videoUrl: themed.background.videoUrl === url, centers, edgeDifferences, logos: visibleLogos, hiddenLogos, legacyCenter: Array.from(ctx.getImageData(135, 200, 1, 1).data) });
     }
     return reports;
   } finally { releaseVideo(video); URL.revokeObjectURL(url); }
