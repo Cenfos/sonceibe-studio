@@ -5,12 +5,11 @@ test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
 test('phone preview shows source footage and responds to seeking while paused', async ({ page }) => {
   await page.goto('/'); await page.evaluate(() => window.studioTest.seedVideo()); await page.goto('/?ui');
   await page.getByRole('heading', { name: 'Vídeo del móvil', exact: true }).click();
-  await page.getByText('Recorte del vídeo', { exact: true }).click();
-  await expect(page.getByLabel('Inicio del vídeo', { exact: true })).toHaveValue('0.5');
+  await expect(page.getByRole('tab', { name: 'Avanzados', exact: true })).toHaveCount(0);
+  await expect(page.getByLabel('Inicio del vídeo', { exact: true })).toHaveCount(0);
   await page.getByText('Sonido del montaje', { exact: true }).click();
   await expect(page.getByLabel('Mantener sonido original', { exact: true })).toBeChecked();
-  await page.getByText('Imagen y encuadre', { exact: true }).click();
-  await expect(page.getByLabel('Brillo del vídeo', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('Brillo del vídeo', { exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Ver proyecto', exact: true }).click();
   const preview = page.getByRole('dialog', { name: 'Vista previa del proyecto' });
   const pixel = () => preview.locator('canvas').evaluate((canvas: HTMLCanvasElement) => Array.from(canvas.getContext('2d')!.getImageData(300, 500, 1, 1).data));

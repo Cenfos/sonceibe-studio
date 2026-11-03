@@ -15,6 +15,7 @@ test('video image adjustments and export quality persist and reset', async ({ pa
   await page.goto('/'); await page.evaluate(() => window.studioTest.seedVideo()); await page.goto('/?ui');
   await page.getByRole('heading', { name: 'Vídeo del móvil', exact: true }).click();
   await page.getByRole('button', { name: 'Formato', exact: true }).click();
+  await page.getByRole('tab', { name: 'Avanzados', exact: true }).click();
   const brightness = page.getByLabel('Brillo del vídeo', { exact: true });
   await brightness.fill('125');
   await page.getByLabel('Nitidez del vídeo', { exact: true }).fill('20');
@@ -24,14 +25,13 @@ test('video image adjustments and export quality persist and reset', async ({ pa
   }).toBe(20);
   await page.reload(); await page.getByRole('heading', { name: 'Vídeo del móvil', exact: true }).click();
   await page.getByRole('button', { name: 'Formato', exact: true }).click();
+  await page.getByRole('tab', { name: 'Avanzados', exact: true }).click();
   await expect(brightness).toHaveValue('125');
   await expect(page.getByLabel('Nitidez del vídeo', { exact: true })).toHaveValue('20');
   await page.getByRole('button', { name: 'Restablecer imagen', exact: true }).click();
   await expect(brightness).toHaveValue('100');
   await expect(page.getByLabel('Nitidez del vídeo', { exact: true })).toHaveValue('0');
-  await expect(page.getByRole('button', { name: 'Reel', exact: true })).toBeEnabled();
-  await page.getByRole('button', { name: 'Reel', exact: true }).click();
-  await page.getByRole('button', { name: '3. Exportar', exact: true }).click();
+  await page.getByRole('button', { name: 'Exportar', exact: true }).click();
   const quality = page.getByRole('dialog').getByLabel('Calidad del MP4', { exact: true });
   await expect(quality).toHaveValue('balanced');
   await quality.selectOption('light'); await expect(quality).toHaveValue('light');
