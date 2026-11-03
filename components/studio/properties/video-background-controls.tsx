@@ -23,6 +23,13 @@ export function VideoBackgroundControls({ compact = false }: { compact?: boolean
   if (!currentProject) return null;
   const project = currentProject, bg = project.settings.background, active = bg.type === 'video' && !!bg.videoUrl;
   const range = videoRange(bg);
+  const songDuration = audio.songDuration || 0;
+  const maxSongStart = Math.max(0, songDuration - 0.01);
+  const songStart = Math.min(bg.songOffset || 0, maxSongStart);
+  const chooseSongStart = (value: number) => {
+    audio.pause();
+    updateBackground({ songOffset: Math.max(0, Math.min(maxSongStart, value)) });
+  };
   const uploadVideo = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]; event.target.value = ''; if (!file || busy) return;
     setBusy(true); let video: HTMLVideoElement | null = null, url = '';
@@ -78,7 +85,18 @@ export function VideoBackgroundControls({ compact = false }: { compact?: boolean
       <Button asChild variant="outline" size="sm" className="w-full gap-2"><label className="cursor-pointer"><Music2 className="h-4 w-4" />{project.settings.audioName ? 'Cambiar canción' : 'Añadir canción'}<input aria-label="Canción para el vídeo" type="file" accept="audio/*" disabled={busy} className="hidden" onChange={uploadSong} /></label></Button>
       {project.settings.audioName && <>
         <p className="break-all text-xs text-muted-foreground">Canción: {project.settings.audioName}</p>
-        <label className="block text-xs">Empezar canción desde (segundos)<input aria-label="Inicio de la canción" type="number" min={0} step={0.1} value={bg.songOffset || 0} onChange={e => { const n = e.currentTarget.valueAsNumber; if (Number.isFinite(n)) updateBackground({ songOffset: Math.max(0, n) }); }} className="mt-1 w-full rounded border border-border bg-background p-2" /></label>
+        <fieldset className="space-y-3 rounded-lg border border-border p-3">
+          <legend className="px-1 text-sm font-medium">Elegir fragmento de la canción</legend>
+          <p className="text-xs text-muted-foreground">Recorre toda la canción para elegir el principio, una parte del medio o el final. El fragmento se aplica tanto a solo canción como a vídeo + canción.</p>
+          <label className="block text-xs">Situar el inicio en la canción<input aria-label="Elegir fragmento de la canción" type="range" min={0} max={maxSongStart} step={0.01} value={songStart} disabled={!songDuration || busy} onChange={e => chooseSongStart(Number(e.target.value))} className="mt-2 block w-full accent-primary" /></label>
+          <label className="block text-xs">Empezar canción desde (segundos)<input aria-label="Inicio de la canción" type="number" min={0} max={maxSongStart} step={0.01} disabled={!songDuration || busy} value={bg.songOffset || 0} onChange={e => { const n = e.currentTarget.valueAsNumber; if (Number.isFinite(n)) chooseSongStart(n); }} className="mt-1 w-full rounded border border-border bg-background p-2" /></label>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" disabled={!songDuration || busy} onClick={() => chooseSongStart(0)}>Desde el principio</Button>
+            <Button size="sm" variant="outline" disabled={!songDuration || busy} onClick={() => chooseSongStart(Math.max(0, songDuration - range.duration))}>Usar el final de la canción</Button>
+          </div>
+          {songDuration > 0 && <p className="text-xs tabular-nums text-muted-foreground">Fragmento: {songStart.toFixed(2)}–{Math.min(songDuration, songStart + range.duration).toFixed(2)} s · Canción completa: {songDuration.toFixed(2)} s{songDuration - songStart < range.duration && ' · La canción termina antes que el vídeo.'}</p>}
+          <Button size="sm" variant="outline" disabled={!audio.audioBuffer || audio.mediaBusy || busy || !!audio.mediaError} onClick={() => { audio.pause(); audio.seek(0); audio.play(); }}>Escuchar montaje desde el inicio</Button>
+        </fieldset>
         <label className="block text-xs">Volumen canción · {Math.round((bg.songVolume ?? 1) * 100)}%<input aria-label="Volumen de la canción" type="range" min={0} max={1} step={0.05} value={bg.songVolume ?? 1} onChange={e => updateBackground({ songVolume: Number(e.target.value) })} className="mt-2 block w-full accent-primary" /></label>
         <Button variant="ghost" size="sm" disabled={busy} onClick={removeSong}>Quitar canción añadida</Button>
       </>}

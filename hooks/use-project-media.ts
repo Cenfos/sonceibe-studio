@@ -10,6 +10,17 @@ export function useProjectMedia() {
   const engine = useAudioEngine();
   const { currentProject } = useStore(); const userId = useStudioUserId();
   const [song, setSong] = useState<File | null>(null);
+  const [songMetadata, setSongMetadata] = useState<{ file: File; duration: number } | null>(null);
+  useEffect(() => {
+    if (!song) return;
+    const url = URL.createObjectURL(song), media = new Audio();
+    media.preload = 'metadata';
+    media.onloadedmetadata = () => {
+      if (Number.isFinite(media.duration)) setSongMetadata({ file: song, duration: media.duration });
+    };
+    media.src = url;
+    return () => { media.onloadedmetadata = null; media.removeAttribute('src'); media.load(); URL.revokeObjectURL(url); };
+  }, [song]);
   const [footage, setFootage] = useState<{ projectId: string; key: string; file: File; video: HTMLVideoElement } | null>(null);
   const [mediaBusy, setBusy] = useState(false), [mediaError, setError] = useState('');
   const engineRef = useRef(engine); engineRef.current = engine;
@@ -76,5 +87,5 @@ export function useProjectMedia() {
     sync(); frame = requestAnimationFrame(loop);
     return () => { cancelAnimationFrame(frame); video.pause(); audio.removeEventListener('play', play); audio.removeEventListener('pause', pause); audio.removeEventListener('seeking', sync); audio.removeEventListener('ended', pause); };
   }, [activeVideo, engine.audioEl, videoActive, bg?.videoStart]);
-  return { ...engine, loadFile, loadFromUrl, clear, videoEl: videoActive ? activeVideo?.video ?? null : null, mediaBusy, mediaError };
+  return { ...engine, loadFile, loadFromUrl, clear, songDuration: songMetadata?.file === song ? songMetadata?.duration : 0, videoEl: videoActive ? activeVideo?.video ?? null : null, mediaBusy, mediaError };
 }

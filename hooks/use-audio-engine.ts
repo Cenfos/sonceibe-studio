@@ -7,6 +7,7 @@ export interface AudioEngine {
   videoEl?: HTMLVideoElement | null;
   mediaBusy?: boolean;
   mediaError?: string;
+  songDuration?: number;
   audioBuffer: AudioBuffer | null;
   isPlaying: boolean;
   currentTime: number;

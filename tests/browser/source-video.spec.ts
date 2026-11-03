@@ -1,5 +1,29 @@
 import { expect, test } from '@playwright/test';
 
+test('a short video can use the middle or end of a longer song in both sound modes', async ({ page }) => {
+  await page.goto('/'); await page.evaluate(() => window.studioTest.seedVideo()); await page.goto('/?ui');
+  await page.getByRole('heading', { name: 'Vídeo del móvil', exact: true }).click();
+  await page.getByRole('button', { name: 'Formato', exact: true }).click();
+  const rate = 8000, samples = rate * 10, wav = Buffer.alloc(44 + samples * 2);
+  wav.write('RIFF'); wav.writeUInt32LE(wav.length - 8, 4); wav.write('WAVEfmt ', 8);
+  wav.writeUInt32LE(16, 16); wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22);
+  wav.writeUInt32LE(rate, 24); wav.writeUInt32LE(rate * 2, 28); wav.writeUInt16LE(2, 32); wav.writeUInt16LE(16, 34);
+  wav.write('data', 36); wav.writeUInt32LE(samples * 2, 40);
+  await page.getByLabel('Canción para el vídeo', { exact: true }).setInputFiles({ name: 'larga.wav', mimeType: 'audio/wav', buffer: wav });
+  const start = page.getByLabel('Inicio de la canción', { exact: true });
+  await expect(start).toBeEnabled();
+  await expect(page.getByLabel('Elegir fragmento de la canción', { exact: true })).toHaveAttribute('max', '9.99');
+  await start.fill('5');
+  await page.getByLabel('Sonido del montaje', { exact: true }).selectOption('song');
+  await expect(start).toHaveValue('5');
+  await page.getByRole('button', { name: 'Usar el final de la canción', exact: true }).click();
+  await expect(start).toHaveValue('7.7');
+  await page.getByLabel('Sonido del montaje', { exact: true }).selectOption('mix');
+  await expect(start).toHaveValue('7.7');
+  await expect(page.getByRole('button', { name: 'Escuchar montaje desde el inicio', exact: true })).toBeEnabled();
+  await expect.poll(() => page.evaluate(async () => (await window.studioTest.savedProjects())[0].settings.background.songOffset)).toBe(7.7);
+});
+
 test('video soundtrack can be kept, muted, replaced, or mixed with a song', async ({ page }) => {
   await page.goto('/'); const report = await page.evaluate(() => window.studioTest.videoMixFixture());
   expect(report.original.original).toBeGreaterThan(0.08); expect(report.original.song).toBeLessThan(0.005);
