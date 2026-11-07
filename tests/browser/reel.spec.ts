@@ -221,6 +221,9 @@ test('video guide offers optional lyrics between audio and format and imports TX
   await guide.getByRole('button', { name: '2. Letra', exact: true }).click();
   await guide.getByLabel('Archivo de letra de la guía').setInputFiles({ name: 'letra.txt', mimeType: 'text/plain', buffer: Buffer.from('[Am] Unha frase\nOutra frase') });
   await expect(guide.getByRole('status')).toContainText('Letra cargada: 2 frases');
+  await guide.getByRole('button', { name: 'Sincronizar letra con la canción', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Sincronizar letra con la música' })).toBeVisible();
+  await page.keyboard.press('Escape');
   await guide.getByRole('button', { name: 'Continuar', exact: true }).click();
   await expect(guide.getByRole('button', { name: '3. Formato', exact: true })).toHaveAttribute('aria-current', 'step');
   await guide.getByRole('button', { name: '2. Letra', exact: true }).click();

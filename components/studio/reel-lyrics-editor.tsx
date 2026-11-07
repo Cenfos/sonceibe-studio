@@ -20,6 +20,9 @@ export function ReelLyricsEditor({ reel, patch, active, advanced = false, simple
   const length = Math.max(0, reel.end - reel.start);
   const custom = reel.lyricsMode === 'custom';
   const text = reel.lyricsText ?? lines.map(line => line.text).join('\n');
+  const phrases = text.split(/\r?\n/).map(value => value.trim()).filter(Boolean);
+  const preparePhrases = () => phrases.map((value, index) => ({ id: `reel-line-${index}`, text: value, start: 0, end: 0 }));
+  const canSync = phrases.length > 0 && !!audio.audioBuffer && !!audio.audioEl && length >= 0.2 && !audio.mediaBusy && !audio.mediaError;
   const stop = () => { audio.pause(); setRunning(false); };
   // Stop at the selected boundary, including when the user leaves this step.
   useEffect(() => {
@@ -35,9 +38,11 @@ export function ReelLyricsEditor({ reel, patch, active, advanced = false, simple
 
   if (!reel.showLyrics) return null;
   const start = async () => {
-    if (!lines.length || !audio.audioEl || length < 0.2) return;
+    if (!canSync || !audio.audioEl) return;
+    const matchingLines = phrases.length === lines.length && phrases.every((phrase, index) => phrase === lines[index].text);
+    const syncLines = matchingLines ? lines : preparePhrases();
     audio.pause(); audio.seek(reel.start); setPosition(0); setError('');
-    patch({ lyrics: lines.map(line => ({ ...line, start: 0, end: 0, words: undefined })) });
+    patch({ lyrics: syncLines.map(line => ({ ...line, start: 0, end: 0, words: undefined })) });
     setRunning(true);
     try { await audio.audioEl.play(); } catch { setError('No se pudo reproducir el fragmento. Vuelve a pulsar Sincronizar.'); setRunning(false); }
   };
@@ -62,10 +67,10 @@ export function ReelLyricsEditor({ reel, patch, active, advanced = false, simple
       <p className="text-xs text-muted-foreground">Pega sólo el trozo que se canta, una frase por línea. Los tiempos empiezan en 0 dentro del Reel. La letra del proyecto se conserva.</p>
       <label className="block text-sm">Frases del Reel<textarea aria-label="Frases del Reel" disabled={running} className="mt-1 min-h-[90px] w-full rounded border bg-background p-2" value={text} onChange={event => patch({ lyricsText: event.target.value })} /></label>
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" variant="outline" disabled={running || !text.trim()} onClick={() => patch({ lyrics: text.split(/\r?\n/).map(value => value.trim()).filter(Boolean).map((value, index) => ({ id: `reel-line-${index}`, text: value, start: 0, end: 0 })) })}>Preparar frases</Button>
+        <Button size="sm" variant="outline" disabled={running || !phrases.length} onClick={() => patch({ lyrics: preparePhrases() })}>Preparar frases</Button>
         <Button size="sm" variant="outline" disabled={running || !projectLines.length} onClick={() => { const copied = projectLines.map(line => ({ ...line, words: undefined, start: Math.max(0, line.start - reel.start), end: Math.min(length, line.end - reel.start) })); patch({ lyrics: copied, lyricsText: copied.map(line => line.text).join('\n') }); }}>Copiar frases de este tramo</Button>
       </div>
-      {!running ? <Button disabled={!lines.length || !audio.audioBuffer || length < 0.2 || text.split(/\r?\n/).map(value => value.trim()).filter(Boolean).join('\n') !== lines.map(line => line.text).join('\n')} onClick={() => void start()}>Sincronizar sólo este fragmento</Button> : <>
+      {!running ? <Button disabled={!canSync} onClick={() => void start()}>Sincronizar sólo este fragmento</Button> : <>
         <output aria-label="Posición de sincronización" className="block text-xs">{Math.max(0, Math.min(length, audio.currentTime - reel.start)).toFixed(2)} s / {length.toFixed(2)} s</output>
         <p role="status" className="text-sm">{position < lines.length ? `Al empezar a cantar: «${lines[position].text}»` : 'Marca el final de la última frase, o deja que llegue al final del Reel.'}</p>
         <Button onClick={mark}>{position < lines.length ? 'Marcar entrada de frase' : 'Marcar final y terminar'}</Button>

@@ -362,7 +362,7 @@ export function MobileStudioWizard() {
                     <span className="font-medium">{settings.lyrics.filter((line) => line.text.trim()).length}</span> líneas cargadas
                   </div>
                   {hasAudio && (
-                    <Button variant="outline" className="w-full h-11" onClick={() => setSyncOpen(true)}>
+                    <Button className="w-full h-11" disabled={busy || !audio.audioBuffer || !audio.audioEl || !!audio.mediaBusy || !!audio.mediaError} onClick={() => setSyncOpen(true)}>
                       Sincronizar letra con la canción
                     </Button>
                   )}

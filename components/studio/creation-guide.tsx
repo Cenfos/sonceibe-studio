@@ -10,11 +10,13 @@ import { cleanParsedLyrics, parseLrcLyrics, parseTxtLyrics, readLyricsFile } fro
 import { toast } from 'sonner';
 import { ReelControls } from './reel-controls';
 import { ReelLyricsEditor } from './reel-lyrics-editor';
+import { LyricsSyncDialog } from './lyrics/lyrics-sync-dialog';
 
 export function CreationGuide({ guided, onGuidedChange, step, onStepChange: setStep }: { guided: boolean; onGuidedChange: (guided: boolean) => void; step: number; onStepChange: (step: number) => void }) {
   const { currentProject, updateSettings, setExportOpen, setLyrics, setTab } = useStore();
   const audio = useAudioEngineContext();
   const [loadingLyrics, setLoadingLyrics] = useState(false);
+  const [syncOpen, setSyncOpen] = useState(false);
   const lyricsInput = useRef<HTMLInputElement>(null);
   if (!currentProject) return null;
   const settings = currentProject.settings;
@@ -24,6 +26,7 @@ export function CreationGuide({ guided, onGuidedChange, step, onStepChange: setS
   const currentStep = Math.min(step, steps.length - 1);
   const stage = steps[currentStep];
   const lyricCount = settings.lyrics.filter(line => line.text.trim()).length;
+  const canSync = lyricCount > 0 && hasAudio && !!audio.audioEl && !audio.mediaBusy && !audio.mediaError;
   const importLyrics = async (file?: File) => {
     if (!file) return;
     setLoadingLyrics(true);
@@ -56,6 +59,7 @@ export function CreationGuide({ guided, onGuidedChange, step, onStepChange: setS
         <p className="text-xs text-muted-foreground" role="status">{lyricCount ? `Letra cargada: ${lyricCount} ${lyricCount === 1 ? 'frase' : 'frases'}. Revisa su sincronización antes de exportar.` : 'Todavía no has añadido letra.'}</p>
         <input ref={lyricsInput} type="file" aria-label="Archivo de letra de la guía" className="hidden" accept=".txt,.lrc,.odt,.docx,.rtf,.html,.htm,.md,.markdown,text/plain,application/rtf,application/vnd.oasis.opendocument.text,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={event => { const file = event.target.files?.[0]; event.target.value = ''; void importLyrics(file); }} />
         <div className="flex flex-wrap gap-2">
+          {lyricCount > 0 && <Button disabled={!canSync || loadingLyrics} onClick={() => setSyncOpen(true)}>Sincronizar letra con la canción</Button>}
           <Button variant="outline" disabled={loadingLyrics} onClick={() => lyricsInput.current?.click()}>{loadingLyrics ? 'Cargando letra…' : lyricCount ? 'Cambiar archivo de letra' : 'Cargar archivo de letra'}</Button>
           <Button variant="outline" disabled={loadingLyrics} onClick={() => { updateSettings({ editingTarget: 'full' }); setTab('lyrics'); }}>Abrir editor de letra</Button>
         </div>
@@ -66,5 +70,6 @@ export function CreationGuide({ guided, onGuidedChange, step, onStepChange: setS
       {currentStep < steps.length - 1 && <Button size="sm" disabled={loadingLyrics || (stage === 'Audio' && !hasAudio) || (stage === 'Fragmento' && reel?.selectionConfirmed === false)} onClick={() => setStep(currentStep + 1)}>{stage === 'Letra' && !reel && !lyricCount ? 'Continuar sin letra' : 'Continuar'}</Button>}
     </>}
     <p className="text-xs text-muted-foreground">Formato: orientación y fotos. Estilo: estilos preparados. Usa las herramientas de arriba para la edición manual.</p>
+    {syncOpen && <LyricsSyncDialog open={syncOpen} onOpenChange={setSyncOpen} />}
   </section>;
 }

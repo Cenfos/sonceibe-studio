@@ -43,6 +43,9 @@ test('phone edits lyrics, orders photos and preserves per-photo framing', async 
   await page.getByLabel('Letra para pegar').fill('Primera nueva\nSegunda nueva');
   await page.getByRole('button', { name: 'Reemplazar letra con este texto' }).click();
   await expect(page.getByLabel('Frase 2', { exact: true })).toHaveValue('Segunda nueva');
+  const syncButton = page.getByRole('button', { name: 'Sincronizar letra con la canción', exact: true });
+  await expect(syncButton).toHaveClass(/\bbg-primary\b/);
+  await expect(syncButton).toBeEnabled();
   await page.getByRole('button', { name: 'Formato', exact: true }).click();
   const firstPhoto = page.getByRole('article', { name: 'Foto 1', exact: true });
   const original = await firstPhoto.locator('img').getAttribute('src');

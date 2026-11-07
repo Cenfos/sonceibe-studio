@@ -18,7 +18,9 @@ test('desktop Reel stays in the editor, preserves edits and exports from its inl
   await guide.getByRole('button', { name: '3. Letra', exact: true }).click();
   await guide.getByRole('button', { name: 'Letra sólo para este Reel', exact: true }).click();
   await guide.getByLabel('Frases del Reel', { exact: true }).fill('Sólo en el fragmento');
-  await guide.getByRole('button', { name: 'Preparar frases', exact: true }).click();
+  await guide.getByRole('button', { name: 'Sincronizar sólo este fragmento', exact: true }).click();
+  await expect(guide.getByRole('status').filter({ hasText: 'Sólo en el fragmento' })).toBeVisible();
+  await guide.getByRole('button', { name: 'Parar sincronización', exact: true }).click();
   await guide.getByRole('button', { name: '2. Fragmento', exact: true }).click();
   await guide.getByLabel('Mostrar letra en el Reel', { exact: true }).uncheck();
   await guide.getByRole('button', { name: '6. Exportar', exact: true }).click();
