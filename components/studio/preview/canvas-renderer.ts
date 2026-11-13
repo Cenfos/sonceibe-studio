@@ -362,7 +362,7 @@ function getScrollLyricsLayout(
     });
     let rows = 1;
     let rowWidth = 0;
-    for (const word of text.match(/\\S+/g) ?? []) {
+    for (const word of text.match(/\S+/g) ?? []) {
       const wordWidth = ctx.measureText(word).width;
       const spaceWidth = rowWidth > 0 ? ctx.measureText(' ').width : 0;
       if (rowWidth > 0 && rowWidth + spaceWidth + wordWidth > maxWidth) {
