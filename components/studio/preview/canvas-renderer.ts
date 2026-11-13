@@ -1,3 +1,4 @@
+import { parseLyricChords } from '@/lib/lyric-chords';
 import { videoFrameRect } from '@/lib/source-video';
 import { defaultTitleStyle, type AnimationType, type ImageFitMode, type ImagePlacement, type LyricLine, type ProjectSettings } from '@/lib/types';
 import { drawVisualBranding } from '@/lib/visual-branding';
@@ -10,15 +11,44 @@ function clamp01(value: number): number {
   return Math.max(0, Math.min(1, value));
 }
 
+const CHORD_GUIDE_RE = /^\[Acordes:\s*([^\]]+)\]$/i;
+const SECTION_GUIDE_RE = /^\[Secci[oó]n:\s*([^\]]+)\]$/i;
+
+function isStudioGuideLine(text: string): boolean {
+  const value = text.trim();
+  return CHORD_GUIDE_RE.test(value) || SECTION_GUIDE_RE.test(value);
+}
+
 function getActiveLine(lyrics: LyricLine[], time: number): LyricLine | null {
   let active: LyricLine | null = null;
 
   for (const line of lyrics) {
-    if (!line.text || time < line.start || time > line.end) continue;
+    if (!line.text || isStudioGuideLine(line.text) || time < line.start || time > line.end) continue;
     if (!active || line.start >= active.start) active = line;
   }
 
   return active;
+}
+
+function getChordGuide(lyrics: LyricLine[], time: number): { section: string; chords: string } | null {
+  // Show the next change a little early so the player can prepare the hand.
+  const guideTime = time + 0.65;
+  let section = '';
+  let chords = '';
+
+  for (const line of lyrics) {
+    if (!line.text || line.start > guideTime) continue;
+    const value = line.text.trim();
+    const sectionMatch = value.match(SECTION_GUIDE_RE);
+    if (sectionMatch) {
+      section = sectionMatch[1].trim();
+      continue;
+    }
+    const chordMatch = value.match(CHORD_GUIDE_RE);
+    if (chordMatch) chords = chordMatch[1].trim();
+  }
+
+  return chords ? { section, chords } : null;
 }
 
 function hexToRgba(hex: string, alpha: number): string {
@@ -282,9 +312,11 @@ function drawText(
 
   const t = settings.text;
   const anim = settings.animation;
-  let text = line.text;
-  if (t.transform === 'uppercase') text = text.toUpperCase();
-  if (t.transform === 'lowercase') text = text.toLowerCase();
+  const { text, chords } = parseLyricChords(line.text, (value) => {
+    if (t.transform === 'uppercase') return value.toUpperCase();
+    if (t.transform === 'lowercase') return value.toLowerCase();
+    return value;
+  });
 
   const renderScale = Math.min(w, h) / 1080;
   const fontSize = t.fontSize * renderScale;
@@ -314,23 +346,57 @@ function drawText(
   const textBlur = Math.max(inState.blurPx, outState.blurPx);
 
   const maxWidth = w * 0.8;
-  const words = text.split(/\s+/).filter(Boolean);
-  const wrappedLines: string[] = [];
-  let currentLine = '';
-  for (const word of words) {
-    const test = currentLine ? `${currentLine} ${word}` : word;
-    if (ctx.measureText(test).width > maxWidth && currentLine) {
-      wrappedLines.push(currentLine);
-      currentLine = word;
-    } else {
-      currentLine = test;
-    }
+  const lyricFont = ctx.font;
+  const chordSize = fontSize * 0.65;
+  const chordFont = `700 ${chordSize}px ${t.fontFamily}, sans-serif`;
+  const chordWidths = new Map<string, number>();
+  if (chords.length) {
+    ctx.font = chordFont;
+    for (const { name } of chords) chordWidths.set(name, ctx.measureText(name).width);
+    ctx.font = lyricFont;
   }
-  if (currentLine) wrappedLines.push(currentLine);
+
+  const words = [...text.matchAll(/\S+/g)];
+  const wrappedLines: { text: string; chords: { name: string; offset: number }[]; width: number }[] = [];
+  let row = { text: '', chords: [] as { name: string; offset: number }[], width: 0 };
+  let chordIndex = 0;
+  for (const { 0: word, index = 0 } of words) {
+    const wordChords: typeof chords = [];
+    while (chordIndex < chords.length && chords[chordIndex].index < index + word.length) {
+      wordChords.push(chords[chordIndex++]);
+    }
+
+    let prefix = row.text ? `${row.text} ` : '';
+    const getAnchors = () => wordChords.map(({ name, index: at }) => ({
+      name,
+      offset: ctx.measureText(prefix + word.slice(0, at - index)).width,
+    }));
+    let anchors = getAnchors();
+    const lastChord = row.chords.at(-1);
+    const firstAnchor = anchors[0];
+    const collides = lastChord && firstAnchor &&
+      firstAnchor.offset < lastChord.offset + chordWidths.get(lastChord.name)! + chordSize * 0.2;
+    const rowWidth = () => Math.max(row.width, ctx.measureText(prefix + word).width,
+      ...anchors.map(({ name, offset }) => offset + chordWidths.get(name)!));
+
+    if (row.text && (rowWidth() > maxWidth || collides)) {
+      wrappedLines.push(row);
+      row = { text: '', chords: [], width: 0 };
+      prefix = '';
+      anchors = getAnchors();
+    }
+    row.width = rowWidth();
+    row.text = prefix + word;
+    row.chords.push(...anchors);
+  }
+  if (row.text) wrappedLines.push(row);
 
   const lineHeight = fontSize * t.lineHeight;
-  const totalHeight = wrappedLines.length * lineHeight;
-  let startY = -totalHeight / 2 + lineHeight / 2;
+  const chordOffset = (fontSize + chordSize) / 2 + fontSize * 0.1;
+  const chordRowHeight = Math.max(lineHeight, fontSize + chordSize + fontSize * 0.1);
+  const totalHeight = wrappedLines.reduce((height, row) =>
+    height + (row.chords.length ? chordRowHeight : lineHeight), 0);
+  let rowTop = -totalHeight / 2;
 
   const revealIn = getRevealProgress(anim.in, inProgress, words.length);
   const revealOut = getRevealProgress(anim.out, outProgress, words.length);
@@ -349,13 +415,16 @@ function drawText(
     ctx.clip();
   }
 
-  for (const wrappedLine of wrappedLines) {
+  for (const row of wrappedLines) {
+    const wrappedLine = row.text;
     const measuredWidth = ctx.measureText(wrappedLine).width;
+    const startY = rowTop + lineHeight / 2 + (row.chords.length ? chordRowHeight - lineHeight : 0);
     const lineLeft = t.align === 'left'
       ? 0
       : t.align === 'right'
-        ? -measuredWidth
-        : -measuredWidth / 2;
+        ? -row.width
+        : -row.width / 2;
+    const lyricX = t.align === 'left' ? lineLeft : lineLeft + measuredWidth / (t.align === 'right' ? 1 : 2);
 
     if (t.shadow) {
       ctx.shadowColor = t.shadowColor;
@@ -372,11 +441,11 @@ function drawText(
     if (t.outlineWidth > 0) {
       ctx.strokeStyle = t.outlineColor;
       ctx.lineWidth = t.outlineWidth * renderScale;
-      ctx.strokeText(wrappedLine, 0, startY);
+      ctx.strokeText(wrappedLine, lyricX, startY);
     }
 
     ctx.fillStyle = t.color;
-    ctx.fillText(wrappedLine, 0, startY);
+    ctx.fillText(wrappedLine, lyricX, startY);
 
     if (anim.in === 'karaoke' && karaokeProgress > 0) {
       ctx.save();
@@ -392,13 +461,80 @@ function drawText(
       );
       ctx.clip();
       ctx.fillStyle = anim.karaokeColor;
-      ctx.fillText(wrappedLine, 0, startY);
+      ctx.fillText(wrappedLine, lyricX, startY);
       ctx.restore();
     }
 
-    startY += lineHeight;
+    if (row.chords.length) {
+      ctx.save();
+      ctx.font = chordFont;
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#ff4848';
+      ctx.strokeStyle = '#240909';
+      ctx.lineWidth = chordSize * 0.12;
+      ctx.lineJoin = 'round';
+      for (const { name, offset } of row.chords) {
+        ctx.strokeText(name, lineLeft + offset, startY - chordOffset);
+        ctx.fillText(name, lineLeft + offset, startY - chordOffset);
+      }
+      ctx.restore();
+    }
+
+    rowTop += row.chords.length ? chordRowHeight : lineHeight;
   }
 
+  ctx.restore();
+}
+
+function drawChordGuide(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  settings: ProjectSettings,
+  time: number
+) {
+  const guide = getChordGuide(settings.lyrics, time);
+  if (!guide) return;
+
+  const renderScale = Math.min(w, h) / 1080;
+  const maxWidth = w * 0.84;
+  const fontFamily = settings.text.fontFamily || 'Inter';
+  const sectionSize = 30 * renderScale;
+  let chordSize = 48 * renderScale;
+  const minChordSize = 28 * renderScale;
+  const chordText = guide.chords.replace(/[|/]+/g, '  ·  ').replace(/\s+/g, ' ').trim();
+  const sectionText = guide.section.toLocaleUpperCase('gl-ES');
+
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+
+  ctx.font = `800 ${chordSize}px ${fontFamily}, sans-serif`;
+  while (chordSize > minChordSize && ctx.measureText(chordText).width > maxWidth) {
+    chordSize -= Math.max(1, 2 * renderScale);
+    ctx.font = `800 ${chordSize}px ${fontFamily}, sans-serif`;
+  }
+
+  const centerY = Math.min(h * 0.34, Math.min(w, h) * 0.36);
+  const sectionY = centerY - chordSize * 0.68;
+  const chordY = centerY + (sectionText ? chordSize * 0.12 : 0);
+
+  if (sectionText) {
+    ctx.font = `800 ${sectionSize}px ${fontFamily}, sans-serif`;
+    ctx.strokeStyle = 'rgba(0,0,0,0.82)';
+    ctx.lineWidth = 5 * renderScale;
+    ctx.strokeText(sectionText, w / 2, sectionY, maxWidth);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(sectionText, w / 2, sectionY, maxWidth);
+  }
+
+  ctx.font = `800 ${chordSize}px ${fontFamily}, sans-serif`;
+  ctx.strokeStyle = '#240909';
+  ctx.lineWidth = 7 * renderScale;
+  ctx.strokeText(chordText, w / 2, chordY, maxWidth);
+  ctx.fillStyle = '#ff4848';
+  ctx.fillText(chordText, w / 2, chordY, maxWidth);
   ctx.restore();
 }
 
@@ -551,6 +687,7 @@ export function renderFrame(
   drawText(ctx, w, h, settings, time);
   drawEffects(ctx, w, h, settings, time);
   drawProjectTitle(ctx, w, h, settings, time);
+  drawChordGuide(ctx, w, h, settings, time);
   drawVisualBranding(ctx, w, h, settings.visualStyle, time, settings.showSonCeibeBranding, videoStyle);
   ctx.filter = 'none';
   ctx.globalAlpha = 1;

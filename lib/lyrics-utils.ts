@@ -1,3 +1,4 @@
+import { isLyricChord } from './lyric-chords';
 import type { LyricLine } from './types';
 
 function genId(): string {
@@ -17,12 +18,15 @@ export interface LyricsCleanupResult {
   removedChordMarks: number;
 }
 
-// Lyrics are deliberately preserved as written. We only remove annotations
-// enclosed in parentheses or square brackets, because those are commonly used
-// for comments, section labels such as [Estribillo], or chord marks such as [Am].
-// This avoids deleting real sung words that happen to look like chord names
-// (for example "La", "Mi", "Sol") or text that came from bold ODT spans.
+// Bracketed chord names and Studio guide markers are part of the lyric source.
+// Guide markers are kept as timed metadata so the renderer can show the
+// current section/progression without treating them as sung lyrics.
 const INLINE_ANNOTATION_RE = /\([^()]*\)|\[[^\[\]]*\]/g;
+const STUDIO_GUIDE_RE = /^\[(?:Acordes|Secci[oó]n):\s*[^\]]+\]$/i;
+
+function isStudioGuideAnnotation(value: string): boolean {
+  return STUDIO_GUIDE_RE.test(value.trim());
+}
 
 function stripInlineAnnotations(line: string): { text: string; removed: number } {
   let text = line;
@@ -32,7 +36,9 @@ function stripInlineAnnotations(line: string): { text: string; removed: number }
   // Repeat so simple nested annotations are also removed from the inside out.
   while (text !== previous) {
     previous = text;
-    text = text.replace(INLINE_ANNOTATION_RE, () => {
+    text = text.replace(INLINE_ANNOTATION_RE, (annotation) => {
+      if (annotation.startsWith('[') && isLyricChord(annotation.slice(1, -1))) return annotation;
+      if (isStudioGuideAnnotation(annotation)) return annotation;
       removed += 1;
       return '';
     });
@@ -46,8 +52,8 @@ function stripInlineAnnotations(line: string): { text: string; removed: number }
 
 /**
  * Preserve every lyric line exactly as text, regardless of formatting such as
- * bold/italic in ODT or DOCX. Only parenthesized and square-bracket annotations
- * are stripped. If a line consists only of an annotation, the whole line is
+ * bold/italic in ODT or DOCX. Chords such as [Am] are preserved. If a line
+ * consists only of an annotation, the whole line is
  * removed. Verse separation is preserved with a single blank line.
  */
 export function cleanLyricsText(text: string): LyricsCleanupResult {
@@ -319,7 +325,7 @@ export async function readLyricsFile(file: File): Promise<LyricsTextImport> {
 
 /**
  * Parse plain text lyrics into LyricLine[]. The same conservative cleanup is
- * applied to every import path: preserve lyric text, strip only () and [] notes.
+ * applied to every import path: preserve lyric text and chord markers.
  */
 export function parseTxtLyrics(text: string, duration: number): LyricLine[] {
   const cleanedText = cleanLyricsText(text).text;
