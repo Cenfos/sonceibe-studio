@@ -11,15 +11,44 @@ function clamp01(value: number): number {
   return Math.max(0, Math.min(1, value));
 }
 
+const CHORD_GUIDE_RE = /^\[Acordes:\s*([^\]]+)\]$/i;
+const SECTION_GUIDE_RE = /^\[Secci[oó]n:\s*([^\]]+)\]$/i;
+
+function isStudioGuideLine(text: string): boolean {
+  const value = text.trim();
+  return CHORD_GUIDE_RE.test(value) || SECTION_GUIDE_RE.test(value);
+}
+
 function getActiveLine(lyrics: LyricLine[], time: number): LyricLine | null {
   let active: LyricLine | null = null;
 
   for (const line of lyrics) {
-    if (!line.text || time < line.start || time > line.end) continue;
+    if (!line.text || isStudioGuideLine(line.text) || time < line.start || time > line.end) continue;
     if (!active || line.start >= active.start) active = line;
   }
 
   return active;
+}
+
+function getChordGuide(lyrics: LyricLine[], time: number): { section: string; chords: string } | null {
+  // Show the next change a little early so the player can prepare the hand.
+  const guideTime = time + 0.65;
+  let section = '';
+  let chords = '';
+
+  for (const line of lyrics) {
+    if (!line.text || line.start > guideTime) continue;
+    const value = line.text.trim();
+    const sectionMatch = value.match(SECTION_GUIDE_RE);
+    if (sectionMatch) {
+      section = sectionMatch[1].trim();
+      continue;
+    }
+    const chordMatch = value.match(CHORD_GUIDE_RE);
+    if (chordMatch) chords = chordMatch[1].trim();
+  }
+
+  return chords ? { section, chords } : null;
 }
 
 function hexToRgba(hex: string, alpha: number): string {
@@ -457,6 +486,58 @@ function drawText(
   ctx.restore();
 }
 
+function drawChordGuide(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  settings: ProjectSettings,
+  time: number
+) {
+  const guide = getChordGuide(settings.lyrics, time);
+  if (!guide) return;
+
+  const renderScale = Math.min(w, h) / 1080;
+  const maxWidth = w * 0.84;
+  const fontFamily = settings.text.fontFamily || 'Inter';
+  const sectionSize = 30 * renderScale;
+  let chordSize = 48 * renderScale;
+  const minChordSize = 28 * renderScale;
+  const chordText = guide.chords.replace(/[|/]+/g, '  ·  ').replace(/\s+/g, ' ').trim();
+  const sectionText = guide.section.toLocaleUpperCase('gl-ES');
+
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+
+  ctx.font = `800 ${chordSize}px ${fontFamily}, sans-serif`;
+  while (chordSize > minChordSize && ctx.measureText(chordText).width > maxWidth) {
+    chordSize -= Math.max(1, 2 * renderScale);
+    ctx.font = `800 ${chordSize}px ${fontFamily}, sans-serif`;
+  }
+
+  const centerY = Math.min(h * 0.34, Math.min(w, h) * 0.36);
+  const sectionY = centerY - chordSize * 0.68;
+  const chordY = centerY + (sectionText ? chordSize * 0.12 : 0);
+
+  if (sectionText) {
+    ctx.font = `800 ${sectionSize}px ${fontFamily}, sans-serif`;
+    ctx.strokeStyle = 'rgba(0,0,0,0.82)';
+    ctx.lineWidth = 5 * renderScale;
+    ctx.strokeText(sectionText, w / 2, sectionY, maxWidth);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(sectionText, w / 2, sectionY, maxWidth);
+  }
+
+  ctx.font = `800 ${chordSize}px ${fontFamily}, sans-serif`;
+  ctx.strokeStyle = '#240909';
+  ctx.lineWidth = 7 * renderScale;
+  ctx.strokeText(chordText, w / 2, chordY, maxWidth);
+  ctx.fillStyle = '#ff4848';
+  ctx.fillText(chordText, w / 2, chordY, maxWidth);
+  ctx.restore();
+}
+
 function drawProjectTitle(
   ctx: CanvasRenderingContext2D,
   w: number,
@@ -606,6 +687,7 @@ export function renderFrame(
   drawText(ctx, w, h, settings, time);
   drawEffects(ctx, w, h, settings, time);
   drawProjectTitle(ctx, w, h, settings, time);
+  drawChordGuide(ctx, w, h, settings, time);
   drawVisualBranding(ctx, w, h, settings.visualStyle, time, settings.showSonCeibeBranding, videoStyle);
   ctx.filter = 'none';
   ctx.globalAlpha = 1;
