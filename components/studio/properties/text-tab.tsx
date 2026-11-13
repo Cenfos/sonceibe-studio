@@ -201,8 +201,8 @@ export function TextTab() {
         <ControlRow label="Presentación de la letra">
           <div className="grid grid-cols-2 gap-2">
             {[
-              { value: 'line', label: 'Línea a línea', icon: AlignCenter },
-              { value: 'scroll', label: 'Sube desde abajo', icon: ArrowUp },
+              { value: 'line', label: 'Por líneas', icon: AlignCenter },
+              { value: 'scroll', label: 'Ascendente', icon: ArrowUp },
             ].map((mode) => {
               const Icon = mode.icon;
               const selected = (t.lyricsDisplayMode ?? 'line') === mode.value;

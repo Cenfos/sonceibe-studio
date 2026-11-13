@@ -6,6 +6,12 @@ import { getVisualPreset } from '@/lib/visual-presets';
 import { isDefaultProjectTitle } from '@/lib/project-title';
 
 const imageCache = new Map<string, HTMLImageElement>();
+interface ScrollLyricsLayout {
+  lines: LyricLine[];
+  heights: number[];
+  centers: number[];
+}
+const scrollLyricsLayoutCache = new WeakMap<ProjectSettings, Map<string, ScrollLyricsLayout>>();
 
 function clamp01(value: number): number {
   return Math.max(0, Math.min(1, value));
@@ -320,18 +326,24 @@ function drawText(
   drawLyricLine(ctx, w, h, settings, time, line, y, 1, false);
 }
 
-function drawScrollingLyrics(
+function getScrollLyricsLayout(
   ctx: CanvasRenderingContext2D,
   w: number,
   h: number,
-  settings: ProjectSettings,
-  time: number
-) {
+  settings: ProjectSettings
+): ScrollLyricsLayout {
+  let cache = scrollLyricsLayoutCache.get(settings);
+  if (!cache) {
+    cache = new Map();
+    scrollLyricsLayoutCache.set(settings, cache);
+  }
+  const key = w + 'x' + h;
+  const cached = cache.get(key);
+  if (cached) return cached;
+
   const lines = settings.lyrics
     .filter((line) => line.text.trim() && !isStudioGuideLine(line.text))
     .sort((left, right) => left.start - right.start);
-  if (!lines.length || time < lines[0].start) return;
-
   const t = settings.text;
   const renderScale = Math.min(w, h) / 1080;
   const fontSize = t.fontSize * renderScale;
@@ -368,7 +380,20 @@ function drawScrollingLyrics(
   for (let index = 1; index < lines.length; index += 1) {
     centers.push(centers[index - 1] + (heights[index - 1] + heights[index]) / 2 + gap);
   }
-
+  const layout = { lines, heights, centers };
+  cache.set(key, layout);
+  return layout;
+}
+function drawScrollingLyrics(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  settings: ProjectSettings,
+  time: number
+) {
+  const layout = getScrollLyricsLayout(ctx, w, h, settings);
+  const { lines, heights, centers } = layout;
+  if (!lines.length || time < lines[0].start) return;
   const hasTimedLines = lines.some((line) => line.start > 0 || line.end > line.start);
   let currentIndex = 0;
   if (hasTimedLines) {
