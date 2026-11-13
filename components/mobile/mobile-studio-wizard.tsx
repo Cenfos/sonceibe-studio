@@ -1,4 +1,10 @@
 'use client';
+
+import { MobileTextControls } from './mobile-text-controls';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { MobileLyricsEditor } from './mobile-lyrics-editor';
+import { MobilePhotoEditor } from './mobile-photo-editor';
+import { MobileStudioMenu } from './mobile-studio-menu';
 import { VideoBackgroundControls } from '@/components/studio/properties/video-background-controls';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -44,14 +50,13 @@ import { MobileAudioPlayer } from './mobile-audio-player';
 import { ReelDialog } from '@/components/studio/reel-dialog';
 import { emptyStyle } from '@/lib/reel';
 import { hasExternalCopy } from '@/lib/recent-projects';
-import { ProjectVersions } from '@/components/studio/project-versions';
 
 const steps = [
-  { id: 'music', label: 'Música', icon: Music },
+  { id: 'music', label: 'Audio y vídeo', icon: Music },
   { id: 'lyrics', label: 'Letra', icon: FileText },
   { id: 'photos', label: 'Formato', icon: Images },
   { id: 'style', label: 'Estilo', icon: Palette },
-  { id: 'finish', label: 'Vídeo', icon: Film },
+  { id: 'finish', label: 'Exportar', icon: Film },
 ] as const;
 
 function prepareImage(file: File): Promise<string> {
@@ -108,6 +113,7 @@ export function MobileStudioWizard() {
   const userId = useStudioUserId();
   const [step, setStep] = useState(0);
   const [syncOpen, setSyncOpen] = useState(false);
+  const [exitOpen, setExitOpen] = useState(false);
   const [mobileExportOpen, setMobileExportOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const audioInputRef = useRef<HTMLInputElement>(null);
@@ -138,6 +144,18 @@ export function MobileStudioWizard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentProject?.id]);
 
+  useEffect(() => {
+    const back = () => {
+      if (syncOpen) { setSyncOpen(false); return; }
+      if (mobileExportOpen) { setMobileExportOpen(false); return; }
+      if (step > 0) setStep(0);
+      else setExitOpen(true);
+    };
+    window.addEventListener('sonceibe:mobile-project-back', back);
+    return () => window.removeEventListener('sonceibe:mobile-project-back', back);
+  }, [step, syncOpen, mobileExportOpen]);
+
+  const requestProjectExit = () => { if (step > 0) setStep(0); else setExitOpen(true); };
   const title = settings?.title || 'Proyecto';
   const progress = useMemo(() => ((step + 1) / steps.length) * 100, [step]);
 
@@ -202,16 +220,20 @@ export function MobileStudioWizard() {
     setBusy(true);
     try {
       const prepared = await Promise.all(files.map(prepareImage));
-      const images = [...(settings.background.images ?? []), ...prepared];
+      const bg = settings.background;
+      const previous = bg.type === 'images' && bg.imageMode === 'manual' ? bg.imageClips : (bg.images.length ? bg.images : bg.imageUrl ? [bg.imageUrl] : []).map((url, index) => ({ id: `existing-${index}`, url, start: 0, end: 0, placement: bg.imagePlacement }));
+      const items = [...previous, ...prepared.map(url => ({ id: crypto.randomUUID(), url, start: 0, end: 0, placement: undefined }))];
+      const images = items.map(item => item.url);
       const duration = audio.duration || settings.audioDuration || 0;
       const imageDuration = duration > 0 && images.length > 0
         ? Math.max(1, duration / images.length)
         : 5;
       updateBackground({
-        type: images.length > 1 ? 'images' : 'image',
+        type: 'images',
         images,
         imageUrl: images[0] || '',
-        imageMode: 'auto',
+        imageMode: 'manual',
+        imageClips: items.map((item, index) => ({ ...item, start: index * (duration || images.length * 5) / images.length, end: (index + 1) * (duration || images.length * 5) / images.length })),
         imageDuration,
         imageFit: 'cover',
       });
@@ -239,8 +261,8 @@ export function MobileStudioWizard() {
       <MobileOrientationGate />
       <div className="mobile-studio-wizard h-[100dvh] overflow-y-auto bg-background">
         <header className="sticky top-0 z-20 border-b border-border bg-background/95 backdrop-blur">
-          <div className="flex items-center justify-between px-4 py-3">
-            <Button variant="ghost" size="icon" onClick={closeProject} aria-label="Volver a proyectos">
+          <div className="grid grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] items-start gap-2 px-3 py-3">
+            <Button variant="ghost" size="icon" className="h-11 w-11 shrink-0" onClick={requestProjectExit} aria-label="Volver a proyectos">
               <Home className="h-5 w-5" />
             </Button>
             <div className="min-w-0 text-center">
@@ -255,7 +277,7 @@ export function MobileStudioWizard() {
               </div>
               <div className="text-[10px] text-muted-foreground">{hasExternalCopy(currentProject, externalCopies) ? 'Copia guardada en tu equipo' : 'Guarda una copia .scs en tu equipo'}</div>
             </div>
-            <ProjectVersions />
+            <MobileStudioMenu />
           </div>
           <div className="grid grid-cols-5 border-t border-border/60">
             {steps.map((item, index) => {
@@ -270,7 +292,7 @@ export function MobileStudioWizard() {
                   aria-current={active ? 'step' : undefined}
                 >
                   <Icon className="h-4 w-4" />
-                  <span className="truncate">{item.label}</span>
+                  <span className="text-center leading-4">{item.label}</span>
                 </button>
               );
             })}
@@ -292,13 +314,16 @@ export function MobileStudioWizard() {
             </div>
           </div>
 
+          <Button variant="outline" className="mb-4 min-h-11 w-full gap-2" onClick={() => window.dispatchEvent(new Event('sonceibe:open-mobile-preview'))}><Eye className="h-4 w-4" />Ver proyecto</Button>
+
           {step === 0 && (
             <Card className="p-5 space-y-4">
               <div>
                 <h2 className="font-medium">Añade una canción o un vídeo</h2>
                 <p className="mt-1 text-sm text-muted-foreground">Quedará guardada localmente con este proyecto para no tener que buscarla de nuevo.</p>
               </div>
-              <VideoBackgroundControls />
+              <VideoBackgroundControls compact />
+              {settings.background.type !== 'video' && <>
               <input ref={audioInputRef} type="file" accept=".mp3,audio/*" className="hidden" onChange={loadAudio} />
               <Button className="w-full gap-2 h-12" onClick={() => audioInputRef.current?.click()} disabled={busy}>
                 <Upload className="h-4 w-4" />
@@ -310,11 +335,12 @@ export function MobileStudioWizard() {
                   <span className="truncate">{settings.audioName}</span>
                 </div>
               )}
+              </>}
             </Card>
           )}
 
           {step === 1 && (
-            <Card className="p-5 space-y-4">
+            <Card className="min-w-0 p-5 space-y-4">
               <div>
                 <h2 className="font-medium">Añade la letra</h2>
                 <p className="mt-1 text-sm text-muted-foreground">TXT, LRC, ODT, DOCX, RTF, HTML o Markdown. Escribe los acordes antes de la palabra, como [Am]letra.</p>
@@ -336,12 +362,13 @@ export function MobileStudioWizard() {
                     <span className="font-medium">{settings.lyrics.filter((line) => line.text.trim()).length}</span> líneas cargadas
                   </div>
                   {hasAudio && (
-                    <Button variant="outline" className="w-full h-11" onClick={() => setSyncOpen(true)}>
+                    <Button className="w-full h-11" disabled={busy || !audio.audioBuffer || !audio.audioEl || !!audio.mediaBusy || !!audio.mediaError} onClick={() => setSyncOpen(true)}>
                       Sincronizar letra con la canción
                     </Button>
                   )}
                 </>
               )}
+              <MobileLyricsEditor key={currentProject.id} />
             </Card>
           )}
 
@@ -350,32 +377,21 @@ export function MobileStudioWizard() {
               <Card className="p-5 space-y-4">
                 <div>
                   <h2 className="font-medium">Añade fotos</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">Puedes elegir varias de una vez. Se recortarán automáticamente para llenar toda la pantalla 9:16.</p>
+                  <p className="mt-1 text-sm text-muted-foreground">Puedes elegir varias, ordenar la secuencia y encuadrar cada foto. Si usas un vídeo, añadir fotos lo sustituye como fondo.</p>
                 </div>
                 <input ref={photosInputRef} type="file" accept="image/*" multiple className="hidden" onChange={loadPhotos} />
                 <Button className="w-full gap-2 h-12" onClick={() => photosInputRef.current?.click()} disabled={busy}>
                   <Images className="h-4 w-4" />
                   {hasPhotos ? 'Añadir más fotos' : 'Elegir fotos'}
                 </Button>
-                {(settings.background.images?.length ?? 0) > 0 && (
-                  <div className="grid grid-cols-3 gap-2">
-                    {settings.background.images.slice(0, 6).map((src, index) => (
-                      <div key={`${src}-${index}`} className="aspect-[9/16] overflow-hidden rounded-lg bg-black">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={src} alt="" className="h-full w-full object-cover" />
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {hasPhotos && (
-                  <div className="text-xs text-muted-foreground">Las fotos se repartirán automáticamente a lo largo de la canción.</div>
-                )}
+                <MobilePhotoEditor />
               </Card>
             </div>
           )}
           {step === 3 && (
             <div className="space-y-4">
-              <Button variant="outline" className="w-full" onClick={() => updateSettings(emptyStyle())}>Sin estilo · fondo vacío</Button>
+              <MobileTextControls />
+              <Button variant="outline" className="w-full" onClick={() => updateSettings(emptyStyle(currentProject.settings))}>Quitar estilo preparado</Button>
                 <Card className="p-5 space-y-4">
                   <div className="flex items-start gap-3">
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
@@ -387,6 +403,7 @@ export function MobileStudioWizard() {
                     </div>
                   </div>
 
+                  <label className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={!!settings.showSonCeibeBranding} onChange={event => updateSettings({ showSonCeibeBranding: event.target.checked })} />Mostrar logotipo de Son Ceibe</label>
                   <div className="grid grid-cols-2 gap-3">
                     {visualPresets.map((preset) => {
                       const active = effectiveStyle === preset.id;
@@ -407,7 +424,7 @@ export function MobileStudioWizard() {
                               style={{ borderColor: `${preset.accent}99`, boxShadow: `inset 0 0 18px ${preset.accent}22` }}
                             />
                             <ThemePreviewDecoration id={preset.id} />
-                            {(
+                            {settings.showSonCeibeBranding && (
                               // eslint-disable-next-line @next/next/no-img-element
                               <img
                                 src={SONCEIBE_LOGO_URL}
@@ -487,8 +504,8 @@ export function MobileStudioWizard() {
             <Button
               variant="outline"
               className="flex-1 gap-1.5"
-              onClick={() => setStep((current) => Math.max(0, current - 1))}
-              disabled={step === 0 || busy}
+              onClick={() => step > 0 ? setStep(step - 1) : setExitOpen(true)}
+              disabled={busy}
             >
               <ArrowLeft className="h-4 w-4" />
               Atrás
@@ -507,6 +524,14 @@ export function MobileStudioWizard() {
         </main>
       </div>
 
+      <Dialog open={exitOpen} onOpenChange={setExitOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>¿Salir del proyecto?</DialogTitle><DialogDescription>Volverás a la lista de proyectos. Tus cambios se guardan automáticamente en este navegador.</DialogDescription></DialogHeader>
+          {autoSaveStatus === 'saving' && <p role="status" className="text-sm">Guardando los últimos cambios…</p>}
+          {autoSaveStatus === 'error' && <p role="alert" className="text-sm text-destructive">No se han podido guardar los últimos cambios. Sigue editando y guarda una copia antes de salir.</p>}
+          <DialogFooter><Button variant="outline" onClick={() => setExitOpen(false)}>Seguir editando</Button><Button disabled={autoSaveStatus === 'saving' || autoSaveStatus === 'error'} onClick={() => { audio.pause(); setExitOpen(false); closeProject(); }}>Salir del proyecto</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
       <LyricsSyncDialog open={syncOpen} onOpenChange={setSyncOpen} />
       <MobileExportDialog open={mobileExportOpen} onClose={() => setMobileExportOpen(false)} />
     </>

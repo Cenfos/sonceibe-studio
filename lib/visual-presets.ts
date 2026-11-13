@@ -462,6 +462,20 @@ visualPresets.push(
   }
 );
 
+// Three coordinated collections, with restrained motion and clear typography.
+visualPresets.unshift(...([
+  { id: 'aurea', label: 'Áurea', description: 'Oro champán sobre obsidiana. Doble filete fino y esquinas de joyería para un acabado elegante.', previewFrom: '#171614', previewTo: '#393025', accent: '#d8bd87', font: 'Georgia', ink: '#fff4df', angle: 135 },
+  { id: 'atlantico', label: 'Atlántico', description: 'Azul profundo y espuma de mar. Curvas fluidas en los bordes y una composición limpia y luminosa.', previewFrom: '#071e2b', previewTo: '#17545b', accent: '#8ed8ce', font: 'Arial', ink: '#f0fffc', angle: 165 },
+  { id: 'escena', label: 'Escena', description: 'Grafito y cobre. Líneas de escenario, detalles de luz y tipografía firme para actuaciones y estrenos.', previewFrom: '#15131b', previewTo: '#34212a', accent: '#edaa87', font: 'Arial', ink: '#fff2ec', angle: 115 },
+] as const).map(collection => ({
+  ...base, ...collection,
+  background: { ...base.background, gradientFrom: collection.previewFrom, gradientTo: collection.previewTo, gradientAngle: collection.angle, overlay: 0 },
+  text: { ...base.text, fontFamily: collection.font, fontSize: 76, fontWeight: 600, color: collection.ink, outlineWidth: 1, outlineColor: collection.previewFrom, shadow: true, shadowBlur: 10, shadowColor: '#000000', glow: false, lineHeight: 1.3, letterSpacing: 0.5 },
+  title: { ...base.title, fontFamily: collection.font, fontSize: 94, fontWeight: 600, color: collection.ink, fontStyle: 'normal' as const, outlineWidth: 0, shadow: true, shadowBlur: 12, shadowColor: '#000000', glow: false, uppercase: false, topOffset: 18 },
+  animation: { ...base.animation, in: 'fade' as const, out: 'fade' as const, duration: 0.65, karaokeColor: collection.accent, wordStagger: 55 },
+  effects: { ...base.effects, overlay: 0, particles: false, lightleaks: false, vignette: false, kenburns: false },
+})));
+
 export function getVisualPreset(id: VisualStyleId | undefined): VisualPreset | null {
   if (!id || id === 'default') return null;
   return visualPresets.find((preset) => preset.id === id) ?? null;
@@ -477,7 +491,7 @@ export function presetBackground(current: BackgroundConfig, preset: VisualPreset
 /** Video presets add only their frame and signature; footage, sound and text remain independent. */
 export function settingsWithVisualPreset(settings: ProjectSettings, preset: VisualPreset): Partial<ProjectSettings> {
   if (settings.background.type === 'video' && settings.background.videoUrl) return {
-    visualStyle: preset.id, showSonCeibeBranding: true,
+    visualStyle: preset.id, showSonCeibeBranding: settings.showSonCeibeBranding,
     background: { ...settings.background, overlay: 0, blur: 0 },
     effects: { ...settings.effects, overlay: 0, blur: 0, kenburns: false, particles: false, lightleaks: false, vignette: false },
   };

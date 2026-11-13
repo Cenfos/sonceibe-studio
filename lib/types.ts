@@ -21,6 +21,9 @@ export type VisualStyleId =
   | 'noite-estrelada'
   | 'papel-e-tinta'
   | 'rustico-ramas'
+  | 'aurea'
+  | 'atlantico'
+  | 'escena'
   // Legacy values kept so projects saved before the redesign still load.
   | 'karaoke-pop'
   | 'minimal'
@@ -46,6 +49,14 @@ export type EffectType =
   | 'vignette';
 
 export type ExportFormat = 'mp4';
+export type ExportQuality = 'light' | 'balanced' | 'high';
+export interface VideoAdjustments {
+  brightness: number;
+  contrast: number;
+  saturation: number;
+  sharpness: number;
+}
+export const defaultVideoAdjustments: VideoAdjustments = { brightness: 100, contrast: 100, saturation: 100, sharpness: 0 };
 export type ExportResolution = '720p' | '1080p' | '4k';
 export type ExportFps = 30 | 60;
 
@@ -97,6 +108,7 @@ export interface BackgroundConfig {
   songVolume?: number;
   songOffset?: number;
   videoPlacement?: ImagePlacement;
+  videoAdjustments?: VideoAdjustments;
   blur: number;
   overlay: number;
 }
@@ -162,6 +174,7 @@ export interface EffectsConfig {
 }
 
 export interface ExportConfig {
+  quality?: ExportQuality;
   format: ExportFormat;
   resolution: ExportResolution;
   fps: ExportFps;
@@ -178,7 +191,7 @@ export interface SyncProgress {
 
 export interface ProjectSettings {
   editingTarget?: 'reel' | 'full';
-  reel?: { start: number; end: number; coverUrl: string; showLyrics: boolean; showTitle: boolean; lyricsMode?: 'project' | 'custom'; lyrics?: LyricLine[]; lyricsText?: string };
+  reel?: { selectionConfirmed?: boolean; start: number; end: number; coverUrl: string; showLyrics: boolean; showTitle: boolean; lyricsMode?: 'project' | 'custom'; lyrics?: LyricLine[]; lyricsText?: string };
   title: string;
   artist: string;
   audioUrl: string;
@@ -287,6 +300,7 @@ export const defaultEffects: EffectsConfig = {
 // for true full-screen 9:16 export. PC/TV 16:9 remains available as an explicit
 // export preset when a horizontal video is wanted.
 export const defaultExport: ExportConfig = {
+  quality: 'balanced',
   format: 'mp4',
   resolution: '1080p',
   fps: 30,

@@ -2,16 +2,16 @@
 
 import { useRef, useState, useMemo, useEffect, useLayoutEffect, useCallback } from 'react';
 import { Music, Plus, ZoomIn, ZoomOut, Copy, Trash2 } from 'lucide-react';
-import { ReelDialog } from '../reel-dialog';
 import { TimelineClip } from './timeline-clip';
 import { WaveformDisplay } from './waveform-display';
 import { useStore } from '@/lib/store';
 import { useAudioEngineContext } from '@/lib/audio-engine-context';
 import { generateWaveformPeaks } from '@/lib/waveform';
 import { formatTime } from '@/lib/format';
+import { getVisualPreset } from '@/lib/visual-presets';
 import { editTimeRange, pointerTime, snapToPlayhead, type EditMode, type TimeRange } from '@/lib/timeline-edit';
 import { Button } from '@/components/ui/button';
-import type { BackgroundImageClip, LyricLine } from '@/lib/types';
+import type { BackgroundImageClip } from '@/lib/types';
 
 type Track = 'lyrics' | 'imageClips' | 'photoClips';
 type Selection = { track: Track; id: string };
@@ -19,13 +19,13 @@ const IMAGE_DRAG_TYPE = 'application/x-sonceibe-image-index';
 const ROW_HEIGHT = 28;
 
 export function Timeline() {
-  const { currentProject, updateLyric: updateProjectLyric, addLyric: addProjectLyric, deleteLyric: deleteProjectLyric, duplicateLyric: duplicateProjectLyric, updateBackground, updateSettings, setTab } = useStore();
+  const { currentProject, updateLyric, addLyric, deleteLyric, duplicateLyric, updateBackground, updateSettings, setTab } = useStore();
   const audio = useAudioEngineContext();
   const tracksRef = useRef<HTMLDivElement>(null);
   const [tracksHeight, setTracksHeight] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const anchor = useRef<{ time: number; pixel: number } | null>(null);
-  const [pxPerSec, setPxPerSec] = useState(20);
+  const [manualZoom, setManualZoom] = useState<{ projectId: string | undefined; scale: number } | null>(null);
   const [viewportWidth, setViewportWidth] = useState(800);
   const [selection, setSelection] = useState<Selection | null>(null);
   const snap = true;
@@ -35,7 +35,7 @@ export function Timeline() {
   const reel = settings?.reel || { start: 0, end: Math.min(30, duration), coverUrl: '', showLyrics: true, showTitle: true };
   const reelRange = editTimeRange(reel, 'move', 0, duration);
   function changeReel(range: TimeRange) {
-    updateSettings({ editingTarget: 'reel', reel: { ...reel, ...range } });
+    updateSettings({ editingTarget: 'reel', reel: { ...reel, ...range, selectionConfirmed: true } });
   }
   function enableReel() {
     const next = !reelEnabled;
@@ -45,36 +45,30 @@ export function Timeline() {
       setSelection(null);
     }
   }
-  const customLyrics = reelEnabled && settings?.reel?.lyricsMode === 'custom';
-  const lyrics = customLyrics ? (settings?.reel?.lyrics || []).map(line => ({ ...line, start: line.start + reel.start, end: line.end + reel.start })) : settings?.lyrics ?? [];
-  function saveReelLyrics(lines: LyricLine[]) {
-    const relative = lines.map(line => ({ ...line, start: line.start - reel.start, end: line.end - reel.start, words: undefined }));
-    updateSettings({ reel: { ...reel, lyrics: relative, lyricsText: relative.map(line => line.text).join('\n') } });
-  }
-  function updateLyric(id: string, patch: Partial<LyricLine>) {
-    if (!customLyrics) { updateProjectLyric(id, patch); return; }
-    saveReelLyrics(lyrics.map(line => line.id === id ? { ...line, ...patch } : line));
-  }
-  function deleteLyric(id: string) {
-    if (!customLyrics) { deleteProjectLyric(id); return; }
-    saveReelLyrics(lyrics.filter(line => line.id !== id));
-  }
-  function duplicateLyric(id: string) {
-    if (!customLyrics) { duplicateProjectLyric(id); return; }
-    const line = lyrics.find(line => line.id === id);
-    if (line) saveReelLyrics([...lyrics, { ...line, id: crypto.randomUUID(), start: line.end, end: Math.min(reel.end, line.end + line.end - line.start) }]);
-  }
-  function addLyric() {
-    if (!customLyrics) { addProjectLyric(); return; }
-    const start = Math.max(reel.start, Math.min(reel.end - 0.05, audio.currentTime));
-    saveReelLyrics([...lyrics, { id: crypto.randomUUID(), text: '', start, end: Math.min(reel.end, start + 4) }]);
-  }
+  // The general timeline always provides the full song as context for the cut.
+  const lyrics = settings?.lyrics ?? [];
   const imageClips = settings?.background.imageClips ?? [];
   const photoClips = settings?.background.photoClips ?? [];
   const manualImages = settings?.background.type === 'images' && settings.background.imageMode === 'manual';
+  const background = settings?.background;
+  const activeStyle = getVisualPreset(settings?.visualStyle);
+  const hasBackgroundMedia = background?.type === 'image' || background?.type === 'images' || background?.type === 'video';
+  const backgroundRows = activeStyle && hasBackgroundMedia ? 2 : 1;
+  const automaticImages = useMemo(() => {
+    if (background?.type !== 'images' || background.imageMode === 'manual' || !background.images.length || duration <= 0) return [];
+    const interval = Math.max(0.5, background.imageDuration ?? 5);
+    return Array.from({ length: Math.ceil(duration / interval) }, (_, index) => ({
+      id: `automatic-${index}`, url: background.images[index % background.images.length],
+      start: index * interval, end: Math.min(duration, (index + 1) * interval),
+      label: `Imagen múltiple ${index % background.images.length + 1}`,
+    }));
+  }, [background?.type, background?.imageMode, background?.images, background?.imageDuration, duration]);
   const clipsFor = (track: Track) => track === 'lyrics' ? lyrics : track === 'imageClips' ? imageClips : photoClips;
   const selected = selection ? clipsFor(selection.track).find(clip => clip.id === selection.id) : undefined;
   const visualDuration = Math.max(duration, ...lyrics.map(line => line.end), ...imageClips.map(clip => clip.end), ...photoClips.map(clip => clip.end), 1);
+  const fitScale = Math.max(0.01, Math.min(200, (viewportWidth - 24) / visualDuration));
+  const hasManualZoom = manualZoom !== null && manualZoom.projectId === currentProject?.id;
+  const pxPerSec = hasManualZoom ? manualZoom.scale : fitScale;
   const totalWidth = Math.max(visualDuration * pxPerSec + 24, viewportWidth);
   const peaks = useMemo(() => audio.audioBuffer ? generateWaveformPeaks(audio.audioBuffer, 2000) : [], [audio.audioBuffer]);
 
@@ -101,8 +95,13 @@ export function Timeline() {
       const focus = pixel ?? (playheadPixel >= 0 && playheadPixel <= element.clientWidth ? playheadPixel : element.clientWidth / 2);
       anchor.current = { time: (element.scrollLeft + focus) / pxPerSec, pixel: focus };
     }
-    setPxPerSec(Math.max(0.25, Math.min(200, value)));
-  }, [audio.currentTime, pxPerSec]);
+    setManualZoom({ projectId: currentProject?.id, scale: Math.max(0.25, Math.min(200, value)) });
+  }, [audio.currentTime, pxPerSec, currentProject?.id]);
+
+  useLayoutEffect(() => {
+    anchor.current = null;
+    if (scrollRef.current) scrollRef.current.scrollLeft = 0;
+  }, [currentProject?.id]);
 
   useLayoutEffect(() => {
     if (scrollRef.current && anchor.current) {
@@ -156,8 +155,10 @@ export function Timeline() {
   }
   const tickStep = pxPerSec < 2 ? 60 : pxPerSec < 10 ? 10 : pxPerSec < 40 ? 5 : 1;
   const ticks = Array.from({ length: Math.floor(visualDuration / tickStep) + 1 }, (_, index) => index * tickStep);
-  const labels = ['Audio', 'Letra', 'Fondo', ...(photoClips.length ? ['Fotos puntuales'] : [])];
-  const rowHeight = Math.min(ROW_HEIGHT * 2, Math.max(ROW_HEIGHT, (tracksHeight - 28) / labels.length));
+  const labels = ['Audio', 'Letra', ...(photoClips.length ? ['Fotos puntuales'] : []), 'Fondo'];
+  const rowCount = labels.length + backgroundRows - 1;
+  const rowHeight = Math.min(ROW_HEIGHT * 2, Math.max(ROW_HEIGHT, (tracksHeight - 28) / rowCount));
+  const backgroundLabel = background?.type === 'image' ? 'Imagen fija' : background?.type === 'gradient' ? 'Gradiente animado' : background?.type === 'video' ? 'Vídeo' : background?.type === 'images' ? 'Sin imágenes' : `Color sólido · ${background?.color || '#000000'}`;
 
   return <section aria-label="Línea de tiempo" style={{ minHeight: 'var(--timeline-min-height, 0px)', '--timeline-row-height': rowHeight + 'px' } as React.CSSProperties} className="studio-timeline shrink-0 flex flex-col border-t border-border bg-card/30">
     <div className="studio-timeline-header flex flex-wrap items-center justify-between gap-2 px-3 py-1 border-b border-border">
@@ -167,7 +168,7 @@ export function Timeline() {
         <Button size="icon" variant="ghost" className="h-7 w-7" aria-label="Alejar timeline" onClick={() => zoom(pxPerSec / 1.5)}><ZoomOut className="h-4 w-4" /></Button>
         <input type="range" min={0.25} max={200} step={0.25} value={pxPerSec} aria-label="Zoom horizontal" className="w-20" onChange={event => zoom(Number(event.target.value))} />
         <Button size="icon" variant="ghost" className="h-7 w-7" aria-label="Acercar timeline" onClick={() => zoom(pxPerSec * 1.5)}><ZoomIn className="h-4 w-4" /></Button>
-        <Button size="sm" variant="ghost" className="h-7" onClick={() => { anchor.current = { time: 0, pixel: 0 }; setPxPerSec(Math.max(0.25, Math.min(200, (viewportWidth - 24) / visualDuration))); if (scrollRef.current) scrollRef.current.scrollLeft = 0; }}>Ver todo</Button>
+        <Button size="sm" variant="ghost" className="h-7" aria-pressed={!hasManualZoom} onClick={() => { anchor.current = null; setManualZoom(null); if (scrollRef.current) scrollRef.current.scrollLeft = 0; }}>Ver todo</Button>
         <Button size="icon" variant="ghost" className="h-7 w-7" aria-label="Añadir línea de letra" onClick={() => addLyric()}><Plus className="h-4 w-4" /></Button>
       </div>
     </div>
@@ -176,7 +177,7 @@ export function Timeline() {
       <Button size="sm" variant="outline" className="h-7" onClick={() => changeReel({ start: Math.min(audio.currentTime, duration - 0.2), end: audio.currentTime >= reelRange.end ? Math.min(duration, audio.currentTime + 30) : reelRange.end })}>Marcar inicio aquí</Button>
       <Button size="sm" variant="outline" className="h-7" onClick={() => changeReel({ start: audio.currentTime <= reelRange.start ? Math.max(0, audio.currentTime - 30) : reelRange.start, end: Math.max(0.2, audio.currentTime) })}>Marcar fin aquí</Button>
       <span className="font-mono" role="status">{formatTime(reelRange.start)} → {formatTime(reelRange.end)} · {(reelRange.end - reelRange.start).toFixed(1)} s</span>
-      <ReelDialog key={currentProject?.id} fromTimeline />
+      <Button size="sm" variant="outline" onClick={() => window.dispatchEvent(new Event('sonceibe:reel-guide'))}>Ajustar Reel en la guía</Button>
     </div>}
     <div className="flex flex-wrap items-center gap-2 px-3 py-1 min-h-[36px] text-xs border-b border-border">
       {selected && selection ? <>
@@ -191,10 +192,10 @@ export function Timeline() {
         <Button size="icon" variant="ghost" className="h-6 w-6" aria-label="Eliminar selección" onClick={() => remove(selection)}><Trash2 className="h-3 w-3" /></Button>
       </> : <span className="text-muted-foreground">Selecciona una letra o foto. ← →: 0,1 s · Shift: 0,5 s · Alt: 0,01 s. Los bordes también admiten teclado.</span>}
     </div>
-    <div ref={tracksRef} className="studio-timeline-tracks flex flex-1 min-h-0" style={{ minHeight: 28 + labels.length * ROW_HEIGHT }}>
+    <div ref={tracksRef} className="studio-timeline-tracks flex flex-1 min-h-0" style={{ minHeight: 28 + rowCount * ROW_HEIGHT }}>
       <div className="studio-timeline-labels shrink-0 border-r border-border w-[120px]">
         <div className="h-7 border-b border-border" />
-        {labels.map(label => <div key={label} className="flex items-center px-3 text-xs border-b border-border" style={{ height: rowHeight }}>{label}</div>)}
+        {labels.map(label => <div key={label} className="flex items-center px-3 text-xs border-b border-border" style={{ height: rowHeight * (label === 'Fondo' ? backgroundRows : 1) }}>{label}</div>)}
       </div>
       <div ref={scrollRef} className="studio-timeline-scroll flex-1 min-w-0 overflow-x-auto scrollbar-thin relative touch-pan-x">
         <div style={{ width: totalWidth, position: 'relative' }}>
@@ -211,6 +212,8 @@ export function Timeline() {
               onSelect={() => setSelection(null)} onSeek={() => audio.seek(reelRange.start)} onChange={changeReel} onRemove={() => updateSettings({ editingTarget: 'full' })} onDuplicate={() => {}} />}
           </TrackRow>
           <TrackRow>{renderClips('lyrics')}</TrackRow>
+          {photoClips.length > 0 && <TrackRow>{renderClips('photoClips')}</TrackRow>}
+          {(!activeStyle || hasBackgroundMedia) &&
           <TrackRow><div className="absolute inset-0"
             onDragOver={event => { if (settings?.background.type === 'images') { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; } }}
             onDrop={event => {
@@ -228,14 +231,22 @@ export function Timeline() {
               setSelection({ track: 'imageClips', id: clip.id });
             }}>
             {manualImages ? imageClips.length ? renderClips('imageClips') : <p className="px-2 py-1 text-xs text-muted-foreground">Arrastra aquí una imagen desde el panel Fondo</p>
-              : <p className="px-2 py-1 text-xs text-muted-foreground">{settings?.background.type === 'images' ? `Automático · ${settings.background.images.length} imágenes · ${settings.background.imageDuration}s` : settings?.background.type === 'image' ? 'Imagen fija' : settings?.background.type === 'gradient' ? 'Gradiente animado' : settings?.background.type === 'video' ? 'Vídeo' : 'Color sólido'}</p>}
-          </div></TrackRow>
-          {photoClips.length > 0 && <TrackRow>{renderClips('photoClips')}</TrackRow>}
+              : automaticImages.length ? automaticImages.map(clip => <BackgroundBand key={clip.id} label={`${clip.label} · ${clip.start.toFixed(1)}–${clip.end.toFixed(1)} s`} start={clip.start} end={clip.end} pxPerSec={pxPerSec} imageUrl={clip.url} />)
+                : <BackgroundBand label={backgroundLabel} start={0} end={duration} pxPerSec={pxPerSec} imageUrl={background?.type === 'image' ? background.imageUrl : undefined} color={background?.type === 'color' ? background.color : undefined} />}
+          </div></TrackRow>}
+          {activeStyle && <TrackRow><BackgroundBand label={`Estilo · ${activeStyle.label}`} start={0} end={duration} pxPerSec={pxPerSec} color={activeStyle.previewFrom} /></TrackRow>}
           <div className="absolute top-0 bottom-0 w-0.5 bg-primary pointer-events-none z-20" style={{ left: audio.currentTime * pxPerSec }}><div className="absolute left-[-5px] w-3 h-3 bg-primary rotate-45" /></div>
         </div>
       </div>
     </div>
   </section>;
+}
+
+function BackgroundBand({ label, start, end, pxPerSec, imageUrl, color }: { label: string; start: number; end: number; pxPerSec: number; imageUrl?: string; color?: string }) {
+  return <div role="group" aria-label={label} title={`${label} · ${start.toFixed(1)}–${end.toFixed(1)} s`} className="absolute top-1 bottom-1 rounded border border-primary/40 text-xs text-white overflow-hidden"
+    style={{ left: start * pxPerSec, width: Math.max(24, (end - start) * pxPerSec), backgroundColor: color || 'hsl(var(--secondary))', backgroundImage: imageUrl ? `linear-gradient(#0005,#0009),url("${imageUrl}")` : undefined, backgroundSize: 'cover', backgroundPosition: 'center' }}>
+    <span className="sticky left-0 inline-block max-w-full truncate px-2">{label}</span>
+  </div>;
 }
 
 function TrackRow({ children }: { children: React.ReactNode }) {

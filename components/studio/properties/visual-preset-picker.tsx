@@ -7,6 +7,12 @@ import { preloadVisualBranding } from '@/lib/visual-branding';
 import { type VisualStyleId } from '@/lib/types';
 
 export function ThemePreviewDecoration({ id }: { id: VisualStyleId }) {
+  if (id === 'aurea' || id === 'atlantico' || id === 'escena') {
+    const color = visualPresets.find(preset => preset.id === id)!.accent;
+    return <svg className="absolute inset-0 h-full w-full" viewBox="0 0 160 100" preserveAspectRatio="none" aria-hidden="true" fill="none" stroke={color}>
+      {id === 'aurea' ? <><rect x="5" y="5" width="150" height="90" opacity=".75" /><rect x="7" y="7" width="146" height="86" opacity=".3" /><path d="M5 14V5H20 M140 5h15v9 M5 86v9h15 M140 95h15v-9" strokeWidth="2" /></> : id === 'atlantico' ? <>{[0,3,6].map(y => <g key={y} opacity={.6-y*.05}><path d={`M0 ${3+y} C50 ${14+y} 100 ${-4+y} 160 ${8+y}`} /><path d={`M0 ${97-y} C50 ${86-y} 100 ${104-y} 160 ${92-y}`} /></g>)}</> : <><path d="M5 20V5h25 M130 5h25v15 M5 80v15h25 M130 95h25V80" /><path d="M9 9h14 M137 9h14 M9 91h14 M137 91h14" opacity=".4" /><path d="M76 94v-3 M80 94v-5 M84 94v-4" /></>}
+    </svg>;
+  }
   if (id === 'rustico-ramas') return <svg className="absolute inset-0 h-full w-full" viewBox="0 0 160 100" preserveAspectRatio="none" aria-hidden="true">
     <rect x="4" y="4" width="152" height="92" fill="none" stroke="#b69868" strokeOpacity=".3" />
     {[[8, 8, 1, 1], [152, 8, -1, 1], [8, 92, 1, -1], [152, 92, -1, -1]].map(([x, y, sx, sy], index) => <g key={index} transform={`translate(${x} ${y}) scale(${sx} ${sy})`} fill="none" stroke="#b69868" strokeWidth="1.1" strokeLinecap="round">
@@ -114,11 +120,12 @@ export function VisualPresetPicker() {
         <div>
           <div className="text-xs font-semibold">Estilos preparados</div>
           <p className="mt-0.5 text-[10px] leading-4 text-muted-foreground">
-            Con vídeo: solo marco y logotipo, sin tapar la grabación. Con fotos o fondos: también se aplica el diseño del estilo.
+            Con vídeo: marco y logotipo opcional, sin tapar la grabación. Con fotos o fondos: también se aplica el diseño del estilo.
           </p>
         </div>
       </div>
 
+      <label className="mb-3 flex min-h-11 items-center gap-2 text-xs"><input type="checkbox" checked={!!currentProject.settings.showSonCeibeBranding} onChange={event => updateSettings({ showSonCeibeBranding: event.target.checked })} />Mostrar logotipo de Son Ceibe</label>
       <div className="grid grid-cols-2 gap-2">
         {visualPresets.map((preset) => {
           const active = activeStyle === preset.id;
@@ -142,7 +149,7 @@ export function VisualPresetPicker() {
                   style={{ borderColor: `${preset.accent}99`, boxShadow: `inset 0 0 12px ${preset.accent}22` }}
                 />
                 <ThemePreviewDecoration id={preset.id} />
-                {(
+                {currentProject.settings.showSonCeibeBranding && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={SONCEIBE_LOGO_URL}

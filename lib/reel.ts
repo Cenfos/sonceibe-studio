@@ -1,10 +1,14 @@
-import { defaultAnimation, defaultBackground, defaultEffects, defaultTextStyle, defaultTitleStyle, type ProjectSettings } from './types';
+import { defaultAnimation, defaultEffects, defaultTextStyle, defaultTitleStyle, type ProjectSettings } from './types';
 
-/** A single undoable change removes every preset decoration and active image. */
-export function emptyStyle(): Partial<ProjectSettings> {
+/** Remove preset styling while retaining the complete media montage. */
+export function emptyStyle(settings: ProjectSettings): Partial<ProjectSettings> {
+  if (!settings.visualStyle || settings.visualStyle === 'default') return {};
   return {
     visualStyle: 'default', showSonCeibeBranding: false,
-    background: { ...defaultBackground, type: 'color', color: '#000000', overlay: 0, images: [], imageClips: [], photoClips: [] },
+    background: { ...settings.background, overlay: 0, blur: 0,
+      ...(['color', 'gradient'].includes(settings.background.type)
+        ? { type: 'color' as const, color: '#000000' } : {}),
+    },
     text: { ...defaultTextStyle }, titleStyle: { ...defaultTitleStyle },
     animation: { ...defaultAnimation }, effects: { ...defaultEffects, overlay: 0 },
   };
@@ -90,5 +94,5 @@ export function markReelBoundary(settings: ProjectSettings, edge: 'start' | 'end
     const offset = previous.start - next.start;
     next.lyrics = previous.lyrics.map(line => ({ ...line, start: line.start + offset, end: line.end + offset, words: undefined }));
   }
-  return { editingTarget: 'reel', reel: next };
+  return { editingTarget: 'reel', reel: { ...next, selectionConfirmed: true } };
 }

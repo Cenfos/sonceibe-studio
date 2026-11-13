@@ -1,5 +1,29 @@
 import { expect, test } from '@playwright/test';
 
+test('a short video can use the middle or end of a longer song in both sound modes', async ({ page }) => {
+  await page.goto('/'); await page.evaluate(() => window.studioTest.seedVideo()); await page.goto('/?ui');
+  await page.getByRole('heading', { name: 'Vídeo del móvil', exact: true }).click();
+  await page.getByRole('button', { name: 'Formato', exact: true }).click();
+  const rate = 8000, samples = rate * 10, wav = Buffer.alloc(44 + samples * 2);
+  wav.write('RIFF'); wav.writeUInt32LE(wav.length - 8, 4); wav.write('WAVEfmt ', 8);
+  wav.writeUInt32LE(16, 16); wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22);
+  wav.writeUInt32LE(rate, 24); wav.writeUInt32LE(rate * 2, 28); wav.writeUInt16LE(2, 32); wav.writeUInt16LE(16, 34);
+  wav.write('data', 36); wav.writeUInt32LE(samples * 2, 40);
+  await page.getByLabel('Canción para el vídeo', { exact: true }).setInputFiles({ name: 'larga.wav', mimeType: 'audio/wav', buffer: wav });
+  const start = page.getByLabel('Inicio de la canción', { exact: true });
+  await expect(start).toBeEnabled();
+  await expect(page.getByLabel('Elegir fragmento de la canción', { exact: true })).toHaveAttribute('max', '9.99');
+  await start.fill('5');
+  await page.getByLabel('Sonido del montaje', { exact: true }).selectOption('song');
+  await expect(start).toHaveValue('5');
+  await page.getByRole('button', { name: 'Usar el final de la canción', exact: true }).click();
+  await expect(start).toHaveValue('7.7');
+  await page.getByLabel('Sonido del montaje', { exact: true }).selectOption('mix');
+  await expect(start).toHaveValue('7.7');
+  await expect(page.getByRole('button', { name: 'Escuchar montaje desde el inicio', exact: true })).toBeEnabled();
+  await expect.poll(() => page.evaluate(async () => (await window.studioTest.savedProjects())[0].settings.background.songOffset)).toBe(7.7);
+});
+
 test('video soundtrack can be kept, muted, replaced, or mixed with a song', async ({ page }) => {
   await page.goto('/'); const report = await page.evaluate(() => window.studioTest.videoMixFixture());
   expect(report.original.original).toBeGreaterThan(0.08); expect(report.original.song).toBeLessThan(0.005);
@@ -26,18 +50,23 @@ test('video-only project restores, plays, trims and exposes background controls'
   await page.goto('/'); await page.evaluate(() => window.studioTest.seedVideo()); await page.goto('/?ui');
   await page.getByRole('heading', { name: 'Vídeo del móvil', exact: true }).click();
   await page.getByRole('button', { name: 'Formato', exact: true }).click();
+  await page.getByRole('tab', { name: 'Avanzados', exact: true }).click();
   await expect(page.getByLabel('Inicio del vídeo', { exact: true })).toHaveValue('0.5');
   await expect(page.getByLabel('Final del vídeo', { exact: true })).toHaveValue('2.8');
   await expect(page.getByRole('button', { name: 'Reproducir', exact: true })).toBeEnabled();
   await page.getByRole('button', { name: 'Reproducir', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Pausar', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Pausar', exact: true }).click();
+  await page.getByRole('tab', { name: 'Sonido', exact: true }).click();
   await page.getByLabel('Mantener sonido original', { exact: true }).uncheck();
+  await page.getByRole('tab', { name: 'Avanzados', exact: true }).click();
   await page.getByLabel('Inicio del vídeo', { exact: true }).fill('1');
   await expect(page.getByRole('button', { name: 'Reproducir', exact: true })).toBeEnabled();
   await page.reload(); await page.getByRole('heading', { name: 'Vídeo del móvil', exact: true }).click();
   await page.getByRole('button', { name: 'Formato', exact: true }).click();
+  await page.getByRole('tab', { name: 'Avanzados', exact: true }).click();
   await expect(page.getByLabel('Inicio del vídeo', { exact: true })).toHaveValue('1');
+  await page.getByRole('tab', { name: 'Sonido', exact: true }).click();
   await expect(page.getByLabel('Mantener sonido original', { exact: true })).not.toBeChecked();
   await expect(page.getByRole('button', { name: 'Reproducir', exact: true })).toBeEnabled();
   await page.screenshot({ path: 'test-results/video-background-desktop.png' });
@@ -48,7 +77,10 @@ test.describe('phone video background', () => {
   test('video controls fit the phone and support original sound without a separate song', async ({ page }) => {
     await page.goto('/'); await page.evaluate(() => window.studioTest.seedVideo()); await page.goto('/?ui');
     await page.getByRole('heading', { name: 'Vídeo del móvil', exact: true }).click();
-    await expect(page.getByLabel('Inicio del vídeo', { exact: true })).toHaveValue('0.5');
+    await expect(page.getByRole('tab', { name: 'Avanzados', exact: true })).toHaveCount(0);
+    await page.getByText('Sonido del montaje', { exact: true }).click();
+    await expect(page.getByLabel('Inicio del vídeo', { exact: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Quitar vídeo añadido', exact: true })).toBeVisible();
     await expect(page.getByLabel('Mantener sonido original', { exact: true })).toBeChecked();
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.getByLabel('Mantener sonido original', { exact: true }).uncheck();
@@ -93,7 +125,7 @@ test('every prepared video style keeps the center transparent, with its border a
     expect(report.centers[0][0], report.id).toBeGreaterThan(180); expect(report.centers[0][1], report.id).toBeLessThan(60);
     expect(report.centers[1][1], report.id).toBeGreaterThan(170); expect(report.centers[1][0], report.id).toBeLessThan(60);
     expect(report.legacyCenter, report.id).toEqual(report.centers[1]);
-    expect(report.edgeDifferences, report.id).toBeGreaterThan(30); expect(report.logos, report.id).toBeGreaterThan(0);
+    expect(report.edgeDifferences, report.id).toBeGreaterThan(30); expect(report.logos, report.id).toBeGreaterThan(0); expect(report.hiddenLogos, report.id).toBe(0);
   }
 });
 
@@ -164,4 +196,25 @@ test('a previously saved empty video Reel recovers after the soundtrack is ready
   await dialog.getByRole('button', { name: '3. Exportar', exact: true }).click();
   await dialog.getByRole('button', { name: 'Crear Reel MP4', exact: true }).click();
   await expect(dialog.getByRole('link', { name: 'Descargar Reel', exact: true })).toBeVisible({ timeout: 25000 });
+});
+
+ test('three new collections preserve the optional logo and allow removing the video', async ({ page }) => {
+  await page.goto('/'); await page.evaluate(() => window.studioTest.seedVideo()); await page.goto('/?ui');
+  await page.getByRole('heading', { name: 'Vídeo del móvil', exact: true }).click();
+  await page.getByRole('button', { name: 'Estilo', exact: true }).click();
+  const logo = page.getByLabel('Mostrar logotipo de Son Ceibe', { exact: true });
+  await logo.check();
+  for (const name of ['Áurea', 'Atlántico', 'Escena']) {
+    await page.getByRole('button', { name: new RegExp('^' + name) }).click();
+    await expect(logo).toBeChecked();
+  }
+  await logo.uncheck();
+  await page.getByRole('button', { name: /^Áurea/ }).click();
+  await expect(logo).not.toBeChecked();
+  await page.screenshot({ path: 'test-results/new-prepared-collections.png' });
+  await page.getByRole('button', { name: 'Formato', exact: true }).click();
+  await expect(page.getByLabel('Inicio del vídeo', { exact: true })).not.toBeVisible();
+  await page.getByRole('button', { name: 'Quitar vídeo añadido', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Quitar vídeo añadido', exact: true })).toHaveCount(0);
+  await expect.poll(() => page.evaluate(async () => (await window.studioTest.savedProjects())[0].settings.background.videoUrl)).toBe('');
 });

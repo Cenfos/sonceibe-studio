@@ -12,6 +12,7 @@ export function PhotoInserts({ prepareImage }: { prepareImage: (file: File) => P
   const { currentProject, updateBackground } = useStore();
   const audio = useAudioEngineContext();
   const [busy, setBusy] = useState(false);
+  const [expandedPhoto, setExpandedPhoto] = useState<string | null>(null);
   if (!currentProject) return null;
   const bg = currentProject.settings.background;
   const clips = bg.photoClips ?? [];
@@ -48,13 +49,15 @@ export function PhotoInserts({ prepareImage }: { prepareImage: (file: File) => P
       <input aria-label="Añadir fotos puntuales" type="file" accept="image/*" multiple disabled={busy || duration <= 0} className="sr-only" onChange={upload} />
     </label>
     {duration <= 0 && <p className="text-xs text-muted-foreground">Carga primero la música para elegir los segundos.</p>}
-    {clips.length === 0 && <p className="text-xs text-muted-foreground">Las fotos que añadas aparecerán aquí con su miniatura y sus tiempos.</p>}
+    {clips.length === 0 && <p className="text-xs text-muted-foreground">Las fotos que añadas aparecerán aquí. Pulsa una foto para ajustar su encuadre y sus tiempos.</p>}
 
     {clips.map((clip, i) => <div key={clip.id} id={'photo-insert-' + clip.id} className="space-y-3 rounded-lg border border-border bg-card p-3">
-      <div className="flex items-center gap-3"><img src={clip.url} alt={'Foto puntual ' + (i + 1)} className="h-14 w-20 rounded object-contain bg-black" /><span className="flex-1 text-sm font-medium">Foto {i + 1}</span><Button size="sm" variant="ghost" onClick={() => updateBackground({ photoClips: clips.filter(item => item.id !== clip.id) })} aria-label={'Quitar foto ' + (i + 1)}>Quitar</Button></div>
+      <div className="flex items-center gap-3"><button type="button" aria-label={'Ajustar foto ' + (i + 1)} aria-expanded={expandedPhoto === clip.id} aria-controls={'photo-settings-' + clip.id} className="flex min-w-0 flex-1 items-center gap-3 rounded text-left hover:bg-secondary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" onClick={() => setExpandedPhoto(current => current === clip.id ? null : clip.id)}><img src={clip.url} alt={'Foto puntual ' + (i + 1)} className="h-14 w-20 rounded object-contain bg-black" /><span className="text-sm font-medium">Foto {i + 1}</span></button><Button size="sm" variant="ghost" onClick={() => { updateBackground({ photoClips: clips.filter(item => item.id !== clip.id) }); if (expandedPhoto === clip.id) setExpandedPhoto(null); }} aria-label={'Quitar foto ' + (i + 1)}>Quitar</Button></div>
+      <div id={'photo-settings-' + clip.id} hidden={expandedPhoto !== clip.id} className="space-y-3">
       <ImageFramingControls label={'foto puntual ' + (i + 1)} value={clip.placement} fit={bg.imageFit ?? 'contain'} onChange={placement => updateBackground({ photoClips: clips.map(item => item.id === clip.id ? { ...item, placement } : item) })} />
       <div className="grid grid-cols-2 gap-3">{(['start', 'end'] as const).map(field => <label key={field} className="space-y-1 text-xs">{field === 'start' ? 'Inicio (segundos)' : 'Final (segundos)'}<input key={clip[field]} aria-label={(field === 'start' ? 'Inicio foto ' : 'Final foto ') + (i + 1)} type="number" min={0} max={duration || undefined} step={0.1} defaultValue={clip[field]} onBlur={e => updateTime(clip.id, field, e.currentTarget)} onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }} className="block w-full rounded border border-border bg-background px-2 py-2 text-sm" /></label>)}</div>
       <div className="flex flex-wrap items-center justify-between gap-2"><span className="text-xs text-muted-foreground">Duración: {(clip.end - clip.start).toFixed(1)} s</span><Button variant="outline" size="sm" onClick={() => audio.seek(clip.start)}>Ver este momento</Button></div>
+      </div>
     </div>)}
     {clips.length > 1 && <p className="text-xs text-muted-foreground">Si dos fotos coinciden, se muestra la última añadida.</p>}
   </section>;

@@ -1,0 +1,76 @@
+import { expect, test } from '@playwright/test';
+
+test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
+
+test('phone preview shows source footage and responds to seeking while paused', async ({ page }) => {
+  await page.goto('/'); await page.evaluate(() => window.studioTest.seedVideo()); await page.goto('/?ui');
+  await page.getByRole('heading', { name: 'Vídeo del móvil', exact: true }).click();
+  await expect(page.getByRole('tab', { name: 'Avanzados', exact: true })).toHaveCount(0);
+  await expect(page.getByLabel('Inicio del vídeo', { exact: true })).toHaveCount(0);
+  await page.getByText('Sonido del montaje', { exact: true }).click();
+  await expect(page.getByLabel('Mantener sonido original', { exact: true })).toBeChecked();
+  await expect(page.getByLabel('Brillo del vídeo', { exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Ver proyecto', exact: true }).click();
+  const preview = page.getByRole('dialog', { name: 'Vista previa del proyecto' });
+  const pixel = () => preview.locator('canvas').evaluate((canvas: HTMLCanvasElement) => Array.from(canvas.getContext('2d')!.getImageData(300, 500, 1, 1).data));
+  await expect(preview.getByRole('button', { name: 'Reproducir vista previa' })).toBeEnabled();
+  await expect.poll(async () => (await pixel())[0]).toBeGreaterThan(80);
+  await preview.getByLabel('Posición de la vista previa').fill('1.7');
+  await expect.poll(async () => (await pixel())[1]).toBeGreaterThan(80);
+  await page.screenshot({ path: 'test-results/mobile-video-preview.png' });
+  await preview.getByRole('button', { name: 'Cerrar vista previa' }).click();
+  await expect(preview).not.toBeVisible();
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test('phone edits lyrics, orders photos and preserves per-photo framing', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(async () => {
+    await window.studioTest.seed();
+    const projects = JSON.parse(localStorage.getItem('sonceibe-projects-v2:owner')!);
+    const bg = projects[0].settings.background;
+    const canvas = document.createElement('canvas'); canvas.width = 20; canvas.height = 20;
+    const ctx = canvas.getContext('2d')!; ctx.fillStyle = '#0000ff'; ctx.fillRect(0, 0, 20, 20);
+    const blue = canvas.toDataURL();
+    bg.images.push(blue); bg.imageClips.push({ id: 'blue', url: blue, start: 5, end: 120 }); bg.photoClips = [];
+    localStorage.setItem('sonceibe-projects-v2:owner', JSON.stringify(projects));
+  });
+  await page.goto('/?ui'); await page.getByRole('heading', { name: 'Prueba Studio', exact: true }).click();
+  await page.getByRole('button', { name: 'Letra', exact: true }).click();
+  await page.getByLabel('Frase 1', { exact: true }).fill('Frase corregida');
+  await page.getByRole('button', { name: 'Eliminar frase 2', exact: true }).click();
+  await page.getByText('Escribir o pegar letra', { exact: true }).click();
+  await page.getByLabel('Letra para pegar').fill('Primera nueva\nSegunda nueva');
+  await page.getByRole('button', { name: 'Reemplazar letra con este texto' }).click();
+  await expect(page.getByLabel('Frase 2', { exact: true })).toHaveValue('Segunda nueva');
+  const syncButton = page.getByRole('button', { name: 'Sincronizar letra con la canción', exact: true });
+  await expect(syncButton).toHaveClass(/\bbg-primary\b/);
+  await expect(syncButton).toBeEnabled();
+  await page.getByRole('button', { name: 'Formato', exact: true }).click();
+  const firstPhoto = page.getByRole('article', { name: 'Foto 1', exact: true });
+  const original = await firstPhoto.locator('img').getAttribute('src');
+  await page.getByRole('button', { name: 'Bajar foto 1', exact: true }).click();
+  await expect(firstPhoto.locator('img')).not.toHaveAttribute('src', original!);
+  await page.getByRole('article', { name: 'Foto 1', exact: true }).locator('summary').click();
+  await page.getByLabel('Tamaño de foto 1', { exact: true }).fill('60');
+  await expect.poll(async () => (await page.evaluate(() => window.studioTest.savedProjects()))[0].settings.background.imageClips[0].placement?.scale).toBe(60);
+  await page.getByRole('button', { name: 'Ver proyecto', exact: true }).click();
+  const preview = page.getByRole('dialog', { name: 'Vista previa del proyecto' });
+  await preview.getByLabel('Posición de la vista previa').fill('1');
+  await expect.poll(() => preview.locator('canvas').evaluate((c: HTMLCanvasElement) => c.getContext('2d')!.getImageData(250, 400, 1, 1).data[2])).toBeGreaterThan(80);
+  await preview.getByRole('button', { name: 'Cerrar vista previa' }).click();
+  await page.screenshot({ path: 'test-results/mobile-photo-editor.png' });
+  await page.getByRole('button', { name: 'Eliminar foto 2', exact: true }).click();
+  await expect(page.getByRole('article')).toHaveCount(1);
+  await expect.poll(async () => (await page.evaluate(() => window.studioTest.savedProjects()))[0].settings.background.imageClips.length).toBe(1);
+  await page.locator('input[type="file"][multiple]').setInputFiles(Array.from({ length: 7 }, (_, i) => ({ name: `foto-${i}.png`, mimeType: 'image/png', buffer: Buffer.from(original!.split(',')[1], 'base64') })));
+  await expect(page.getByRole('article')).toHaveCount(8);
+  await expect.poll(async () => (await page.evaluate(() => window.studioTest.savedProjects()))[0].settings.background.imageClips.length).toBe(8);
+  await page.reload(); await page.getByRole('heading', { name: 'Prueba Studio', exact: true }).click();
+  await page.getByRole('button', { name: 'Formato', exact: true }).click();
+  await page.getByRole('article', { name: 'Foto 1', exact: true }).locator('summary').click();
+  await expect(page.getByLabel('Tamaño de foto 1', { exact: true })).toHaveValue('60');
+  await page.getByRole('button', { name: 'Letra', exact: true }).click();
+  await expect(page.getByLabel('Frase 1', { exact: true })).toHaveValue('Primera nueva');
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});

@@ -39,6 +39,7 @@ const settingsSchema = z.object({
     videoName: text, videoDuration: number.nonnegative(), videoStart: number.nonnegative(), videoEnd: number.nonnegative(),
     videoMuted: z.boolean(), videoVolume: number.min(0).max(1), songVolume: number.min(0).max(1), songOffset: number.nonnegative(), videoPlacement: placement,
     blur: number, overlay: number,
+    videoAdjustments: z.object({ brightness: number.min(0).max(200), contrast: number.min(0).max(200), saturation: number.min(0).max(200), sharpness: number.min(0).max(100) }),
   }).partial(),
   text: textStyle, titleStyle,
   animation: z.object({ in: animationType, out: animationType, duration: number, karaokeColor: text, wordStagger: number }).partial(),
@@ -50,14 +51,15 @@ const settingsSchema = z.object({
   exportConfig: z.object({
     format: z.literal('mp4'), resolution: z.enum(['720p', '1080p', '4k']), fps: z.union([z.literal(30), z.literal(60)]),
     includeAudio: z.boolean(), orientation: z.enum(['landscape', 'portrait']),
+    quality: z.enum(['light', 'balanced', 'high']),
   }).partial(),
   syncProgress: z.object({ syncedCount: number, totalCount: number, currentIndex: number, inProgress: z.boolean() }).partial(),
   editingTarget: z.enum(['full', 'reel']),
   reel: z.object({
     start: time.nonnegative(), end: time.nonnegative(), coverUrl: url, showLyrics: z.boolean(), showTitle: z.boolean(),
-    lyricsMode: z.enum(['project', 'custom']).optional(), lyrics: lyrics.optional(), lyricsText: text.optional(),
+    selectionConfirmed: z.boolean().optional(), lyricsMode: z.enum(['project', 'custom']).optional(), lyrics: lyrics.optional(), lyricsText: text.optional(),
   }),
-  visualStyle: z.enum(['default', 'sonceibe', 'rock-galego', 'folk-atlantico', 'ska-ceibe', 'galicia-gaita', 'taberna-galega', 'noite-estrelada', 'papel-e-tinta', 'rustico-ramas', 'karaoke-pop', 'minimal', 'neon', 'cinema']),
+  visualStyle: z.enum(['default', 'sonceibe', 'rock-galego', 'folk-atlantico', 'ska-ceibe', 'galicia-gaita', 'taberna-galega', 'noite-estrelada', 'papel-e-tinta', 'rustico-ramas', 'aurea', 'atlantico', 'escena', 'karaoke-pop', 'minimal', 'neon', 'cinema']),
   showTitle: z.boolean(), showSonCeibeBranding: z.boolean(), createdAt: z.number().finite().nonnegative(), updatedAt: z.number().finite().nonnegative(),
 }).partial().required({ title: true }).transform((value): ProjectSettings => ({
   ...defaults, ...value,

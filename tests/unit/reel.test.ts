@@ -41,9 +41,28 @@ it('encodes the selected stereo samples, with neither the intro nor the outro', 
 
 it('rejects invalid boundaries and resets backgrounds including overlays', () => {
   for (const [a, b] of [[-1, 3], [5, 4], [1, 100], [0, NaN], [0, 0.1]]) expect(() => validateReel(a, b, 60)).toThrow();
-  const reset = emptyStyle();
+  const settings = createDefaultProjectSettings();
+  settings.visualStyle = 'rock-galego';
+  settings.background.photoClips = [];
+  const reset = emptyStyle(settings);
   expect(reset.background).toMatchObject({ type: 'color', color: '#000000', imageUrl: '', images: [], photoClips: [], overlay: 0 });
   expect(reset.effects).toMatchObject({ overlay: 0, particles: false, vignette: false });
+});
+
+it('removes the style without deleting any photo, cut, framing or video configuration', () => {
+  for (const type of ['image', 'images', 'video'] as const) {
+    const settings = createDefaultProjectSettings();
+    settings.visualStyle = 'rock-galego';
+    settings.background = { ...settings.background, type, imageUrl: 'fixed.jpg', images: ['one.jpg', 'two.jpg'],
+      imageClips: [{ id: 'bg', url: 'one.jpg', start: 5, end: 10, placement: { x: 25, y: 60, scale: 70 } }],
+      photoClips: [{ id: 'insert', url: 'two.jpg', start: 20, end: 25, placement: { x: 40, y: 20, scale: 55 } }],
+      videoUrl: 'video.mp4', videoStart: 3, videoEnd: 20, overlay: 0.4, blur: 5 };
+    const before = JSON.stringify(settings);
+    const reset = emptyStyle(settings);
+    expect(reset.visualStyle).toBe('default');
+    expect(reset.background).toEqual({ ...settings.background, overlay: 0, blur: 0 });
+    expect(JSON.stringify(settings)).toBe(before);
+  }
 });
 
 
