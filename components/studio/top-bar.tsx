@@ -167,7 +167,7 @@ export function TopBar() {
       const formatLabel = imported.format.toUpperCase();
       const cleanupCount = removedLines + removedChordMarks;
       const cleanupMessage = cleanupCount > 0
-        ? ` · ${removedLines} línea${removedLines !== 1 ? 's' : ''} y ${removedChordMarks} acorde${removedChordMarks !== 1 ? 's' : ''} eliminados`
+        ? ` · Limpieza: ${removedLines} línea${removedLines !== 1 ? 's' : ''} y ${removedChordMarks} anotaci${removedChordMarks !== 1 ? 'ones' : 'ón'}`
         : '';
 
       if (isLrc) {

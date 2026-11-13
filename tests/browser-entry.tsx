@@ -11,6 +11,7 @@ import { getProjectAudio, saveProjectAudio, LOCAL_AUDIO_URL } from '../lib/local
 import { listSnapshots } from '../lib/project-history';
 import { loadRecentProjects, saveRecentProjects } from '../lib/recent-projects';
 import { Input, BlobSource, MP4 } from 'mediabunny';
+import { parseLrcLyrics, parseTxtLyrics } from '../lib/lyrics-utils';
 
 export function wav(seconds: number): File {
   const rate = 16000, length = rate * seconds;
@@ -44,11 +45,12 @@ async function seed(artist = '') {
 async function exportFixture(target: VideoTarget, cropped = false) {
   let settings = createDefaultProjectSettings();
   settings.showTitle = false; settings.audioDuration = 6;
-  settings.background = { ...settings.background, type: 'image', imageUrl: solidImage('#bb2222', target === 'mobile' ? 320 : 180, target === 'mobile' ? 180 : 320), imageFit: 'contain', overlay: 0 };
+  settings.background = { ...settings.background, type: 'image', imageUrl: solidImage('#2233bb', target === 'mobile' ? 320 : 180, target === 'mobile' ? 180 : 320), imageFit: 'contain', overlay: 0 };
   settings.effects = { ...settings.effects, overlay: 0, vignette: false, particles: false, lightleaks: false };
   settings.animation = { ...settings.animation, in: 'line', out: 'line', duration: 0.05 };
   settings.text = { ...settings.text, fontFamily: 'Arial', shadow: false, outlineWidth: 0 };
-  settings.lyrics = [{ id: '1', text: 'PRIMERA', start: 0, end: 2 }, { id: '2', text: 'SEGUNDA', start: 2, end: 4 }, { id: '3', text: 'ULTIMA', start: 4, end: 6 }];
+  settings.lyrics = parseLrcLyrics('[00:00.00][F]PRIMERA\n[00:02.00][G]SEGUNDA\n[00:04.00]ULTIMA');
+  settings.lyrics[2].end = 6;
   let source: Blob = wav(6);
   if (cropped) {
     settings.audioDuration = 12;
@@ -86,12 +88,20 @@ async function exportFixture(target: VideoTarget, cropped = false) {
       });
       ctx.drawImage(video, 0, 0);
       const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-      let whitePixels = 0, signature = 0;
+      let whitePixels = 0, signature = 0, chordPixels = 0;
+      let firstWhiteY = canvas.height, lastChordY = 0;
       for (let index = 0; index < pixels.length; index += 4) {
-        if (pixels[index] > 180 && pixels[index + 1] > 180 && pixels[index + 2] > 180) { whitePixels++; signature = (signature + index) % 1000000007; }
+        if (pixels[index] > 180 && pixels[index + 1] > 180 && pixels[index + 2] > 180) { whitePixels++;
+          signature = (signature + index) % 1000000007;
+          firstWhiteY = Math.min(firstWhiteY, Math.floor(index / (4 * canvas.width)));
+        }
+        if (pixels[index] > 220 && pixels[index + 1] > 45 && pixels[index + 1] < 115 && pixels[index + 2] < 115) {
+          chordPixels++;
+          lastChordY = Math.max(lastChordY, Math.floor(index / (4 * canvas.width)));
+        }
       }
       const corners = [[10, 10], [canvas.width - 10, 10], [10, canvas.height - 10], [canvas.width - 10, canvas.height - 10]].map(([x, y]) => Array.from(ctx.getImageData(x, y, 1, 1).data));
-      sampleFrames.push({ time: video.currentTime, whitePixels, signature, corners });
+      sampleFrames.push({ time: video.currentTime, whitePixels, signature, corners, chordPixels, lastChordY, firstWhiteY });
     }
     const input = new Input({ formats: [MP4], source: new BlobSource(result.blob) });
     const audioTracks = (await input.getAudioTracks()).length;
@@ -127,8 +137,24 @@ function renderLongLyrics() {
   for (const time of [1, 121, 181, 299.5]) renderFrame(ctx, 192, 108, settings, time);
   return drawn;
 }
+function renderChords() {
+  const settings = createDefaultProjectSettings();
+  settings.showTitle = false;
+  settings.text = { ...settings.text, fontFamily: 'Arial', fontSize: 100, transform: 'uppercase' };
+  settings.lyrics = parseTxtLyrics('[Estribillo]\n[F]cun luar [G]que [Am]aloumiña', 4);
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d')!;
+  const drawn: { text: string; left: number; y: number; color: string; cunLuar: number }[] = [];
+  ctx.fillText = (text, x, y) => {
+    const left = ctx.textAlign === 'center' ? x - ctx.measureText(text).width / 2 : x;
+    drawn.push({ text, left, y, color: String(ctx.fillStyle), cunLuar: ctx.measureText('CUN LUAR ').width });
+  };
+  renderFrame(ctx, 270, 480, settings, 2);
+  return drawn;
+}
+
 const savedProjects = async () => (await loadRecentProjects('sonceibe-projects-v2:owner')).projects;
-const api = { videoMixFixture, videoExportFixture, videoPersistenceFixture, videoStylesFixture, videoSoundRms, seedVideo, seed, exportFixture, renderIntervals, renderLongLyrics, getProjectAudio, saveProjectAudio, listSnapshots, savedProjects, saveRecentProjects };
+const api = { videoMixFixture, videoExportFixture, videoPersistenceFixture, videoStylesFixture, videoSoundRms, seedVideo, seed, exportFixture, renderIntervals, renderLongLyrics, renderChords, getProjectAudio, saveProjectAudio, listSnapshots, savedProjects, saveRecentProjects };
 declare global { interface Window { studioTest: typeof api } }
 window.studioTest = api;
 if (location.search.includes('ui')) createRoot(document.getElementById('root')!).render(<StudioClient userId="owner" account={{ name: 'Ana Studio', email: 'ana@example.com' }} />);
