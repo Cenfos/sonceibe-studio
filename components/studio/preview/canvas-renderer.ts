@@ -394,6 +394,7 @@ function drawScrollingLyrics(
   const layout = getScrollLyricsLayout(ctx, w, h, settings);
   const { lines, heights, centers } = layout;
   if (!lines.length || time < lines[0].start) return;
+  const renderScale = Math.min(w, h) / 1080;
   const hasTimedLines = lines.some((line) => line.start > 0 || line.end > line.start);
   let currentIndex = 0;
   if (hasTimedLines) {
