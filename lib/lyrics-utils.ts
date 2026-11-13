@@ -18,8 +18,15 @@ export interface LyricsCleanupResult {
   removedChordMarks: number;
 }
 
-// Bracketed chord names are part of the lyric source. Strip other annotations.
+// Bracketed chord names and Studio guide markers are part of the lyric source.
+// Guide markers are kept as timed metadata so the renderer can show the
+// current section/progression without treating them as sung lyrics.
 const INLINE_ANNOTATION_RE = /\([^()]*\)|\[[^\[\]]*\]/g;
+const STUDIO_GUIDE_RE = /^\[(?:Acordes|Secci[oó]n):\s*[^\]]+\]$/i;
+
+function isStudioGuideAnnotation(value: string): boolean {
+  return STUDIO_GUIDE_RE.test(value.trim());
+}
 
 function stripInlineAnnotations(line: string): { text: string; removed: number } {
   let text = line;
@@ -31,6 +38,7 @@ function stripInlineAnnotations(line: string): { text: string; removed: number }
     previous = text;
     text = text.replace(INLINE_ANNOTATION_RE, (annotation) => {
       if (annotation.startsWith('[') && isLyricChord(annotation.slice(1, -1))) return annotation;
+      if (isStudioGuideAnnotation(annotation)) return annotation;
       removed += 1;
       return '';
     });
