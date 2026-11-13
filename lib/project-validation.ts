@@ -19,6 +19,7 @@ const textStyle = z.object({
   glow: z.boolean(), glowColor: text, glowIntensity: number,
   position: z.enum(['top', 'center', 'bottom']), align: z.enum(['left', 'center', 'right']),
   transform: z.enum(['none', 'uppercase', 'lowercase']), letterSpacing: number, lineHeight: number,
+  lyricsDisplayMode: z.enum(['line', 'scroll']),
 }).partial();
 const titleStyle = z.object({
   fontFamily: text, fontSize: number, fontWeight: number, fontStyle: z.enum(['normal', 'italic']),
