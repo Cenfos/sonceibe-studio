@@ -1,3 +1,4 @@
+import { activeChordBand, parseChordBand } from './lyric-chords';
 import { defaultAnimation, defaultEffects, defaultTextStyle, defaultTitleStyle, type ProjectSettings } from './types';
 
 /** Remove preset styling while retaining the complete media montage. */
@@ -36,11 +37,17 @@ export function reelSettings(settings: ProjectSettings, start: number, end: numb
   }
   // The cover replaces the photo montage; the selected frame and typography remain.
   const base = settings;
+  const inheritedBand = activeChordBand(settings.lyrics, start);
+  const chordBands = settings.lyrics
+    .filter(line => line.start > start && line.start < end && parseChordBand(line.text))
+    .map(line => ({ ...line, start: line.start - start, end: end - start }));
+  if (inheritedBand) chordBands.unshift({ ...inheritedBand, start: 0, end: end - start });
+  const reelLyrics = settings.reel?.lyricsMode === 'custom'
+    ? (settings.reel.lyrics || []).filter(line => line.text.trim() && line.end > line.start && line.end > 0 && line.start < end - start).map(line => ({ ...line, start: Math.max(0, line.start), end: Math.min(end - start, line.end) }))
+    : trim(settings.lyrics.filter(line => !parseChordBand(line.text))).map(line => ({ ...line, words: line.words ? trim(line.words) : undefined }));
   return {
     ...base, audioDuration: end - start, showTitle,
-    lyrics: !showLyrics ? [] : settings.reel?.lyricsMode === 'custom'
-      ? (settings.reel.lyrics || []).filter(line => line.text.trim() && line.end > line.start && line.end > 0 && line.start < end - start).map(line => ({ ...line, start: Math.max(0, line.start), end: Math.min(end - start, line.end) }))
-      : trim(settings.lyrics).map(line => ({ ...line, words: line.words ? trim(line.words) : undefined })),
+    lyrics: showLyrics ? [...reelLyrics, ...chordBands].sort((a, b) => a.start - b.start) : [],
     background: coverUrl
       ? { ...base.background, type: 'image', imageUrl: coverUrl, imageFit: 'cover', images: [], imageClips: [], photoClips: [] }
       : { ...bg, ...(bg.type === 'video' ? { videoStart: (bg.videoStart || 0) + start, videoEnd: (bg.videoStart || 0) + end } : {}), imageMode: bg.type === 'images' ? 'manual' : bg.imageMode, imageClips: trim(imageClips), photoClips: trim(bg.photoClips || []) },

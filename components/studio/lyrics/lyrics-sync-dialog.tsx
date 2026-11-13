@@ -1,5 +1,6 @@
 'use client';
 
+import { parseChordBand } from '@/lib/lyric-chords';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Hand, Minus, Pause, Play, Plus, RotateCcw, Square } from 'lucide-react';
 import { useStore } from '@/lib/store';
@@ -35,7 +36,7 @@ export function LyricsSyncDialog({ open, onOpenChange }: LyricsSyncDialogProps) 
 
   const lyrics = currentProject?.settings.lyrics ?? [];
   const syncableLyrics = useMemo(
-    () => lyrics.filter((line) => line.text.trim().length > 0),
+    () => lyrics.filter((line) => line.text.trim().length > 0 && !parseChordBand(line.text)),
     [lyrics]
   );
   const duration = audio.duration || currentProject?.settings.audioDuration || 0;
@@ -69,11 +70,8 @@ export function LyricsSyncDialog({ open, onOpenChange }: LyricsSyncDialogProps) 
     audio.seek(0);
     const playPromise = audio.audioEl.play();
 
-    const clearedLyrics = currentProject.settings.lyrics.map((line) => ({
-      ...line,
-      start: 0,
-      end: 0,
-    }));
+    const clearedLyrics = currentProject.settings.lyrics.map((line) =>
+      parseChordBand(line.text) ? line : { ...line, start: 0, end: 0 });
 
     updateSettings({
       lyrics: clearedLyrics,

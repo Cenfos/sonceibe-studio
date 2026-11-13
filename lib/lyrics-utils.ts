@@ -1,4 +1,4 @@
-import { isLyricChord } from './lyric-chords';
+import { isLyricChord, parseChordBand } from './lyric-chords';
 import type { LyricLine } from './types';
 
 function genId(): string {
@@ -64,7 +64,7 @@ export function cleanLyricsText(text: string): LyricsCleanupResult {
       continue;
     }
 
-    const cleaned = stripInlineAnnotations(normalized);
+    const cleaned = parseChordBand(normalized) ? { text: normalized, removed: 0 } : stripInlineAnnotations(normalized);
     removedChordMarks += cleaned.removed;
 
     if (!cleaned.text) {
@@ -375,14 +375,15 @@ export function parseLrcLyrics(text: string): LyricLine[] {
     }
   }
 
-  const sorted = [...result].sort((a, b) => a.start - b.start);
+  const sorted = result.filter(line => !parseChordBand(line.text)).sort((a, b) => a.start - b.start);
   for (let i = 0; i < sorted.length - 1; i++) {
     if (sorted[i].end <= sorted[i].start || sorted[i].end > sorted[i + 1].start) sorted[i].end = sorted[i + 1].start;
   }
   if (sorted.length > 0 && sorted[sorted.length - 1].end <= sorted[sorted.length - 1].start) {
     sorted[sorted.length - 1].end = sorted[sorted.length - 1].start + 4;
   }
-  return cleanParsedLyrics(sorted).lyrics;
+  const bands = result.filter(line => parseChordBand(line.text));
+  return cleanParsedLyrics([...sorted, ...bands].sort((a, b) => a.start - b.start)).lyrics;
 }
 
 export function exportToTxt(lyrics: LyricLine[]): string {

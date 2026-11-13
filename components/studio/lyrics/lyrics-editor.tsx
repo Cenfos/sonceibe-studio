@@ -1,5 +1,6 @@
 'use client';
 
+import { parseChordBand } from '@/lib/lyric-chords';
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { ReelCutControls, LyricReelMarkers } from './reel-cut-controls';
 import { ReelLyricsEditor } from '../reel-lyrics-editor';
@@ -106,7 +107,7 @@ function FullLyricsEditor() {
 
   const lyrics = currentProject?.settings.lyrics ?? [];
   const syncableLyrics = useMemo(
-    () => lyrics.filter((line) => line.text.trim().length > 0),
+    () => lyrics.filter((line) => line.text.trim().length > 0 && !parseChordBand(line.text)),
     [lyrics]
   );
   const duration = audio.duration || currentProject?.settings.audioDuration || 0;
@@ -236,7 +237,7 @@ function FullLyricsEditor() {
     // Plain-text imports carry provisional times so they can be previewed.
     // Manual synchronization must discard those times first; otherwise the
     // lyrics appear to advance by themselves and the user's taps are obscured.
-    const clearedLyrics = lyrics.map((line) => ({ ...line, start: 0, end: 0 }));
+    const clearedLyrics = lyrics.map((line) => parseChordBand(line.text) ? line : { ...line, start: 0, end: 0 });
     setLyrics(clearedLyrics);
     setTapSyncIndex(0);
     setTapSyncActive(true);
@@ -342,6 +343,7 @@ function FullLyricsEditor() {
         </div>
         <div className="p-3 space-y-2 border-b border-border bg-card/60">
           <p className="text-xs text-muted-foreground">Pon cada acorde antes de la palabra: <code>[F]cun luar [G]que [C]aloumiña</code>.</p>
+          <p className="text-xs text-muted-foreground">Para una franja de acordes, pega un LRC con una línea como <code>[00:00.00][Acordes: Am F D]</code>.</p>
           <input ref={fileRef} type="file" accept=".txt,.lrc" className="hidden" onChange={handleFileUpload} />
           <Button variant="outline" size="sm" className="w-full justify-start gap-2" onClick={() => fileRef.current?.click()}>
             <Upload className="h-4 w-4" /> Subir archivo TXT/LRC

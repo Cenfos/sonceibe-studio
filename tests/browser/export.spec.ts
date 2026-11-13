@@ -52,3 +52,13 @@ test('preview keeps red chords aligned with the lyrics when a phrase wraps', asy
   expect(am.y).toBeLessThan(secondRow.y);
   expect([f.color, g.color, am.color]).toEqual(Array(3).fill('#ff4848'));
 });
+
+test('the progression stays below the title and survives gaps and Reel cuts', async ({ page }) => {
+  await page.goto('/');
+  const [intro, change, gap, reel] = await page.evaluate(() => window.studioTest.renderChordBands());
+  expect(intro.map(entry => entry.text)).toEqual(['CANCIÓN', 'C  ·  G']);
+  expect(intro[1].y).toBeGreaterThan(intro[0].y);
+  expect(change.map(entry => entry.text)).toEqual(['Letra', 'C', 'CANCIÓN', 'F  ·  C']);
+  expect(gap.map(entry => entry.text)).toEqual(['CANCIÓN', 'F  ·  C']);
+  expect(reel.map(entry => entry.text)).toEqual(['CANCIÓN', 'F  ·  C']);
+});

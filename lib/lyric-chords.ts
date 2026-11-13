@@ -25,3 +25,19 @@ export function parseLyricChords(source: string, transformText: (text: string) =
   }
   return { text, chords };
 }
+
+/** A timed lyric-editor cue, independent of the sung line shown below it. */
+export function parseChordBand(text: string): string[] | null {
+  const match = /^\[Acordes:\s*([^\]]+)\]$/i.exec(text.trim());
+  if (!match) return null;
+  const chords = match[1].split(/\s+/).filter(Boolean);
+  return chords.length && chords.every(isLyricChord) ? chords : null;
+}
+
+export function activeChordBand<T extends { text: string; start: number }>(lines: T[], time: number): T | undefined {
+  let active: T | undefined;
+  for (const line of lines) {
+    if (line.start <= time && (!active || line.start >= active.start) && parseChordBand(line.text)) active = line;
+  }
+  return active;
+}

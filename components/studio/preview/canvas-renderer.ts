@@ -1,5 +1,5 @@
 import { drawAdjustedVideo } from '@/lib/video-adjustments';
-import { parseLyricChords } from '@/lib/lyric-chords';
+import { activeChordBand, parseChordBand, parseLyricChords } from '@/lib/lyric-chords';
 import { defaultTitleStyle, type AnimationType, type ImageFitMode, type ImagePlacement, type LyricLine, type ProjectSettings } from '@/lib/types';
 import { drawVisualBranding } from '@/lib/visual-branding';
 import { getVisualPreset } from '@/lib/visual-presets';
@@ -15,7 +15,7 @@ function getActiveLine(lyrics: LyricLine[], time: number): LyricLine | null {
   let active: LyricLine | null = null;
 
   for (const line of lyrics) {
-    if (!line.text || time < line.start || time > line.end) continue;
+    if (!line.text || time < line.start || time > line.end || parseChordBand(line.text)) continue;
     if (!active || line.start >= active.start) active = line;
   }
 
@@ -463,7 +463,10 @@ function drawProjectTitle(
   settings: ProjectSettings,
   time: number
 ) {
-  if (settings.showTitle === false || time < 0 || isDefaultProjectTitle(settings.title)) return;
+  const cue = activeChordBand(settings.lyrics, time);
+  const chords = cue ? parseChordBand(cue.text) : null;
+  const showTitle = settings.showTitle !== false && time >= 0 && !isDefaultProjectTitle(settings.title);
+  if (!showTitle && !chords) return;
 
   const presetTitle = getVisualPreset(settings.visualStyle)?.title ?? {};
   const titleStyle = {
@@ -473,7 +476,7 @@ function drawProjectTitle(
   };
   const rawTitle = settings.title.trim();
   const title = titleStyle.uppercase ? rawTitle.toLocaleUpperCase('gl-ES') : rawTitle;
-  if (!title) return;
+
 
   const minSide = Math.min(w, h);
   const renderScale = minSide / 1080;
@@ -513,14 +516,29 @@ function drawProjectTitle(
     ctx.shadowBlur = titleStyle.glowIntensity * renderScale;
   }
 
-  if (titleStyle.outlineWidth > 0) {
+  if (showTitle && titleStyle.outlineWidth > 0) {
     ctx.strokeStyle = titleStyle.outlineColor;
     ctx.lineWidth = titleStyle.outlineWidth * renderScale;
     ctx.strokeText(title, w / 2, y, maxWidth);
   }
 
   ctx.fillStyle = titleStyle.color || '#ffffff';
-  ctx.fillText(title, w / 2, y, maxWidth);
+  if (showTitle) ctx.fillText(title, w / 2, y, maxWidth);
+
+  if (chords) {
+    const band = chords.join('  ·  ');
+    const size = 36 * renderScale;
+    const bandY = showTitle ? y + fontSize / 2 + size * 0.85 : y;
+    ctx.font = `700 ${size}px ${fontFamily}, sans-serif`;
+    const padding = 18 * renderScale;
+    const width = Math.min(ctx.measureText(band).width + padding * 2, maxWidth);
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.78)';
+    ctx.fillRect((w - width) / 2, bandY - size * 0.68, width, size * 1.36);
+    ctx.fillStyle = '#ff6464';
+    ctx.fillText(band, w / 2, bandY, width - padding * 2);
+  }
   ctx.restore();
 }
 

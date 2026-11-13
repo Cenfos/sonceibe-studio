@@ -153,8 +153,24 @@ function renderChords() {
   return drawn;
 }
 
+function renderChordBands() {
+  const settings = createDefaultProjectSettings();
+  settings.title = 'Canción';
+  settings.audioDuration = 20;
+  settings.lyrics = parseLrcLyrics('[00:00.00][Acordes: C G]\n[00:02.00][C]Letra\n[00:03.00][Acordes: F C]\n[00:08.00][F]Outra');
+  const ctx = document.createElement('canvas').getContext('2d')!;
+  const drawn: { text: string; y: number }[] = [];
+  ctx.fillText = (text, _x, y) => { drawn.push({ text, y }); };
+  const draw = (project: ProjectSettings, time: number) => {
+    drawn.length = 0;
+    renderFrame(ctx, 270, 480, project, time);
+    return [...drawn];
+  };
+  return [draw(settings, 0), draw(settings, 3.5), draw(settings, 7.5), draw(reelSettings(settings, 7, 12), 0)];
+}
+
 const savedProjects = async () => (await loadRecentProjects('sonceibe-projects-v2:owner')).projects;
-const api = { videoMixFixture, videoExportFixture, videoPersistenceFixture, videoStylesFixture, videoSoundRms, seedVideo, seed, exportFixture, renderIntervals, renderLongLyrics, renderChords, getProjectAudio, saveProjectAudio, listSnapshots, savedProjects, saveRecentProjects };
+const api = { videoMixFixture, videoExportFixture, videoPersistenceFixture, videoStylesFixture, videoSoundRms, seedVideo, seed, exportFixture, renderIntervals, renderLongLyrics, renderChords, renderChordBands, getProjectAudio, saveProjectAudio, listSnapshots, savedProjects, saveRecentProjects };
 declare global { interface Window { studioTest: typeof api } }
 window.studioTest = api;
 if (location.search.includes('ui')) createRoot(document.getElementById('root')!).render(<StudioClient userId="owner" account={{ name: 'Ana Studio', email: 'ana@example.com' }} />);
