@@ -317,7 +317,7 @@ export function MobileStudioWizard() {
             <Card className="p-5 space-y-4">
               <div>
                 <h2 className="font-medium">Añade la letra</h2>
-                <p className="mt-1 text-sm text-muted-foreground">TXT, LRC, ODT, DOCX, RTF, HTML o Markdown. Studio limpia acordes y etiquetas automáticamente.</p>
+                <p className="mt-1 text-sm text-muted-foreground">TXT, LRC, ODT, DOCX, RTF, HTML o Markdown. Escribe los acordes antes de la palabra, como [Am]letra.</p>
               </div>
               <input
                 ref={lyricsInputRef}

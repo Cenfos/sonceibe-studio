@@ -341,6 +341,7 @@ function FullLyricsEditor() {
           <span className="text-sm font-medium">Importar Letra</span>
         </div>
         <div className="p-3 space-y-2 border-b border-border bg-card/60">
+          <p className="text-xs text-muted-foreground">Pon cada acorde antes de la palabra: <code>[F]cun luar [G]que [C]aloumiña</code>.</p>
           <input ref={fileRef} type="file" accept=".txt,.lrc" className="hidden" onChange={handleFileUpload} />
           <Button variant="outline" size="sm" className="w-full justify-start gap-2" onClick={() => fileRef.current?.click()}>
             <Upload className="h-4 w-4" /> Subir archivo TXT/LRC
