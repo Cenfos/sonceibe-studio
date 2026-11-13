@@ -198,6 +198,35 @@ export function TextTab() {
       <div className="border-t border-border pt-4">
         <div className="mb-4 text-xs font-semibold">Letra de la canción</div>
 
+        <ControlRow label="Presentación de la letra">
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { value: 'line', label: 'Por líneas', icon: AlignCenter },
+              { value: 'scroll', label: 'Ascendente', icon: ArrowUp },
+            ].map((mode) => {
+              const Icon = mode.icon;
+              const selected = (t.lyricsDisplayMode ?? 'line') === mode.value;
+              return (
+                <Button
+                  key={mode.value}
+                  type="button"
+                  variant={selected ? 'default' : 'outline'}
+                  size="sm"
+                  className="h-12 gap-2 text-xs"
+                  aria-pressed={selected}
+                  onClick={() => updateText({ lyricsDisplayMode: mode.value as 'line' | 'scroll' })}
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  <span>{mode.label}</span>
+                </Button>
+              );
+            })}
+          </div>
+          <p className="mt-2 text-[10px] leading-4 text-muted-foreground">
+            En el modo ascendente, la primera línea empieza centrada y las siguientes suben con la canción.
+          </p>
+        </ControlRow>
+
         <ControlRow label="Fuente">
           <Select value={t.fontFamily} onValueChange={(v) => updateText({ fontFamily: v })}>
             <SelectTrigger className="w-full">
@@ -317,31 +346,34 @@ export function TextTab() {
         )}
       </div>
 
-      <ControlRow label="Posición vertical">
-        <div className="grid grid-cols-3 gap-2">
-          {[
-            { v: 'top', icon: ArrowUp, label: 'Arriba' },
-            { v: 'center', icon: AlignCenter, label: 'Centro' },
-            { v: 'bottom', icon: ArrowDown, label: 'Abajo' },
-          ].map((p) => {
-            const Icon = p.icon;
-            return (
-              <Button
-                key={p.v}
-                variant={t.position === p.v ? 'default' : 'outline'}
-                size="sm"
-                className="flex-col h-14 gap-1"
-                onClick={() => updateText({ position: p.v as 'top' | 'center' | 'bottom' })}
-              >
-                <Icon className="h-4 w-4" />
-                <span className="text-[10px]">{p.label}</span>
-              </Button>
-            );
-          })}
-        </div>
-      </ControlRow>
+      {t.lyricsDisplayMode !== 'scroll' && (
+        <ControlRow label="Posición vertical">
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { v: 'top', icon: ArrowUp, label: 'Arriba' },
+              { v: 'center', icon: AlignCenter, label: 'Centro' },
+              { v: 'bottom', icon: ArrowDown, label: 'Abajo' },
+            ].map((p) => {
+              const Icon = p.icon;
+              return (
+                <Button
+                  key={p.v}
+                  variant={t.position === p.v ? 'default' : 'outline'}
+                  size="sm"
+                  className="flex-col h-14 gap-1"
+                  onClick={() => updateText({ position: p.v as 'top' | 'center' | 'bottom' })}
+                >
+                  <Icon className="h-4 w-4" />
+                  <span className="text-[10px]">{p.label}</span>
+                </Button>
+              );
+            })}
+          </div>
+        </ControlRow>
 
-      <ControlRow label="Alineación">
+        )}
+
+        <ControlRow label="Alineación">
         <div className="grid grid-cols-3 gap-2">
           {[
             { v: 'left', icon: AlignLeft },

@@ -6,6 +6,12 @@ import { getVisualPreset } from '@/lib/visual-presets';
 import { isDefaultProjectTitle } from '@/lib/project-title';
 
 const imageCache = new Map<string, HTMLImageElement>();
+interface ScrollLyricsLayout {
+  lines: LyricLine[];
+  heights: number[];
+  centers: number[];
+}
+const scrollLyricsLayoutCache = new WeakMap<ProjectSettings, Map<string, ScrollLyricsLayout>>();
 
 function clamp01(value: number): number {
   return Math.max(0, Math.min(1, value));
@@ -306,9 +312,143 @@ function drawText(
   settings: ProjectSettings,
   time: number
 ) {
+  if (settings.text.lyricsDisplayMode === 'scroll') {
+    drawScrollingLyrics(ctx, w, h, settings, time);
+    return;
+  }
+
   const line = getActiveLine(settings.lyrics, time);
   if (!line || !line.text) return;
 
+  let y = h * 0.5;
+  if (settings.text.position === 'top') y = h * 0.2;
+  if (settings.text.position === 'bottom') y = h * 0.8;
+  drawLyricLine(ctx, w, h, settings, time, line, y, 1, false);
+}
+
+function getScrollLyricsLayout(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  settings: ProjectSettings
+): ScrollLyricsLayout {
+  let cache = scrollLyricsLayoutCache.get(settings);
+  if (!cache) {
+    cache = new Map();
+    scrollLyricsLayoutCache.set(settings, cache);
+  }
+  const key = w + 'x' + h;
+  const cached = cache.get(key);
+  if (cached) return cached;
+
+  const lines = settings.lyrics
+    .filter((line) => line.text.trim() && !isStudioGuideLine(line.text))
+    .sort((left, right) => left.start - right.start);
+  const t = settings.text;
+  const renderScale = Math.min(w, h) / 1080;
+  const fontSize = t.fontSize * renderScale;
+  const lineHeight = fontSize * t.lineHeight;
+  const gap = fontSize * 0.42;
+  const maxWidth = w * 0.8;
+  const heights: number[] = [];
+
+  ctx.save();
+  ctx.font = String(t.fontWeight) + ' ' + fontSize + 'px ' + t.fontFamily + ', sans-serif';
+  for (const line of lines) {
+    const { text, chords } = parseLyricChords(line.text, (value) => {
+      if (t.transform === 'uppercase') return value.toUpperCase();
+      if (t.transform === 'lowercase') return value.toLowerCase();
+      return value;
+    });
+    let rows = 1;
+    let rowWidth = 0;
+    for (const word of text.match(/\S+/g) ?? []) {
+      const wordWidth = ctx.measureText(word).width;
+      const spaceWidth = rowWidth > 0 ? ctx.measureText(' ').width : 0;
+      if (rowWidth > 0 && rowWidth + spaceWidth + wordWidth > maxWidth) {
+        rows += 1;
+        rowWidth = wordWidth;
+      } else {
+        rowWidth += spaceWidth + wordWidth;
+      }
+    }
+    heights.push(rows * lineHeight + (chords.length ? fontSize * 0.72 : 0));
+  }
+  ctx.restore();
+
+  const centers = [0];
+  for (let index = 1; index < lines.length; index += 1) {
+    centers.push(centers[index - 1] + (heights[index - 1] + heights[index]) / 2 + gap);
+  }
+  const layout = { lines, heights, centers };
+  cache.set(key, layout);
+  return layout;
+}
+function drawScrollingLyrics(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  settings: ProjectSettings,
+  time: number
+) {
+  const layout = getScrollLyricsLayout(ctx, w, h, settings);
+  const { lines, heights, centers } = layout;
+  if (!lines.length || time < lines[0].start) return;
+  const renderScale = Math.min(w, h) / 1080;
+  const hasTimedLines = lines.some((line) => line.start > 0 || line.end > line.start);
+  let currentIndex = 0;
+  if (hasTimedLines) {
+    for (let index = 0; index < lines.length; index += 1) {
+      if (lines[index].start <= time) currentIndex = index;
+      else break;
+    }
+  }
+
+  let progress = 0;
+  let scrollOffset = centers[currentIndex];
+  if (hasTimedLines && currentIndex < lines.length - 1) {
+    const current = lines[currentIndex];
+    const next = lines[currentIndex + 1];
+    const transitionDuration = next.start > current.start
+      ? next.start - current.start
+      : Math.max(0.05, current.end - current.start);
+    progress = clamp01((time - current.start) / transitionDuration);
+    scrollOffset += (centers[currentIndex + 1] - centers[currentIndex]) * progress;
+  }
+
+  const chordGuideCenter = Math.min(h * 0.34, Math.min(w, h) * 0.36);
+  const viewportTop = Math.max(h * 0.32, chordGuideCenter + 64 * renderScale);
+  const viewportBottom = h * 0.93;
+  const anchorY = (viewportTop + viewportBottom) / 2;
+  const scrollIndex = currentIndex + progress;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, viewportTop, w, viewportBottom - viewportTop);
+  ctx.clip();
+  for (let index = 0; index < lines.length; index += 1) {
+    const y = anchorY + centers[index] - scrollOffset;
+    const halfHeight = heights[index] / 2;
+    if (y + halfHeight < viewportTop || y - halfHeight > viewportBottom) continue;
+    const distance = Math.abs(index - scrollIndex);
+    const opacity = Math.max(0.2, 1 - Math.min(1, distance * 0.36));
+    drawLyricLine(ctx, w, h, settings, time, lines[index], y, opacity, true);
+  }
+  ctx.restore();
+}
+
+function drawLyricLine(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  settings: ProjectSettings,
+  time: number,
+  line: LyricLine,
+  y: number,
+  opacity: number,
+  scrolling: boolean
+) {
+  if (!line.text.trim()) return;
   const t = settings.text;
   const anim = settings.animation;
   const { text, chords } = parseLyricChords(line.text, (value) => {
@@ -323,10 +463,6 @@ function drawText(
   ctx.textAlign = t.align === 'left' ? 'left' : t.align === 'right' ? 'right' : 'center';
   ctx.textBaseline = 'middle';
 
-  let y = h * 0.5;
-  if (t.position === 'top') y = h * 0.2;
-  if (t.position === 'bottom') y = h * 0.8;
-
   let x = w / 2;
   if (t.align === 'left') x = w * 0.1;
   if (t.align === 'right') x = w * 0.9;
@@ -335,10 +471,10 @@ function drawText(
   const inProgress = clamp01((time - line.start) / duration);
   const outProgress = clamp01((line.end - time) / duration);
   const lineDuration = Math.max(0.05, line.end - line.start);
-  const karaokeProgress = clamp01((time - line.start) / lineDuration);
+  const karaokeProgress = scrolling ? 0 : clamp01((time - line.start) / lineDuration);
 
-  const inState = animationProgress(anim.in, inProgress, 'in', renderScale);
-  const outState = animationProgress(anim.out, outProgress, 'out', renderScale);
+  const inState = scrolling ? { alpha: 1, scale: 1, offsetX: 0, blurPx: 0 } : animationProgress(anim.in, inProgress, 'in', renderScale);
+  const outState = scrolling ? { alpha: 1, scale: 1, offsetX: 0, blurPx: 0 } : animationProgress(anim.out, outProgress, 'out', renderScale);
   const alpha = inState.alpha * outState.alpha;
   const scale = inState.scale * outState.scale;
   const offsetX = inState.offsetX + outState.offsetX;
@@ -399,10 +535,10 @@ function drawText(
 
   const revealIn = getRevealProgress(anim.in, inProgress, words.length);
   const revealOut = getRevealProgress(anim.out, outProgress, words.length);
-  const reveal = Math.min(revealIn, revealOut);
+  const reveal = scrolling ? 1 : Math.min(revealIn, revealOut);
 
   ctx.save();
-  ctx.globalAlpha = alpha;
+  ctx.globalAlpha = alpha * opacity;
   ctx.translate(x + offsetX, y);
   ctx.scale(scale, scale);
   if (textBlur > 0) ctx.filter = `blur(${textBlur}px)`;

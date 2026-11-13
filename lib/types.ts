@@ -131,6 +131,7 @@ export interface TextStyle {
   transform: 'none' | 'uppercase' | 'lowercase';
   letterSpacing: number;
   lineHeight: number;
+  lyricsDisplayMode?: 'line' | 'scroll';
 }
 
 export interface TitleStyle {
@@ -236,6 +237,7 @@ export const defaultTextStyle: TextStyle = {
   transform: 'none',
   letterSpacing: 0,
   lineHeight: 1.3,
+  lyricsDisplayMode: 'line',
 };
 
 export const defaultTitleStyle: TitleStyle = {
