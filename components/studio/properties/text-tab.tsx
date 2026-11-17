@@ -77,10 +77,10 @@ export function TextTab() {
         <ControlRow label="Texto del título">
           <textarea
             value={showTitle ? settings.title : ''}
-            onChange={(e) => setTitleVisibility(true, e.target.value)}
+            onChange={(e) => setTitleVisibility(true, e.target.value.split(/\r?\n/).slice(0, 3).join('\n'))}
             placeholder={showTitle ? 'Título de la canción' : '(Sin título)'}
-            rows={(showTitle ? settings.title : '').includes('\n') ? 2 : 1}
-            aria-label="Texto del título; pulsa Intro para usar dos líneas"
+            rows={Math.min(3, (showTitle ? settings.title : '').split(/\r?\n/).length)}
+            aria-label="Texto del título; puedes usar hasta tres líneas"
             className="min-h-10 w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:italic placeholder:text-muted-foreground/60"
           />
         </ControlRow>
