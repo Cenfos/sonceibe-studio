@@ -52,7 +52,7 @@ import { emptyStyle } from '@/lib/reel';
 import { hasExternalCopy } from '@/lib/recent-projects';
 
 const steps = [
-  { id: 'music', label: 'Audio y vídeo', icon: Music },
+  { id: 'music', label: 'Audio', icon: Music },
   { id: 'lyrics', label: 'Letra', icon: FileText },
   { id: 'style', label: 'Estilo', icon: Palette },
   { id: 'finish', label: 'Exportar', icon: Film },
