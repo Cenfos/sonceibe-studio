@@ -16,7 +16,7 @@ function getLogo(): HTMLImageElement | null {
 
 export async function preloadVisualBranding(
   style: VisualStyleId | undefined,
-  showBranding = false
+  showBranding = true
 ): Promise<void> {
   if (!getVisualPreset(style) && !showBranding) return;
   const image = getLogo();
@@ -639,7 +639,7 @@ export function drawVisualBranding(
   h: number,
   style: VisualStyleId | undefined,
   time = 0,
-  showBranding = false,
+  showBranding = true,
   borderOnly = false
 ): void {
   const themed = Boolean(getVisualPreset(style));
