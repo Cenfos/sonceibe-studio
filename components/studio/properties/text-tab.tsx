@@ -13,7 +13,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import {
   AlignLeft,
@@ -76,11 +75,13 @@ export function TextTab() {
         <ToggleRow label="Mostrar título en el vídeo" checked={showTitle} onChange={setTitleVisibility} />
 
         <ControlRow label="Texto del título">
-          <Input
+          <textarea
             value={showTitle ? settings.title : ''}
             onChange={(e) => setTitleVisibility(true, e.target.value)}
             placeholder={showTitle ? 'Título de la canción' : '(Sin título)'}
-            className="h-9 placeholder:italic placeholder:text-muted-foreground/60"
+            rows={(showTitle ? settings.title : '').includes('\n') ? 2 : 1}
+            aria-label="Texto del título; pulsa Intro para usar dos líneas"
+            className="min-h-10 w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:italic placeholder:text-muted-foreground/60"
           />
         </ControlRow>
 
