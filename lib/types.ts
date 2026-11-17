@@ -327,7 +327,7 @@ export function createDefaultProjectSettings(): ProjectSettings {
     effects: { ...defaultEffects },
     exportConfig: { ...defaultExport },
     visualStyle: 'default',
-    showSonCeibeBranding: false,
+    showSonCeibeBranding: true,
     createdAt: now,
     updatedAt: now,
   };
