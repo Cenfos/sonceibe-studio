@@ -13,7 +13,7 @@ import { ReelLyricsEditor } from './reel-lyrics-editor';
 import { LyricsSyncDialog } from './lyrics/lyrics-sync-dialog';
 
 export function CreationGuide({ guided, onGuidedChange, step, onStepChange: setStep }: { guided: boolean; onGuidedChange: (guided: boolean) => void; step: number; onStepChange: (step: number) => void }) {
-  const { currentProject, updateSettings, setExportOpen, setLyrics, setTab } = useStore();
+  const { currentProject, updateSettings, updateText, setExportOpen, setLyrics, setTab } = useStore();
   const audio = useAudioEngineContext();
   const [loadingLyrics, setLoadingLyrics] = useState(false);
   const [syncOpen, setSyncOpen] = useState(false);
@@ -52,8 +52,12 @@ export function CreationGuide({ guided, onGuidedChange, step, onStepChange: setS
       <nav aria-label="Pasos para crear un vídeo" className="flex flex-wrap gap-1">
         {steps.map((label, index) => <Button key={label} className="flex-1 basis-24" size="sm" variant={currentStep === index ? 'default' : 'outline'} aria-current={currentStep === index ? 'step' : undefined} onClick={() => setStep(index)}>{index + 1}. {label}</Button>)}
       </nav>
-      {stage === 'Audio' && <><VideoBackgroundControls /><p className="text-sm">{hasAudio ? `Audio listo: ${settings.audioName || 'Canción cargada'}` : 'Carga una canción o un vídeo para empezar.'}</p><Button variant="outline" onClick={() => window.dispatchEvent(new Event('sonceibe:upload-audio'))}>{hasAudio ? 'Cambiar audio' : 'Elegir audio'}</Button></>}
+      {stage === 'Audio' && <><div className="space-y-2 rounded-xl border border-primary/25 bg-primary/5 p-3"><h3 className="text-sm font-semibold">1. Elige el audio (MP3)</h3><p className="text-sm">{hasAudio ? `Audio listo: ${settings.audioName || 'Canción cargada'}` : 'Empieza cargando la canción que sonará en el vídeo.'}</p><Button variant="outline" onClick={() => window.dispatchEvent(new Event('sonceibe:upload-audio'))}>{hasAudio ? 'Cambiar MP3' : 'Elegir MP3'}</Button></div><VideoBackgroundControls /></>}
       {stage === 'Fragmento' && <ReelControls />}
+      {stage === 'Letra' && <>
+        <fieldset className="space-y-2 rounded-xl border border-border p-3"><legend className="px-1 text-sm font-medium">Presentación de la letra</legend><div className="grid grid-cols-2 gap-2"><Button type="button" variant={(settings.text.lyricsDisplayMode ?? 'line') === 'scroll' ? 'outline' : 'default'} aria-pressed={(settings.text.lyricsDisplayMode ?? 'line') === 'line'} onClick={() => updateText({ lyricsDisplayMode: 'line' })}>Por líneas</Button><Button type="button" variant={settings.text.lyricsDisplayMode === 'scroll' ? 'default' : 'outline'} aria-pressed={settings.text.lyricsDisplayMode === 'scroll'} onClick={() => updateText({ lyricsDisplayMode: 'scroll' })}>Ascendente</Button></div></fieldset>
+        <label className="block space-y-1 text-sm font-medium">Título de la canción<textarea aria-label="Título de la canción" value={settings.title} onChange={event => updateSettings({ title: event.target.value })} rows={settings.title.includes('\n') ? 2 : 1} className="block min-h-10 w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm font-normal" placeholder="Título de la canción" /><span className="text-xs font-normal text-muted-foreground">Puedes escribirlo en una línea o pulsar Intro para dividirlo en dos. Se muestra en el vídeo si está activado.</span></label>
+      </>}
       {stage === 'Letra' && reel ? <ReelLyricsEditor reel={reel} patch={value => updateSettings({ reel: { ...reel, ...value } })} active={guided && stage === 'Letra'} advanced /> : stage === 'Letra' && <>
         <p className="text-sm">La letra es opcional. Puedes cargar un archivo, escribirla en el editor o continuar sin letra.</p>
         <p className="text-xs text-muted-foreground" role="status">{lyricCount ? `Letra cargada: ${lyricCount} ${lyricCount === 1 ? 'frase' : 'frases'}. Revisa su sincronización antes de exportar.` : 'Todavía no has añadido letra.'}</p>
