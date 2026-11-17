@@ -23,7 +23,7 @@ export function CreationGuide({ guided, onGuidedChange, step, onStepChange: setS
   const settings = currentProject.settings;
   const hasAudio = !!audio.audioBuffer;
   const reel = settings.editingTarget !== 'full' ? settings.reel : undefined;
-  const steps = reel ? ['Audio', 'Fragmento', 'Letra', 'Estilo', 'Exportar'] : ['Audio', 'Letra', 'Estilo', 'Exportar'];
+  const steps = ['Audio', 'Letra', 'Estilo', 'Exportar'];
   const currentStep = Math.min(step, steps.length - 1);
   const stage = steps[currentStep];
   const lyricCount = settings.lyrics.filter(line => line.text.trim()).length;
@@ -53,8 +53,7 @@ export function CreationGuide({ guided, onGuidedChange, step, onStepChange: setS
       <nav aria-label="Pasos para crear un vídeo" className="flex flex-wrap gap-1">
         {steps.map((label, index) => <Button key={label} className="flex-1 basis-24" size="sm" variant={currentStep === index ? 'default' : 'outline'} aria-current={currentStep === index ? 'step' : undefined} onClick={() => setStep(index)}>{index + 1}. {label}</Button>)}
       </nav>
-      {stage === 'Audio' && <><div className="space-y-2 rounded-xl border border-primary/25 bg-primary/5 p-3"><h3 className="text-sm font-semibold">1. Elige el audio (MP3)</h3><p className="text-sm">{hasAudio ? `Audio listo: ${settings.audioName || 'Canción cargada'}` : 'Empieza cargando la canción que sonará en el vídeo.'}</p><Button variant="outline" onClick={() => window.dispatchEvent(new Event('sonceibe:upload-audio'))}>{hasAudio ? 'Cambiar MP3' : 'Elegir MP3'}</Button></div><VideoBackgroundControls /></>}
-      {stage === 'Fragmento' && <ReelControls />}
+      {stage === 'Audio' && <><div className="space-y-2 rounded-xl border border-primary/25 bg-primary/5 p-3"><h3 className="text-sm font-semibold">1. Elige el audio (MP3)</h3><p className="text-sm">{hasAudio ? `Audio listo: ${settings.audioName || 'Canción cargada'}` : 'Empieza cargando la canción que sonará en el vídeo.'}</p><Button variant="outline" onClick={() => window.dispatchEvent(new Event('sonceibe:upload-audio'))}>{hasAudio ? 'Cambiar MP3' : 'Elegir MP3'}</Button></div><VideoBackgroundControls />{reel && <ReelControls />}</>}
       {stage === 'Letra' && <>
         <fieldset className="space-y-2 rounded-xl border border-border p-3"><legend className="px-1 text-sm font-medium">Presentación de la letra</legend><div className="grid grid-cols-2 gap-2"><Button type="button" variant={(settings.text.lyricsDisplayMode ?? 'line') === 'scroll' ? 'outline' : 'default'} aria-pressed={(settings.text.lyricsDisplayMode ?? 'line') === 'line'} onClick={() => updateText({ lyricsDisplayMode: 'line' })}>Por líneas</Button><Button type="button" variant={settings.text.lyricsDisplayMode === 'scroll' ? 'default' : 'outline'} aria-pressed={settings.text.lyricsDisplayMode === 'scroll'} onClick={() => updateText({ lyricsDisplayMode: 'scroll' })}>Ascendente</Button></div></fieldset>
         <label className="block space-y-1 text-sm font-medium">Título de la canción<textarea aria-label="Título de la canción" value={settings.title} onChange={event => updateSettings({ title: event.target.value.split(/\r?\n/).slice(0, 3).join('\n') })} rows={Math.min(3, settings.title.split(/\r?\n/).length)} className="block min-h-10 w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm font-normal" placeholder="Título de la canción" /><span className="text-xs font-normal text-muted-foreground">Puedes escribir el título en hasta tres líneas. Se muestra en el vídeo si está activado.</span></label>
@@ -71,7 +70,7 @@ export function CreationGuide({ guided, onGuidedChange, step, onStepChange: setS
       </>}
       {stage === 'Estilo' && <><StyleSection /><details className="rounded-xl border border-border p-3"><summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold">Avanzados · formato, fotos, letra y título</summary><div className="space-y-5 pt-3"><FormatSection /><TextTab /></div></details></>}
       {stage === 'Exportar' && <><p className="text-sm">{reel ? `Reel · ${reel.start.toFixed(1)}–${reel.end.toFixed(1)} s · ${(reel.end - reel.start).toFixed(1)} s · Vertical 9:16` : `Vídeo completo · ${settings.audioDuration.toFixed(1)} s · ${settings.exportConfig.orientation === 'portrait' ? 'Vertical 9:16' : 'Horizontal 16:9'}`}. Revisa la vista previa y confirma los detalles al exportar.</p><Button disabled={!hasAudio} onClick={() => setExportOpen(true)}>{reel ? 'Revisar y exportar Reel' : 'Revisar y exportar vídeo'}</Button>{!hasAudio && <p className="text-xs text-muted-foreground">Carga el audio para exportar.</p>}</>}
-      {currentStep < steps.length - 1 && <Button size="sm" disabled={loadingLyrics || (stage === 'Audio' && !hasAudio) || (stage === 'Fragmento' && reel?.selectionConfirmed === false)} onClick={() => setStep(currentStep + 1)}>{stage === 'Letra' && !reel && !lyricCount ? 'Continuar sin letra' : 'Continuar'}</Button>}
+      {currentStep < steps.length - 1 && <Button size="sm" disabled={loadingLyrics || (stage === 'Audio' && (!hasAudio || reel?.selectionConfirmed === false))} onClick={() => setStep(currentStep + 1)}>{stage === 'Letra' && !reel && !lyricCount ? 'Continuar sin letra' : 'Continuar'}</Button>}
     </>}
     <p className="text-xs text-muted-foreground">Estilo: elige un estilo preparado y abre Avanzados para modificar formato, fotos, letra y título.</p>
     {syncOpen && <LyricsSyncDialog open={syncOpen} onOpenChange={setSyncOpen} />}
