@@ -417,7 +417,7 @@ function drawScrollingLyrics(
   }
 
   const chordGuideCenter = Math.min(h * 0.34, Math.min(w, h) * 0.36);
-  const viewportTop = Math.max(h * 0.32, chordGuideCenter + 64 * renderScale);
+  const viewportTop = Math.max(h * 0.32, chordGuideCenter + 42 * renderScale);
   const viewportBottom = h * 0.93;
   const anchorY = (viewportTop + viewportBottom) / 2;
   const scrollIndex = currentIndex + progress;
@@ -698,6 +698,8 @@ function drawProjectTitle(
   const maxWidth = w * (settings.visualStyle === 'sonceibe' ? 0.78 : 0.84);
   let fontSize = titleStyle.fontSize * renderScale;
   const minTitleSize = Math.max(30 * renderScale, fontSize * 0.62);
+  const titleLines = title.split(/\r?\n/).slice(0, 2);
+  const maxTitleHeight = minSide * 0.14;
   const fontFamily = titleStyle.fontFamily || 'Inter';
   const fontStyle = titleStyle.fontStyle === 'italic' ? 'italic' : 'normal';
 
@@ -707,7 +709,7 @@ function drawProjectTitle(
   ctx.textBaseline = 'middle';
   ctx.font = `${fontStyle} ${titleStyle.fontWeight} ${fontSize}px ${fontFamily}, sans-serif`;
 
-  while (fontSize > minTitleSize && ctx.measureText(title).width > maxWidth) {
+  while (fontSize > minTitleSize && (titleLines.some(line => ctx.measureText(line).width > maxWidth) || titleLines.length * fontSize * 1.08 > maxTitleHeight)) {
     fontSize -= Math.max(1, 2 * renderScale);
     ctx.font = `${fontStyle} ${titleStyle.fontWeight} ${fontSize}px ${fontFamily}, sans-serif`;
   }
@@ -733,11 +735,11 @@ function drawProjectTitle(
   if (titleStyle.outlineWidth > 0) {
     ctx.strokeStyle = titleStyle.outlineColor;
     ctx.lineWidth = titleStyle.outlineWidth * renderScale;
-    ctx.strokeText(title, w / 2, y, maxWidth);
+    titleLines.forEach((line, index) => ctx.strokeText(line, w / 2, y + (index - (titleLines.length - 1) / 2) * fontSize * 1.08, maxWidth));
   }
 
   ctx.fillStyle = titleStyle.color || '#ffffff';
-  ctx.fillText(title, w / 2, y, maxWidth);
+  titleLines.forEach((line, index) => ctx.fillText(line, w / 2, y + (index - (titleLines.length - 1) / 2) * fontSize * 1.08, maxWidth));
   ctx.restore();
 }
 
