@@ -72,7 +72,7 @@ export function VideoBackgroundControls({ compact = false }: { compact?: boolean
   };
   return <section aria-label="Vídeo de fondo y sonido" className="space-y-3 rounded-xl border border-border bg-card/30 p-3">
     <h3 className="text-sm font-semibold">Vídeo de fondo</h3>
-    <Button asChild variant="outline" size="sm" className="w-full gap-2" disabled={busy}><label className="cursor-pointer"><Film className="h-4 w-4" />{busy ? 'Preparando…' : bg.videoUrl ? 'Cambiar vídeo' : 'Cargar vídeo del móvil'}<input aria-label="Vídeo de fondo" type="file" accept="video/*,.mp4,.mov,.webm" disabled={busy} className="hidden" onChange={uploadVideo} /></label></Button>
+    <Button asChild variant="outline" size="sm" className="w-full gap-2" disabled={busy}><label className="cursor-pointer"><Film className="h-4 w-4" />{busy ? 'Preparando…' : bg.videoUrl ? 'Cambiar vídeo' : 'Cargar vídeo'}<input aria-label="Vídeo de fondo" type="file" accept="video/*,.mp4,.mov,.webm" disabled={busy} className="hidden" onChange={uploadVideo} /></label></Button>
     {bg.videoUrl && !active && <Button type="button" variant="outline" size="sm" onClick={() => updateBackground({ type: 'video' })}>Usar el vídeo guardado</Button>}
     {active && <>
       <p className="break-all text-xs text-muted-foreground">{bg.videoName || 'Vídeo cargado'} · {range.duration.toFixed(2)} s de montaje</p>
