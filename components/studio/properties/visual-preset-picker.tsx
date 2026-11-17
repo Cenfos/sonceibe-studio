@@ -125,7 +125,7 @@ export function VisualPresetPicker() {
         </div>
       </div>
 
-      <label className="mb-3 flex min-h-11 items-center gap-2 text-xs"><input type="checkbox" checked={!!currentProject.settings.showSonCeibeBranding} onChange={event => updateSettings({ showSonCeibeBranding: event.target.checked })} />Mostrar logotipo de Son Ceibe</label>
+      <label className="mb-3 flex min-h-11 items-center gap-2 text-xs"><input type="checkbox" checked={currentProject.settings.showSonCeibeBranding !== false} onChange={event => updateSettings({ showSonCeibeBranding: event.target.checked })} />Mostrar logotipo de Son Ceibe</label>
       <div className="grid grid-cols-2 gap-2">
         {visualPresets.map((preset) => {
           const active = activeStyle === preset.id;
@@ -149,7 +149,7 @@ export function VisualPresetPicker() {
                   style={{ borderColor: `${preset.accent}99`, boxShadow: `inset 0 0 12px ${preset.accent}22` }}
                 />
                 <ThemePreviewDecoration id={preset.id} />
-                {currentProject.settings.showSonCeibeBranding && (
+                {currentProject.settings.showSonCeibeBranding !== false && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={SONCEIBE_LOGO_URL}
