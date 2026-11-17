@@ -54,7 +54,6 @@ import { hasExternalCopy } from '@/lib/recent-projects';
 const steps = [
   { id: 'music', label: 'Audio y vídeo', icon: Music },
   { id: 'lyrics', label: 'Letra', icon: FileText },
-  { id: 'photos', label: 'Formato', icon: Images },
   { id: 'style', label: 'Estilo', icon: Palette },
   { id: 'finish', label: 'Exportar', icon: Film },
 ] as const;
@@ -310,7 +309,7 @@ export function MobileStudioWizard() {
             </div>
             <div>
               <h1 className="text-xl font-semibold">{steps[step].label}</h1>
-              <p className="text-xs text-muted-foreground">Empieza con una canción o con un vídeo del móvil</p>
+              <p className="text-xs text-muted-foreground">Configura el audio, la letra, el estilo y exporta el vídeo.</p>
             </div>
           </div>
 
@@ -322,20 +321,15 @@ export function MobileStudioWizard() {
                 <h2 className="font-medium">Añade una canción o un vídeo</h2>
                 <p className="mt-1 text-sm text-muted-foreground">Quedará guardada localmente con este proyecto para no tener que buscarla de nuevo.</p>
               </div>
-              <VideoBackgroundControls compact />
               {settings.background.type !== 'video' && <>
               <input ref={audioInputRef} type="file" accept=".mp3,audio/*" className="hidden" onChange={loadAudio} />
               <Button className="w-full gap-2 h-12" onClick={() => audioInputRef.current?.click()} disabled={busy}>
                 <Upload className="h-4 w-4" />
-                {hasAudio ? 'Cambiar música' : 'Elegir música'}
+                {hasAudio ? 'Cambiar MP3' : 'Elegir MP3'}
               </Button>
-              {settings.audioName && (
-                <div className="flex items-center gap-2 rounded-lg bg-secondary/50 px-3 py-2 text-sm">
-                  <Check className="h-4 w-4 text-green-500" />
-                  <span className="truncate">{settings.audioName}</span>
-                </div>
-              )}
+              {settings.audioName && <div className="flex items-center gap-2 rounded-lg bg-secondary/50 px-3 py-2 text-sm"><Check className="h-4 w-4 text-green-500" /><span className="truncate">{settings.audioName}</span></div>}
               </>}
+              <VideoBackgroundControls compact />
             </Card>
           )}
 
@@ -374,24 +368,6 @@ export function MobileStudioWizard() {
 
           {step === 2 && (
             <div className="space-y-4">
-              <Card className="p-5 space-y-4">
-                <div>
-                  <h2 className="font-medium">Añade fotos</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">Puedes elegir varias, ordenar la secuencia y encuadrar cada foto. Si usas un vídeo, añadir fotos lo sustituye como fondo.</p>
-                </div>
-                <input ref={photosInputRef} type="file" accept="image/*" multiple className="hidden" onChange={loadPhotos} />
-                <Button className="w-full gap-2 h-12" onClick={() => photosInputRef.current?.click()} disabled={busy}>
-                  <Images className="h-4 w-4" />
-                  {hasPhotos ? 'Añadir más fotos' : 'Elegir fotos'}
-                </Button>
-                <MobilePhotoEditor />
-              </Card>
-            </div>
-          )}
-          {step === 3 && (
-            <div className="space-y-4">
-              <MobileTextControls />
-              <Button variant="outline" className="w-full" onClick={() => updateSettings(emptyStyle(currentProject.settings))}>Quitar estilo preparado</Button>
                 <Card className="p-5 space-y-4">
                   <div className="flex items-start gap-3">
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
@@ -399,7 +375,7 @@ export function MobileStudioWizard() {
                     </div>
                     <div>
                       <h2 className="font-medium">Estilos preparados</h2>
-                      <p className="mt-1 text-sm text-muted-foreground">Elige el marco y la letra. Las fotos añadidas en Formato se conservan.</p>
+                      <p className="mt-1 text-sm text-muted-foreground">Elige primero un estilo preparado para el marco y la letra.</p>
                     </div>
                   </div>
 
@@ -445,10 +421,23 @@ export function MobileStudioWizard() {
                     })}
                   </div>
                 </Card>
+              <details className="rounded-xl border border-border bg-card p-4">
+                <summary className="min-h-11 cursor-pointer py-2 text-sm font-semibold">Avanzados · formato, fotos y letra</summary>
+                <div className="space-y-4 pt-3">
+                  <MobileTextControls />
+                  <Button variant="outline" className="w-full" onClick={() => updateSettings(emptyStyle(currentProject.settings))}>Quitar estilo preparado</Button>
+                  <Card className="p-5 space-y-4">
+                    <div><h2 className="font-medium">Añade fotos</h2><p className="mt-1 text-sm text-muted-foreground">Puedes elegir varias, ordenarlas y encuadrarlas.</p></div>
+                    <input ref={photosInputRef} type="file" accept="image/*" multiple className="hidden" onChange={loadPhotos} />
+                    <Button className="w-full gap-2 h-12" onClick={() => photosInputRef.current?.click()} disabled={busy}><Images className="h-4 w-4" />{hasPhotos ? 'Añadir más fotos' : 'Elegir fotos'}</Button>
+                    <MobilePhotoEditor />
+                  </Card>
+                </div>
+              </details>
             </div>
           )}
 
-          {step === 4 && (
+          {step === 3 && (
             <Card className="p-5 space-y-4">
               <div>
                 <h2 className="font-medium">Listo para crear el vídeo</h2>
