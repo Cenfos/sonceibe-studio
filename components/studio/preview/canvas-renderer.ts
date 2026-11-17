@@ -416,8 +416,21 @@ function drawScrollingLyrics(
     scrollOffset += (centers[currentIndex + 1] - centers[currentIndex]) * progress;
   }
 
-  const chordGuideCenter = Math.min(h * 0.34, Math.min(w, h) * 0.36);
-  const viewportTop = Math.max(h * 0.32, chordGuideCenter + 42 * renderScale);
+  const minSide = Math.min(w, h);
+  const titleVisible = settings.showTitle !== false && !isDefaultProjectTitle(settings.title);
+  const titleStyle = { ...defaultTitleStyle, ...(getVisualPreset(settings.visualStyle)?.title ?? {}), ...(settings.titleStyle ?? {}) };
+  const titleLines = settings.title.trim().split(/\r?\n/).slice(0, 3);
+  const topOffset = Math.max(10, Math.min(35, titleStyle.topOffset));
+  const titleFontSize = Math.min(titleStyle.fontSize * renderScale, minSide * 0.19 / Math.max(1, titleLines.length * 1.08));
+  const titleBottom = titleVisible
+    ? minSide * (topOffset / 100) + ((titleLines.length - 1) / 2) * titleFontSize * 1.08 + titleFontSize * 0.58
+    : minSide * 0.07;
+  const titleSafeTop = titleBottom + minSide * 0.025;
+  const chordGuide = getChordGuide(settings.lyrics, time);
+  const chordGuideCenter = Math.min(h * 0.34, minSide * 0.36);
+  const chordGuideBottom = chordGuide ? chordGuideCenter + 42 * renderScale : 0;
+  const viewportTop = Math.max(minSide * 0.07, titleSafeTop, chordGuideBottom + (chordGuide ? 12 * renderScale : 0));
+  const fadeHeight = Math.max(56 * renderScale, minSide * 0.1);
   const viewportBottom = h * 0.93;
   const anchorY = (viewportTop + viewportBottom) / 2;
   const scrollIndex = currentIndex + progress;
@@ -431,8 +444,9 @@ function drawScrollingLyrics(
     const halfHeight = heights[index] / 2;
     if (y + halfHeight < viewportTop || y - halfHeight > viewportBottom) continue;
     const distance = Math.abs(index - scrollIndex);
-    const opacity = Math.max(0.2, 1 - Math.min(1, distance * 0.36));
-    drawLyricLine(ctx, w, h, settings, time, lines[index], y, opacity, true);
+    const distanceOpacity = Math.max(0.2, 1 - Math.min(1, distance * 0.36));
+    const topFade = clamp01((y - viewportTop) / fadeHeight);
+    drawLyricLine(ctx, w, h, settings, time, lines[index], y, distanceOpacity * topFade, true);
   }
   ctx.restore();
 }
@@ -698,8 +712,8 @@ function drawProjectTitle(
   const maxWidth = w * (settings.visualStyle === 'sonceibe' ? 0.78 : 0.84);
   let fontSize = titleStyle.fontSize * renderScale;
   const minTitleSize = Math.max(30 * renderScale, fontSize * 0.62);
-  const titleLines = title.split(/\r?\n/).slice(0, 2);
-  const maxTitleHeight = minSide * 0.14;
+  const titleLines = title.split(/\r?\n/).slice(0, 3);
+  const maxTitleHeight = minSide * 0.19;
   const fontFamily = titleStyle.fontFamily || 'Inter';
   const fontStyle = titleStyle.fontStyle === 'italic' ? 'italic' : 'normal';
 
