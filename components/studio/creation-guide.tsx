@@ -6,6 +6,7 @@ import { useAudioEngineContext } from '@/lib/audio-engine-context';
 import { VideoBackgroundControls } from './properties/video-background-controls';
 import { Button } from '@/components/ui/button';
 import { FormatSection, StyleSection } from './properties/design-sections';
+import { TextTab } from './properties/text-tab';
 import { cleanParsedLyrics, parseLrcLyrics, parseTxtLyrics, readLyricsFile } from '@/lib/lyrics-utils';
 import { toast } from 'sonner';
 import { ReelControls } from './reel-controls';
@@ -22,7 +23,7 @@ export function CreationGuide({ guided, onGuidedChange, step, onStepChange: setS
   const settings = currentProject.settings;
   const hasAudio = !!audio.audioBuffer;
   const reel = settings.editingTarget !== 'full' ? settings.reel : undefined;
-  const steps = reel ? ['Audio', 'Fragmento', 'Letra', 'Formato', 'Estilo', 'Exportar'] : ['Audio', 'Letra', 'Formato', 'Estilo', 'Exportar'];
+  const steps = reel ? ['Audio', 'Fragmento', 'Letra', 'Estilo', 'Exportar'] : ['Audio', 'Letra', 'Estilo', 'Exportar'];
   const currentStep = Math.min(step, steps.length - 1);
   const stage = steps[currentStep];
   const lyricCount = settings.lyrics.filter(line => line.text.trim()).length;
@@ -68,12 +69,11 @@ export function CreationGuide({ guided, onGuidedChange, step, onStepChange: setS
           <Button variant="outline" disabled={loadingLyrics} onClick={() => { updateSettings({ editingTarget: 'full' }); setTab('lyrics'); }}>Abrir editor de letra</Button>
         </div>
       </>}
-      {stage === 'Formato' && <FormatSection />}
-      {stage === 'Estilo' && <StyleSection />}
+      {stage === 'Estilo' && <><StyleSection /><details className="rounded-xl border border-border p-3"><summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold">Avanzados · formato, fotos, letra y título</summary><div className="space-y-5 pt-3"><FormatSection /><TextTab /></div></details></>}
       {stage === 'Exportar' && <><p className="text-sm">{reel ? `Reel · ${reel.start.toFixed(1)}–${reel.end.toFixed(1)} s · ${(reel.end - reel.start).toFixed(1)} s · Vertical 9:16` : `Vídeo completo · ${settings.audioDuration.toFixed(1)} s · ${settings.exportConfig.orientation === 'portrait' ? 'Vertical 9:16' : 'Horizontal 16:9'}`}. Revisa la vista previa y confirma los detalles al exportar.</p><Button disabled={!hasAudio} onClick={() => setExportOpen(true)}>{reel ? 'Revisar y exportar Reel' : 'Revisar y exportar vídeo'}</Button>{!hasAudio && <p className="text-xs text-muted-foreground">Carga el audio para exportar.</p>}</>}
       {currentStep < steps.length - 1 && <Button size="sm" disabled={loadingLyrics || (stage === 'Audio' && !hasAudio) || (stage === 'Fragmento' && reel?.selectionConfirmed === false)} onClick={() => setStep(currentStep + 1)}>{stage === 'Letra' && !reel && !lyricCount ? 'Continuar sin letra' : 'Continuar'}</Button>}
     </>}
-    <p className="text-xs text-muted-foreground">Formato: orientación y fotos. Estilo: estilos preparados. Usa las herramientas de arriba para la edición manual.</p>
+    <p className="text-xs text-muted-foreground">Estilo: elige un estilo preparado y abre Avanzados para modificar formato, fotos, letra y título.</p>
     {syncOpen && <LyricsSyncDialog open={syncOpen} onOpenChange={setSyncOpen} />}
   </section>;
 }
