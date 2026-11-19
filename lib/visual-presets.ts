@@ -7,7 +7,7 @@ import type {
   VisualStyleId,
   ProjectSettings,
 } from './types';
-import { defaultTitleStyle } from './types';
+import { defaultTextStyle, defaultTitleStyle } from './types';
 import { SONCEIBE_LOGO_DATA_URL } from './sonceibe-logo-data';
 
 export const SONCEIBE_LOGO_URL = SONCEIBE_LOGO_DATA_URL;
@@ -488,17 +488,46 @@ export function presetBackground(current: BackgroundConfig, preset: VisualPreset
   return { ...preset.background, ...(hasPhotos ? { type: current.type } : {}) };
 }
 
+function preserveManualValues<T extends Record<string, unknown>>(current: T, previousPreset: T, nextPreset: T): T {
+  const result = { ...nextPreset };
+  for (const key of Object.keys(nextPreset) as (keyof T)[]) {
+    if (current[key] !== previousPreset[key]) result[key] = current[key];
+  }
+  return result;
+}
+
+export function settingsWithPresetTypography(_settings: ProjectSettings, preset: VisualPreset): Pick<ProjectSettings, 'text' | 'titleStyle'> {
+  return {
+    text: { ...defaultTextStyle, ...preset.text },
+    titleStyle: { ...defaultTitleStyle, ...preset.title },
+  };
+}
+
 /** Video presets add only their frame and signature; footage, sound and text remain independent. */
-export function settingsWithVisualPreset(settings: ProjectSettings, preset: VisualPreset): Partial<ProjectSettings> {
+export function settingsWithVisualPreset(
+  settings: ProjectSettings,
+  preset: VisualPreset,
+  options: { resetTypography?: boolean } = {}
+): Partial<ProjectSettings> {
+  const previousPreset = getVisualPreset(settings.visualStyle);
+  const previousText = { ...defaultTextStyle, ...(previousPreset?.text ?? {}) };
+  const currentText = { ...defaultTextStyle, ...settings.text };
+  const nextText = { ...defaultTextStyle, ...preset.text };
+  const previousTitle = { ...defaultTitleStyle, ...(previousPreset?.title ?? {}) };
+  const currentTitle = { ...defaultTitleStyle, ...(settings.titleStyle ?? {}) };
+  const nextTitle = { ...defaultTitleStyle, ...preset.title };
+  const text = options.resetTypography ? nextText : preserveManualValues(currentText, previousText, nextText);
+  const titleStyle = options.resetTypography ? nextTitle : preserveManualValues(currentTitle, previousTitle, nextTitle);
+
   if (settings.background.type === 'video' && settings.background.videoUrl) return {
     visualStyle: preset.id, showSonCeibeBranding: settings.showSonCeibeBranding,
     background: { ...settings.background, overlay: 0, blur: 0 },
     effects: { ...settings.effects, overlay: 0, blur: 0, kenburns: false, particles: false, lightleaks: false, vignette: false },
   };
   return {
-    visualStyle: preset.id, titleStyle: { ...defaultTitleStyle, ...preset.title },
+    visualStyle: preset.id, titleStyle,
     background: { ...settings.background, ...presetBackground(settings.background, preset) },
-    text: { ...settings.text, ...preset.text }, animation: { ...settings.animation, ...preset.animation },
+    text, animation: { ...settings.animation, ...preset.animation },
     effects: { ...settings.effects, ...preset.effects },
   };
 }
