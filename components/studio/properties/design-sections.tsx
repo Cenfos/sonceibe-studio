@@ -2,6 +2,7 @@
 
 import { useStore } from '@/lib/store';
 import { emptyStyle } from '@/lib/reel';
+import { getVisualPreset, settingsWithPresetTypography } from '@/lib/visual-presets';
 import { Button } from '@/components/ui/button';
 import { BackgroundTab } from './background-tab';
 import { VisualPresetPicker } from './visual-preset-picker';
@@ -18,9 +19,12 @@ export function FormatSection() {
 
 export function StyleSection() {
   const { currentProject, updateSettings } = useStore();
-  return <section aria-label="Estilo del vídeo" className="space-y-3">
-    <p className="text-sm">Elige el estilo preparado para el marco y la letra. Tus fotos se conservan.</p>
+  if (!currentProject) return null;
+  const preset = getVisualPreset(currentProject.settings.visualStyle);
+  return <section aria-label="Estilos preparados" className="space-y-3">
+    <p className="text-sm">Estilos preparados</p>
     <VisualPresetPicker />
-    <Button variant="outline" size="sm" onClick={() => { if (currentProject) updateSettings(emptyStyle(currentProject.settings)); }}>Quitar estilo preparado</Button>
+    {preset && <Button variant="outline" size="sm" onClick={() => updateSettings(settingsWithPresetTypography(currentProject.settings, preset))}>Restaurar letra y título del estilo</Button>}
+    <Button variant="outline" size="sm" onClick={() => updateSettings(emptyStyle(currentProject.settings))}>Quitar estilo preparado</Button>
   </section>;
 }
