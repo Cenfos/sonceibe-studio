@@ -41,7 +41,7 @@ import { saveProjectAudioToWorkspace } from '@/lib/local-workspace';
 import { LyricsSyncDialog } from '@/components/studio/lyrics/lyrics-sync-dialog';
 import { MobileOrientationGate } from '@/components/studio/mobile-orientation-gate';
 import { MobileExportDialog } from '@/components/mobile/mobile-export-dialog';
-import { SONCEIBE_LOGO_URL, getVisualPreset, visualPresets, settingsWithVisualPreset } from '@/lib/visual-presets';
+import { SONCEIBE_LOGO_URL, getVisualPreset, visualPresets, settingsWithPresetTypography, settingsWithVisualPreset } from '@/lib/visual-presets';
 import { ThemePreviewDecoration } from '@/components/studio/properties/visual-preset-picker';
 import { type VisualStyleId } from '@/lib/types';
 import { toast } from 'sonner';
@@ -422,16 +422,27 @@ export function MobileStudioWizard() {
                   </div>
                 </Card>
               <details className="rounded-xl border border-border bg-card p-4">
-                <summary className="min-h-11 cursor-pointer py-2 text-sm font-semibold">Avanzados · formato, fotos y letra</summary>
-                <div className="space-y-4 pt-3">
-                  <MobileTextControls />
+                <summary className="min-h-11 cursor-pointer py-2 text-sm font-semibold">Avanzados</summary>
+                <div className="space-y-3 pt-3">
+                  <details className="rounded-lg border border-border p-3">
+                    <summary className="min-h-11 cursor-pointer py-2 text-sm font-medium">Formato y fotos</summary>
+                    <div className="space-y-4 pt-3">
+                      <Card className="p-5 space-y-4">
+                        <div><h2 className="font-medium">Añade fotos</h2><p className="mt-1 text-sm text-muted-foreground">Puedes elegir varias, ordenarlas y encuadrarlas.</p></div>
+                        <input ref={photosInputRef} type="file" accept="image/*" multiple className="hidden" onChange={loadPhotos} />
+                        <Button className="w-full gap-2 h-12" onClick={() => photosInputRef.current?.click()} disabled={busy}><Images className="h-4 w-4" />{hasPhotos ? 'Añadir más fotos' : 'Elegir fotos'}</Button>
+                        <MobilePhotoEditor />
+                      </Card>
+                    </div>
+                  </details>
+                  <details className="rounded-lg border border-border p-3">
+                    <summary className="min-h-11 cursor-pointer py-2 text-sm font-medium">Letra y título</summary>
+                    <div className="space-y-3 pt-3">
+                      <MobileTextControls />
+                      {getVisualPreset(currentProject.settings.visualStyle) && <Button variant="outline" className="w-full" onClick={() => updateSettings(settingsWithPresetTypography(currentProject.settings, getVisualPreset(currentProject.settings.visualStyle)!))}>Restaurar letra y título del estilo</Button>}
+                    </div>
+                  </details>
                   <Button variant="outline" className="w-full" onClick={() => updateSettings(emptyStyle(currentProject.settings))}>Quitar estilo preparado</Button>
-                  <Card className="p-5 space-y-4">
-                    <div><h2 className="font-medium">Añade fotos</h2><p className="mt-1 text-sm text-muted-foreground">Puedes elegir varias, ordenarlas y encuadrarlas.</p></div>
-                    <input ref={photosInputRef} type="file" accept="image/*" multiple className="hidden" onChange={loadPhotos} />
-                    <Button className="w-full gap-2 h-12" onClick={() => photosInputRef.current?.click()} disabled={busy}><Images className="h-4 w-4" />{hasPhotos ? 'Añadir más fotos' : 'Elegir fotos'}</Button>
-                    <MobilePhotoEditor />
-                  </Card>
                 </div>
               </details>
             </div>
